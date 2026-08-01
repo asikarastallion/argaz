@@ -86,7 +86,16 @@ def build_launch_commands(model: dict) -> list[str]:
 
     Komutlar kullanicinin elle yazacagi seyin AYNISI — terminalde gorunurler.
     """
-    env_file = paths.ARGAZ / model.get("env", "env.sh")
+    env_name = model.get("env", "env.sh")
+    # The two historical names remain valid in models.json, but their actual
+    # locations are configuration values rather than paths inferred from this
+    # checkout's parent directory.
+    if env_name == "env.sh":
+        env_file = paths.ENV_SH
+    elif env_name == "quadplane_env.sh":
+        env_file = paths.QUADPLANE_ENV_SH
+    else:
+        env_file = paths.ARGAZ / env_name
     lines = [f"source {shlex.quote(str(env_file))}"]
 
     method = model["method"]

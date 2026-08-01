@@ -1,0 +1,6 @@
+fastapi
+pymavlink
+pyyaml
+pytest
+uvicorn
+wsproto

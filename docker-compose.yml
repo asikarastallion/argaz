@@ -1,0 +1,14 @@
+services:
+  doctor-tier1:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.tier1
+    image: argazui:tier1
+    command: ["doctor", "--tier", "tier1"]
+
+  doctor-tier2:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.tier2
+    image: argazui:tier2
+    command: ["doctor"]

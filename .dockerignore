@@ -1,0 +1,10 @@
+.git
+.agents
+.codex
+ardupilot
+ardu_ws
+SITL_Models
+argazui/run
+argazui/__pycache__
+**/__pycache__
+**/*.pyc

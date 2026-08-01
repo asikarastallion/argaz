@@ -1,0 +1,11 @@
+# Local ArgazUI configuration. Paths are relative to this file, never to a
+# particular user's home directory. See argaz.toml.example for descriptions.
+ardupilot_root = "ardupilot"
+sitl_models_root = "SITL_Models"
+ardu_ws_root = "ardu_ws"
+env_script = "env.sh"
+quadplane_env_script = "quadplane_env.sh"
+
+port = 8770
+mavlink_port = 14550
+script_mavlink_port = 14551

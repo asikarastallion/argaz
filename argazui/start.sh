@@ -26,7 +26,6 @@ PY
 CANDIDATES=(
     "${ARGAZUI_PYTHON:-}"                       # explicit override
     "${VIRTUAL_ENV:-}/bin/python3"              # currently active venv
-    "$HOME/venv-ardupilot/bin/python3"          # the argaz setup's venv
     "$(command -v python3 2>/dev/null)"         # whatever is on PATH
     /usr/bin/python3
 )
@@ -39,7 +38,7 @@ done
 
 # Nothing ready? Install the missing packages into the first usable venv.
 if [ -z "$PY" ]; then
-    for candidate in "${VIRTUAL_ENV:-}/bin/python3" "$HOME/venv-ardupilot/bin/python3"; do
+    for candidate in "${VIRTUAL_ENV:-}/bin/python3"; do
         [ -n "$candidate" ] && [ -x "$candidate" ] || continue
         echo "ArgazUI: installing missing Python packages ($REQUIRED) -> $candidate"
         if "$candidate" -m pip install --quiet fastapi uvicorn wsproto pyyaml \
@@ -55,11 +54,27 @@ ERROR: none of the candidate Python interpreters has the packages ArgazUI needs.
 Required: $REQUIRED
 
 Install them with:
-    ~/venv-ardupilot/bin/pip install fastapi uvicorn wsproto pyyaml
+    /path/to/python3 -m pip install fastapi uvicorn wsproto pyyaml
 
 Or point ArgazUI at the interpreter you want:
     ARGAZUI_PYTHON=/path/to/python3 ./start.sh
 EOF
+    exit 1
+fi
+
+# `doctor` is already its own command. For a server start, pass through every
+# CLI override (notably --port) while performing the preflight first.
+if [ "${1:-}" = "doctor" ]; then
+    exec "$PY" -m argazui "$@"
+fi
+if [ "${1:-}" = "serve" ]; then
+    shift
+fi
+
+# Fail before the web server and terminal sessions start. This checks the
+# configured installation; it does not assume env.sh is beside this script.
+if ! "$PY" -m argazui doctor "$@"; then
+    echo "ArgazUI: prerequisites are incomplete; fix the items above and retry." >&2
     exit 1
 fi
 

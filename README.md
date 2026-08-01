@@ -59,14 +59,15 @@ these, and expects them to sit next to it:
 | [ardupilot_gazebo](https://github.com/ArduPilot/ardupilot_gazebo) + ROS 2 workspace | for the Iris / Zephyr models and the RViz bridge |
 | [SITL_Models](https://github.com/ArduPilot/SITL_Models) | the Gazebo model, world and parameter files |
 | Gazebo Harmonic, ROS 2 Jazzy | tested combination |
-| Python 3.12 | `fastapi`, `uvicorn`, `wsproto`, `pymavlink` |
+| Python 3.12 | `fastapi`, `uvicorn`, `wsproto`, `pymavlink`, `pyyaml`, `pytest` |
 
 Verified on Ubuntu 24.04 with Gazebo Harmonic and ROS 2 Jazzy.
 
 ### Expected layout
 
-ArgazUI reads `env.sh` from its parent directory, so it must live inside the
-simulation root:
+The supplied `argaz.toml` describes the simulation installation. Relative
+values are resolved from that file, so the default layout is only a convenient
+starting point, not a requirement:
 
 ```
 argaz/
@@ -86,20 +87,53 @@ The three large upstream trees are excluded from this repository via
 
 ```bash
 git clone https://github.com/asikarastallion/argaz.git
-cd argaz/argazui
+cd argaz
+cp argaz.toml.example argaz.toml       # edit paths if this is not your layout
+cd argazui
 
 # one-off: fetch the model preview images from the upstream ArduPilot docs
 python3 -m argazui.fetch_images
 
+./start.sh doctor                      # list every missing prerequisite
 ./start.sh
 ```
 
 Then open **http://127.0.0.1:8770**.
 
-`start.sh` locates a Python interpreter that has the required packages (the
-`venv-ardupilot` virtualenv is only activated in login shells, which is why
-`python3 -m argazui` can fail inside a VS Code terminal), and installs the
-missing ones if needed.
+`start.sh` locates a Python interpreter with the required packages and runs the
+critical `doctor` checks before it opens the server. Configuration resolution
+is: CLI option, `ARGAZ_ROOT` / related `ARGAZ_*` variables, `argaz.toml`, then
+auto-detection from this checkout. For example:
+
+```bash
+python3 -m argazui doctor --json
+python3 -m argazui --argaz-root /path/to/simulation-root doctor
+python3 -m argazui --mavlink-port 14600
+```
+
+See [`argaz.toml.example`](argaz.toml.example) for every setting. `doctor`
+checks SITL binaries by running `--version`, the model/ROS/Gazebo installation,
+Python packages, and HTTP/UDP port conflicts. It only reports state; it never
+installs or modifies an upstream tree.
+
+## Try it in Docker
+
+The fast, real-SITL-only image can be built and checked with one command:
+
+```bash
+docker compose run --build --rm doctor-tier1
+```
+
+It builds ArduCopter and ArduPlane SITL but deliberately has no Gazebo or ROS
+2. The full Gazebo Harmonic + ROS 2 Jazzy image is substantially larger and is
+intended for headless integration work:
+
+```bash
+docker compose run --build --rm doctor-tier2
+```
+
+Both image definitions are under [`docker/`](docker/); the second command is
+the intended clean-container validation of the complete prerequisite report.
 
 ## How it works
 
@@ -177,10 +211,12 @@ while those checks assume a level vehicle. With ARM (FORCE) it flies normally.
 
 ## Configuration
 
-Everything is plain JSON, generated automatically but meant to be edited.
+`argaz.toml` configures external roots and ports; JSON files configure the UI.
+No path is hard-coded to a user directory.
 
 | File | Purpose |
 |---|---|
+| `argaz.toml` | `ardupilot_root`, `sitl_models_root`, `ardu_ws_root`, `env_script`, ports; copy from `argaz.toml.example` on another machine |
 | `argazui/config/models.json` | Model registry — regenerate with `python3 -m argazui.scan_models --force`; entries marked `_manually_added` survive a rescan |
 | `argazui/config/buttons.json` | Quick command buttons per vehicle class, with optional Turkish labels |
 

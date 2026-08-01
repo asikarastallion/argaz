@@ -1,0 +1,12 @@
+# Copy to argaz.toml and adjust paths for your machine. Relative paths are
+# resolved relative to this file, so this sample has no machine-specific paths.
+
+ardupilot_root = "ardupilot"
+sitl_models_root = "SITL_Models"
+ardu_ws_root = "ardu_ws"
+env_script = "env.sh"
+quadplane_env_script = "quadplane_env.sh"
+
+port = 8770
+mavlink_port = 14550
+script_mavlink_port = 14551

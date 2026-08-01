@@ -12,12 +12,20 @@ ArgazUI **never modifies** your existing `argaz` setup. `env.sh`,
 ## 1. Starting
 
 ```bash
-cd ~/Documents/argaz/argazui
+cd argazui
+./start.sh doctor
 ./start.sh
 ```
 
 Then open **http://127.0.0.1:8770** in a browser.
 Different port: `./start.sh --port 9000`
+
+Before starting, `start.sh` runs the critical checks from `argazui doctor`.
+Use `./start.sh doctor --json` for automation. The root paths and ports come
+from CLI options, `ARGAZ_*` environment variables, `argaz.toml`, then
+auto-detection; `env.sh` is not assumed to be in this tool's parent directory.
+Copy `argaz.toml.example` to `argaz.toml` at the repository root and set the
+paths for an installation with a different layout.
 
 The server listens on **127.0.0.1 only** — it is not exposed to the network and
 has no authentication. Press `Ctrl+C` to stop; it cleans up the terminals it
