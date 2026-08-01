@@ -1,0 +1,61 @@
+# Fixed-wing landing — AUTOLAND mode, verified through to disarm.
+#
+# Sources:
+#   https://ardupilot.org/plane/docs/mode_autoland.html
+#     The takeoff direction must have been captured first: the aircraft must
+#     have flown in "TAKEOFF, FBWA, MANUAL, TRAINING, ACRO, STABILIZE modes,
+#     and during a NAV_TAKEOFF in AUTO" until "a GPS ground speed of 5m/s". If
+#     it took off some other way "the mode cannot be entered since the takeoff
+#     direction has not been captured". Also: "QuadPlanes cannot use this
+#     mode."  AUTOLAND_WP_ALT (55 m) and AUTOLAND_WP_DIST (400 m) place the
+#     final approach waypoint.
+#   ardupilot/ArduPlane/mode_autoland.cpp, ModeAutoLand::_enter()
+#     rejects entry with "Must already be flying!", "autoland not available"
+#     (quadplane) or "Takeoff initial direction not set".
+#
+# This pairs with plane_takeoff.yaml: TAKEOFF mode captures the direction that
+# AUTOLAND needs, so the two procedures are designed to be used together.
+schema: 1
+id: plane_land
+name:
+  en: Plane landing (AUTOLAND)
+  tr: Plane inisi (AUTOLAND)
+description:
+  en: >-
+    Flies the automatic fixed-wing approach back to the takeoff point and lands.
+    Requires a takeoff that captured the takeoff direction.
+  tr: >-
+    Kalkis noktasina otomatik sabit kanat yaklasmasi yapip iner. Kalkis
+    yonunun yakalandigi bir kalkis gerektirir.
+sources:
+  - https://ardupilot.org/plane/docs/mode_autoland.html
+
+applies_to:
+  role: land
+  autopilot: ArduPlane
+  quadplane: false
+  default: true
+  priority: 10
+
+timeout: 600
+
+steps:
+  - name: {en: Release any RC overrides, tr: Kumanda override'larini birak}
+    rc_release: true
+
+  # AUTOLAND refuses entry when the aircraft is not flying or the takeoff
+  # direction was never captured; the autopilot's own STATUSTEXT explains which
+  # of the two it was, and the mode step reports it verbatim.
+  - name: {en: Switch to AUTOLAND, tr: AUTOLAND moduna gec}
+    set_mode: AUTOLAND
+    timeout: 15
+
+  - name: {en: Fly the approach and land, tr: Yaklasmayi ucup in}
+    wait_for: {armed: false}
+    timeout: 540
+
+expect:
+  - condition: {armed: false}
+    message: {en: disarmed after landing, tr: inisten sonra disarm oldu}
+  - condition: {alt_below: 10.0}
+    message: {en: on the ground, tr: yerde}

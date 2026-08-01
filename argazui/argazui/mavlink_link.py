@@ -61,6 +61,9 @@ class VehicleState:
     armed: bool = False
     alt: float = 0.0
     groundspeed: float = 0.0
+    # Dikey hiz (VFR_HUD.climb). Kalkis prosedurleri "ACK geldi" yerine
+    # "arac gercekten tirmaniyor" diyebilmek icin bunu kullaniyor.
+    climb: float = 0.0
     sysid: int = 0
     last_heartbeat: float = 0.0
     # ARM oncesi kontrollerin durumu (SYS_STATUS prearm saglik biti).
@@ -75,15 +78,34 @@ class VehicleState:
             "armed": self.armed,
             "alt": round(self.alt, 1),
             "groundspeed": round(self.groundspeed, 1),
+            "climb": round(self.climb, 1),
             "sysid": self.sysid,
             "prearm_ok": self.prearm_ok,
             "prearm_known": self.prearm_known,
         }
 
 
+# RC_OVERRIDE_TIME defaults to 3.0 s (ArduPilot
+# libraries/RC_Channel/RC_Channels_VarInfo.h): an override that is not resent
+# expires and the vehicle falls back to the real RC input. In SITL that input
+# is the throttle at 1000, so a one-shot "stick up" override would stop a VTOL
+# climb after three seconds. Anything holding a stick has to keep saying so.
+RC_KEEPALIVE_INTERVAL = 0.5
+
+# ArgazUI konusan bir yer istasyonudur, o halde heartbeat de gondermelidir.
+# Gondermezse otopilot GCS'i kaybettigini dusunup failsafe'e giriyor — gercek
+# bir kosuda gorulmustu: QLAND sirasinda "GCS Failsafe On: switched to QLand".
+# MAVProxy'li yolda bunu MAVProxy yapiyordu; testler MAVProxy'siz kostugu icin
+# eksikligi ancak orada ortaya cikti.
+GCS_HEARTBEAT_INTERVAL = 1.0
+
+
 @dataclass
 class _Job:
-    command: str
+    command: str = ""
+    # A procedure step submits a callable instead of a command string; it runs
+    # on the same worker thread, so it may touch the pymavlink connection.
+    fn: Optional[Callable] = None
     result: Queue = field(default_factory=Queue)
 
 
@@ -109,8 +131,14 @@ class MavlinkLink:
     kuyruga girer, worker calistirir ve sonucu geri dondurur.
     """
 
-    def __init__(self, port: int = 14550, on_log: Optional[Callable[[str], None]] = None):
+    def __init__(self, port: int = 14550, on_log: Optional[Callable[[str], None]] = None,
+                 connection: Optional[str] = None):
         self.port = port
+        # Varsayilan: MAVProxy'nin 14550'ye verdigi UDP cikisi (UI yolu).
+        # Testler MAVProxy'siz kosarken SITL'in kendi TCP portuna baglanabilsin
+        # diye baglanti dizesi disaridan verilebiliyor. Degisen sadece TASIYICI;
+        # prosedurler ve motor iki durumda da ayni.
+        self.connection = connection or f"udpin:127.0.0.1:{port}"
         self.on_log = on_log or (lambda s: None)
         # Aktif modelin otopilot tipi ("ArduCopter" / "ArduPlane").
         # Mod tablosunu MAV_TYPE'dan tahmin etmek yerine buradan seciyoruz —
@@ -123,6 +151,13 @@ class MavlinkLink:
         self._thread: Optional[threading.Thread] = None
         # Reddedilen komutun gerekcesini gosterebilmek icin son STATUSTEXT'ler
         self._recent_status: deque = deque(maxlen=60)
+        # Aktif RC override'lari (kanal -> pwm) ve son gonderim zamani.
+        # Bkz. RC_KEEPALIVE_INTERVAL: override'lar surekli tazelenmezse
+        # ArduPilot 3 saniye sonra gercek kumandaya geri doner.
+        self._rc_overrides: dict[int, int] = {}
+        self._rc_last_sent: float = 0.0
+        self._hb_last_sent: float = 0.0
+        self._streams_requested: bool = False
 
     # ---------------------------------------------------------------- mod tablosu
     def _mode_table(self) -> dict:
@@ -179,13 +214,25 @@ class MavlinkLink:
             except Exception:
                 pass
             self._conn = None
+        self._rc_overrides.clear()
+        self._streams_requested = False
         self.state = VehicleState()
 
     def _run(self) -> None:
-        try:
-            self._conn = mavutil.mavlink_connection(f"udpin:127.0.0.1:{self.port}")
-        except Exception as exc:
-            self.on_log(t("mavlink_open_fail", port=self.port, err=exc))
+        # Baglantiyi ACMAYI yeniden deniyoruz. UDP'de ilk denemede acilir, ama
+        # TCP'de (SITL'in kendi 5760 portu) arac daha derleniyor olabilir ve
+        # baglanti reddedilir; tek denemede pes etmek link'i sessizce olduruyordu.
+        deadline = time.time() + 180.0
+        last_exc: Optional[Exception] = None
+        while not self._stop.is_set() and time.time() < deadline:
+            try:
+                self._conn = mavutil.mavlink_connection(self.connection)
+                break
+            except Exception as exc:
+                last_exc = exc
+                self._stop.wait(2.0)
+        if self._conn is None:
+            self.on_log(t("mavlink_open_fail", port=self.connection, err=last_exc))
             return
 
         while not self._stop.is_set():
@@ -195,7 +242,7 @@ class MavlinkLink:
             except Empty:
                 continue
             try:
-                job.result.put(self._execute(job.command))
+                job.result.put(job.fn(self) if job.fn else self._execute(job.command))
             except Exception as exc:                      # komut hatasi UI'yi dusurmesin
                 job.result.put({"ok": False, "text": t("cmd_error", err=exc)})
 
@@ -204,6 +251,7 @@ class MavlinkLink:
         """Gelen mesajlari okuyup arac durumunu gunceller."""
         deadline = time.time() + seconds
         while time.time() < deadline:
+            self._housekeeping()
             msg = self._conn.recv_match(blocking=True, timeout=0.05)
             if msg is None:
                 break
@@ -211,14 +259,62 @@ class MavlinkLink:
         if self.state.connected and time.time() - self.state.last_heartbeat > 5:
             self.state.connected = False
 
+    def _housekeeping(self) -> None:
+        """Her okuma dongusunde: GCS heartbeat'i ve RC override tazelemesi.
+
+        Ikisi de "gondermeyi birakirsan otopilot davranisini degistirir"
+        turunden; bu yuzden mesaj pompasinin icinde, her bekleyisin altinda
+        calisiyorlar.
+        """
+        now = time.time()
+        if now - self._hb_last_sent >= GCS_HEARTBEAT_INTERVAL:
+            try:
+                self._conn.mav.heartbeat_send(
+                    mavutil.mavlink.MAV_TYPE_GCS,
+                    mavutil.mavlink.MAV_AUTOPILOT_INVALID, 0, 0, 0)
+            except Exception:
+                pass
+            self._hb_last_sent = now
+        if self._rc_overrides and now - self._rc_last_sent >= RC_KEEPALIVE_INTERVAL:
+            self._rc_send_current()
+
+    def _request_streams(self) -> None:
+        """Telemetri akislarini ister (ilk heartbeat'ten sonra, bir kez).
+
+        MAVProxy'li yolda akislari MAVProxy istiyordu ve ArgazUI onun 14550
+        ciktisini dinledigi icin sorun gorunmuyordu. MAVProxy'siz baglanan
+        testlerde ArduCopter irtifayi hic yollamadi: kalkis gercekten oldugu
+        halde GLOBAL_POSITION_INT gelmedigi icin "alt=0.0" gorunuyordu.
+        Kabul kriterleri olculen duruma dayandigina gore o durumun akmasini
+        istemek de bu modulun isi.
+        """
+        if self._streams_requested:
+            return
+        try:
+            self._conn.mav.request_data_stream_send(
+                *self._target(), mavutil.mavlink.MAV_DATA_STREAM_ALL, 4, 1)
+            self._streams_requested = True
+        except Exception:
+            pass
+
+    def _rc_send_current(self) -> None:
+        chans = [0] * 18            # 0 = bu kanalda override yok
+        for ch, pwm in self._rc_overrides.items():
+            chans[ch - 1] = int(pwm)
+        self._conn.mav.rc_channels_override_send(*self._target(), *chans)
+        self._rc_last_sent = time.time()
+
     def _absorb(self, msg) -> None:
         t = msg.get_type()
         if t == "HEARTBEAT":
             # Yer istasyonlarinin kendi heartbeat'ini arac sanmayalim
-            if msg.get_srcComponent() == mavutil.mavlink.MAV_COMP_ID_MISSIONPLANNER:
+            # (MAVProxy'ninki ve GCS_HEARTBEAT_INTERVAL ile bizim gonderdigimiz).
+            if (msg.get_srcComponent() == mavutil.mavlink.MAV_COMP_ID_MISSIONPLANNER
+                    or msg.type == mavutil.mavlink.MAV_TYPE_GCS):
                 return
             self.state.connected = True
             self.state.last_heartbeat = time.time()
+            self._request_streams()
             self.state.sysid = msg.get_srcSystem()
             self.state.mode = self._mode_name(msg.custom_mode, msg)
             self.state.armed = bool(msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
@@ -226,6 +322,7 @@ class MavlinkLink:
             self.state.alt = msg.relative_alt / 1000.0
         elif t == "VFR_HUD":
             self.state.groundspeed = msg.groundspeed
+            self.state.climb = msg.climb
         elif t == "SYS_STATUS":
             bit = mavutil.mavlink.MAV_SYS_STATUS_PREARM_CHECK
             if msg.onboard_control_sensors_enabled & bit:
@@ -252,6 +349,7 @@ class MavlinkLink:
         """Belirli bir mesaji beklerken durum guncellemesini surdurur."""
         deadline = time.time() + timeout
         while time.time() < deadline:
+            self._housekeeping()
             msg = self._conn.recv_match(blocking=True, timeout=0.2)
             if msg is None:
                 continue
@@ -275,6 +373,24 @@ class MavlinkLink:
             return job.result.get(timeout=timeout)
         except Empty:
             return {"ok": False, "text": t("cmd_timeout", cmd=command)}
+
+    def submit(self, fn: Callable[["MavlinkLink"], dict], timeout: float,
+               label: str = "step") -> dict:
+        """Bir prosedur adimini worker thread'inde calistirir.
+
+        Tum pymavlink erisimi tek thread'de kalmali; prosedur motoru da bu
+        yuzden adimlarini komut kuyruguna veriyor. Adim icindeki bekleyisler
+        `_recv_until` uzerinden gittigi icin mesaj pompasi durmuyor: arac
+        durumu ve RC keepalive'i adim boyunca akmaya devam ediyor.
+        """
+        if not self._thread or not self._thread.is_alive():
+            return {"ok": False, "text": t("no_link")}
+        job = _Job(fn=fn)
+        self._jobs.put(job)
+        try:
+            return job.result.get(timeout=timeout + 10.0)
+        except Empty:
+            return {"ok": False, "text": t("cmd_timeout", cmd=label)}
 
     def wait_ready(self, timeout: float = 120.0) -> bool:
         """Ilk heartbeat gelene kadar bekler (worker thread'de degil, disaridan)."""
@@ -367,9 +483,8 @@ class MavlinkLink:
         trim = self._param_get(f"RC{ch}_TRIM")
         if trim is None:
             return None
-        chans = [0] * 18
-        chans[ch - 1] = int(trim)
-        self._conn.mav.rc_channels_override_send(*self._target(), *chans)
+        self._rc_overrides[ch] = int(trim)
+        self._rc_send_current()
         self._recv_until(lambda m: False, timeout=1.0)
         return t("rc_centered", chan=ch, trim=f"{trim:g}")
 
@@ -405,13 +520,39 @@ class MavlinkLink:
             sys_id, comp_id, mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0,
             1 if arm else 0, ARM_MAGIC if force else 0, 0, 0, 0, 0, 0,
         )
-        return self._await_ack(mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
-                               "ARM" if arm else "DISARM")
+        label = "ARM" if arm else "DISARM"
+        res = self._await_ack(mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, label)
+        if not res["ok"]:
+            return res
+        # ACK basari sayilmaz — heartbeat'in armed bayragi degisene kadar bekle.
+        # HEARTBEAT 1 Hz gelirken ACK aninda donuyor; bunu beklemeden donunce
+        # `state.armed` bayat kaliyordu ve prosedurdeki `when: {armed: false}`
+        # kosulu, arm BASARILI olmasina ragmen dogru sanilip ZORLA arm adimini
+        # da calistiriyordu (Swan-K1 / SkyCat kosusunda gorulduldu).
+        flag = mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED
+        hb = self._recv_until(
+            lambda m: (m.get_type() == "HEARTBEAT"
+                       and m.get_srcComponent() != mavutil.mavlink.MAV_COMP_ID_MISSIONPLANNER
+                       and m.type != mavutil.mavlink.MAV_TYPE_GCS
+                       and bool(m.base_mode & flag) == arm),
+            timeout=5.0,
+        )
+        if hb is None:
+            return {"ok": False, "text": t("arm_state_unconfirmed", label=label)}
+        return res
 
-    def _do_arm(self, args, arm: bool) -> dict:
+    def _do_arm(self, args, arm: bool, recover: bool = True) -> dict:
+        """ARM/DISARM.
+
+        `recover=False` iken v1.0'dan gelen otomatik kurtarma (RC ortalama,
+        ivmeolcer kalibrasyonu, gecici redlerde yeniden deneme) atlanir.
+        Prosedurler bunu, "once normal arm dene, olmazsa ZORLA" gibi kendi
+        yedegini kuran adimlarda kullaniyor — orada ikinci bir kurtarma
+        turu sadece bekleme suresini uzatirdi.
+        """
         force = any(a.lower() == "force" for a in args)
         res = self._send_arm(arm, force)
-        if res["ok"] or not arm:
+        if res["ok"] or not arm or not recover:
             return res
 
         # 1) Kendiliginden duzeltilebilen redler: notr olmayan kumanda cubugu,
@@ -505,12 +646,100 @@ class MavlinkLink:
             return {"ok": False, "text": t("rc_int")}
         if not 1 <= chan <= 18:
             return {"ok": False, "text": t("rc_range")}
-        chans = [0] * 18
-        chans[chan - 1] = pwm
-        self._conn.mav.rc_channels_override_send(*self._target(), *chans)
-        return {"ok": True, "text": t("rc_ok", chan=chan, pwm=pwm)}
+        return self._do_rc_channels({chan: pwm})
 
-    def _await_ack(self, command_id: int, label: str) -> dict:
+    # ---------------------------------------------------------------- prosedur ilkelleri
+    # Asagidakiler prosedur motorunun (procrunner.py) worker thread'inde
+    # cagirdigi ilkeller. Hepsi `submit()` uzerinden gelir, yani pymavlink
+    # baglantisina dokunmalari guvenlidir.
+    def _do_rc_channels(self, channels: dict) -> dict:
+        """Verilen kanallari override eder; digerlerine dokunmaz.
+
+        Override'lar `_rc_keepalive` tarafindan tazelenir, cunku ArduPilot
+        RC_OVERRIDE_TIME (varsayilan 3 sn) sonunda gercek kumandaya doner.
+        """
+        for ch, pwm in channels.items():
+            ch, pwm = int(ch), int(pwm)
+            if not 1 <= ch <= 18:
+                return {"ok": False, "text": t("rc_range")}
+            self._rc_overrides[ch] = pwm
+        self._rc_send_current()
+        shown = ", ".join(f"RC{c}={p}" for c, p in sorted(channels.items()))
+        return {"ok": True, "text": t("rc_override_ok", channels=shown)}
+
+    def _do_rc_release(self) -> dict:
+        """Tum override'lari birakir (0 = bu kanalda override yok)."""
+        had = bool(self._rc_overrides)
+        self._rc_overrides.clear()
+        self._conn.mav.rc_channels_override_send(*self._target(), *([0] * 18))
+        self._rc_last_sent = time.time()
+        return {"ok": True, "text": t("rc_released") if had else t("rc_nothing_held")}
+
+    def _do_send_command(self, command_id: int, ctype: str, frame: Optional[int],
+                         params: dict, accept: list[int], label: str) -> dict:
+        sys_id, comp_id = self._target()
+        p = {f"p{i}": float(params.get(f"p{i}", 0) or 0) for i in range(1, 8)}
+        if ctype == "int":
+            self._conn.mav.command_int_send(
+                sys_id, comp_id, frame if frame is not None else 0, command_id, 0, 0,
+                p["p1"], p["p2"], p["p3"], p["p4"],
+                int(float(params.get("x", 0) or 0)), int(float(params.get("y", 0) or 0)),
+                float(params.get("z", 0) or 0),
+            )
+        else:
+            self._conn.mav.command_long_send(
+                sys_id, comp_id, command_id, 0,
+                p["p1"], p["p2"], p["p3"], p["p4"], p["p5"], p["p6"], p["p7"],
+            )
+        return self._await_ack(command_id, label, accept=accept)
+
+    def _do_upload_mission(self, items: list[dict]) -> dict:
+        """Gorev listesini araca yukler (MISSION_COUNT -> REQUEST -> ITEM_INT -> ACK).
+
+        Sifirinci madde ArduPilot'ta EV konumudur; gercek maddeler 1'den baslar,
+        bu yuzden listenin basina ev icin bir yer tutucu koyuyoruz.
+        """
+        count = len(items) + 1
+        self._conn.mav.mission_count_send(
+            *self._target(), count, mavutil.mavlink.MAV_MISSION_TYPE_MISSION)
+
+        deadline = time.time() + 30.0
+        while time.time() < deadline:
+            req = self._recv_until(
+                lambda m: m.get_type() in ("MISSION_REQUEST", "MISSION_REQUEST_INT",
+                                           "MISSION_ACK"),
+                timeout=5.0,
+            )
+            if req is None:
+                return {"ok": False, "text": t("mission_no_request")}
+            if req.get_type() == "MISSION_ACK":
+                if req.type == mavutil.mavlink.MAV_MISSION_ACCEPTED:
+                    return {"ok": True, "text": t("mission_uploaded", count=len(items))}
+                name = mavutil.mavlink.enums["MAV_MISSION_RESULT"][req.type].name
+                return {"ok": False, "text": t("mission_rejected", result=name)}
+
+            seq = req.seq
+            # seq 0 = ev konumu; araca kendi evini geri veriyoruz.
+            item = {"command": mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
+                    "frame": mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT} \
+                if seq == 0 else items[seq - 1]
+            self._conn.mav.mission_item_int_send(
+                *self._target(), seq,
+                int(item.get("frame", mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT)),
+                int(item["command"]),
+                1 if seq == 0 else 0, 1,
+                float(item.get("p1", 0) or 0), float(item.get("p2", 0) or 0),
+                float(item.get("p3", 0) or 0), float(item.get("p4", 0) or 0),
+                int(float(item.get("x", 0) or 0) * 1e7),
+                int(float(item.get("y", 0) or 0) * 1e7),
+                float(item.get("z", 0) or 0),
+                mavutil.mavlink.MAV_MISSION_TYPE_MISSION,
+            )
+        return {"ok": False, "text": t("mission_timeout")}
+
+    def _await_ack(self, command_id: int, label: str,
+                   accept: Optional[list[int]] = None) -> dict:
+        accept = accept or [mavutil.mavlink.MAV_RESULT_ACCEPTED]
         sent_at = time.time() - 3.0        # komut oncesi uyarilari da yakala
         ack = self._recv_until(
             lambda m: m.get_type() == "COMMAND_ACK" and m.command == command_id,
@@ -518,7 +747,7 @@ class MavlinkLink:
         )
         if ack is None:
             return {"ok": False, "text": t("ack_missing", label=label)}
-        if ack.result == mavutil.mavlink.MAV_RESULT_ACCEPTED:
+        if ack.result in accept:
             return {"ok": True, "text": t("ack_accepted", label=label)}
 
         result_name = mavutil.mavlink.enums["MAV_RESULT"][ack.result].name

@@ -1,0 +1,131 @@
+# Tailsitter vertical takeoff — arm in QSTABILIZE, climb in QHOVER.
+#
+# WHY A TAILSITTER IS NOT JUST A QUADPLANE
+# A tailsitter rests nose-up, and that single fact breaks two assumptions the
+# ordinary quadplane flow makes.
+#
+#   1. Arming. The wiki: "Due to an issue in DCM related to compass fusion for
+#      yaw when pointing straight up, sometimes the AHRS subsystems will
+#      disagree when powering up, nose up", producing pre-arm failures such as
+#      "Pre-Arm:DCM roll/pitch inconsistent by 'x' degrees". On real hardware
+#      the fix is to lay the aircraft down horizontally for 10-30 s; in SITL
+#      the airframe cannot be laid down, so a normal arm can fail permanently.
+#      This procedure therefore tries a normal arm first and only falls back to
+#      a FORCE arm if that was refused — the fallback is conditional and
+#      visible in the step log, never silent.
+#
+#   2. Mode to arm in. The wiki: "When disarmed, switching to QHOVER or QLOITER
+#      will force the motors forward into fixed wing orientation", which is a
+#      prop-strike risk on a belly sitter. So the arm happens in QSTABILIZE and
+#      the switch to QHOVER happens after the aircraft is armed.
+#
+#   Swan-K1 additionally ships Q_OPTIONS=262274, which has bit 18 (ARMVTOL,
+#   "arm only in VTOL modes") set — QSTABILIZE satisfies that too.
+#
+# Sources:
+#   https://ardupilot.org/plane/docs/guide-tailsitter.html
+#   https://ardupilot.org/plane/docs/quadplane-flying.html
+#   ardupilot/ArduPlane/quadplane.cpp  (Q_OPTIONS bitmask documentation)
+#   ardupilot/Tools/autotest/arduplane.py, takeoff_in_QHOVER()  (1700/1500 PWM)
+schema: 1
+id: tailsitter_takeoff
+name:
+  en: Tailsitter takeoff (QSTABILIZE arm, QHOVER climb)
+  tr: Tailsitter kalkisi (QSTABILIZE arm, QHOVER tirmanis)
+description:
+  en: >-
+    Vertical takeoff for a nose-up tailsitter. Arms in QSTABILIZE, switches to
+    QHOVER, then climbs on the throttle stick. Falls back to a FORCE arm only
+    if the normal arm is refused.
+  tr: >-
+    Burnu yukari duran tailsitter icin dikey kalkis. QSTABILIZE'de arm eder,
+    QHOVER'a gecer, sonra gaz cubuguyla tirmanir. Normal arm reddedilirse
+    yalnizca o zaman ZORLA arm'a duser.
+sources:
+  - https://ardupilot.org/plane/docs/guide-tailsitter.html
+  - https://ardupilot.org/plane/docs/quadplane-flying.html
+
+applies_to:
+  role: takeoff
+  autopilot: ArduPlane
+  quadplane: true
+  tailsitter: true
+  default: true
+  priority: 20
+
+inputs:
+  - name: alt
+    label: {en: "altitude (m)", tr: "irtifa (m)"}
+    type: number
+    default: 20
+    min: 2
+    max: 200
+
+timeout: 300
+
+steps:
+  - name: {en: Confirm this really is a tailsitter, tr: Gercekten tailsitter oldugunu dogrula}
+    get_param:
+      name: Q_TAILSIT_ENABLE
+      store_as: q_tailsit
+      min: 1
+      fail_message:
+        en: >-
+          Q_TAILSIT_ENABLE is {value}, so this airframe is not a tailsitter.
+          Use the ordinary VTOL takeoff procedure instead.
+        tr: >-
+          Q_TAILSIT_ENABLE {value}, yani bu ucak bir tailsitter degil. Bunun
+          yerine normal VTOL kalkis proseduru kullan.
+
+  - name: {en: Read the quadplane options, tr: Quadplane seceneklerini oku}
+    get_param: {name: Q_OPTIONS, store_as: q_options}
+
+  - name: {en: Throttle stick to idle before arming, tr: Arm oncesi gaz cubugunu ryolantiye al}
+    rc_override: {channels: {3: 1000}, hold: 1}
+
+  # QSTABILIZE is a VTOL mode (so ARMVTOL is satisfied) and, unlike QHOVER or
+  # QLOITER, does not force the motors forward while disarmed.
+  - name: {en: Switch to QSTABILIZE, tr: QSTABILIZE moduna gec}
+    set_mode: QSTABILIZE
+    timeout: 10
+
+  - name: {en: Try a normal arm, tr: Once normal arm dene}
+    arm: {recover: true}
+    timeout: 70
+    on_fail: continue
+
+  # Only runs when the step above genuinely failed to arm. See the header for
+  # why a nose-up airframe can fail the AHRS/compass consistency checks.
+  - name: {en: "Normal arm refused — arming with FORCE", tr: "Normal arm reddedildi — ZORLA arm ediliyor"}
+    arm: {force: true, recover: false}
+    when: {armed: false}
+    timeout: 20
+
+  - name: {en: Switch to QHOVER now that it is armed, tr: Arm olduguna gore QHOVER'a gec}
+    set_mode: QHOVER
+    timeout: 10
+
+  - name: {en: Throttle above mid to climb, tr: Tirmanmak icin gazi ortanin ustune al}
+    rc_override: {channels: {3: 1700}}
+
+  - name: {en: Confirm the aircraft is lifting off, tr: Aracin havalandigini dogrula}
+    wait_for: {alt_above: 1.0, climb_rate_above: 0.3}
+    timeout: 45
+
+  - name: {en: Wait for the target altitude, tr: Hedef irtifayi bekle}
+    wait_for: {alt_above: "{alt*0.9}"}
+    timeout: 150
+
+  - name: {en: Throttle to mid to hold altitude, tr: Irtifayi korumak icin gazi ortaya al}
+    rc_override: {channels: {3: 1500}, hold: 3}
+
+expect:
+  - condition: {alt_above: "{alt*0.85}"}
+    timeout: 20
+    message:
+      en: reached at least 85% of the requested altitude
+      tr: istenen irtifanin en az %85'ine ulasti
+  - condition: {armed: true}
+    message: {en: still armed, tr: hala armli}
+  - condition: {mode: QHOVER}
+    message: {en: hovering in QHOVER, tr: QHOVER modunda havada duruyor}

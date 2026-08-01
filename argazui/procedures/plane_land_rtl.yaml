@@ -1,0 +1,55 @@
+# Fixed-wing return — RTL.
+#
+# HONEST SCOPE: RTL on a plane returns home and loiters. It does NOT land and
+# it does NOT disarm unless RTL_AUTOLAND is configured to hand over to a
+# landing sequence. This procedure therefore verifies the return and the
+# loiter, and stops there. It is deliberately not the default landing
+# procedure, because "land" should mean the wheels are on the ground.
+#
+# Use it when AUTOLAND is unavailable — for example when the aircraft took off
+# in a mode that never captured the takeoff direction.
+#
+# Sources:
+#   https://ardupilot.org/plane/docs/rtl-mode.html
+#   ardupilot/ArduPlane/mode_rtl.cpp
+schema: 1
+id: plane_land_rtl
+name:
+  en: Plane return (RTL — does not land)
+  tr: Plane donusu (RTL — inmez)
+description:
+  en: >-
+    Returns to the home point and loiters there at RTL_ALTITUDE. This does not
+    touch down and does not disarm.
+  tr: >-
+    Eve doner ve RTL_ALTITUDE irtifasinda bekler. Yere inmez ve disarm olmaz.
+sources:
+  - https://ardupilot.org/plane/docs/rtl-mode.html
+
+applies_to:
+  role: land
+  autopilot: ArduPlane
+  quadplane: false
+  default: false
+  priority: 5
+
+timeout: 420
+
+steps:
+  - name: {en: Release any RC overrides, tr: Kumanda override'larini birak}
+    rc_release: true
+
+  - name: {en: Switch to RTL, tr: RTL moduna gec}
+    set_mode: RTL
+    timeout: 15
+
+  - name: {en: Let the return leg settle, tr: Donus bacaginin oturmasini bekle}
+    sleep: 20
+
+expect:
+  - condition: {mode: RTL}
+    message: {en: in RTL, returning home, tr: RTL modunda, eve donuyor}
+  - condition: {armed: true}
+    message:
+      en: still armed and flying — RTL does not land a fixed wing
+      tr: hala armli ve ucuyor — RTL sabit kanadi indirmez

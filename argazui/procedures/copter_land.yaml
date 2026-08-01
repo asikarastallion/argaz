@@ -1,0 +1,51 @@
+# Copter landing — LAND mode, verified through to disarm.
+#
+# Sources:
+#   https://ardupilot.org/copter/docs/land-mode.html
+#     "Upon reaching the ground the copter will automatically shut-down the
+#      motors and disarm the copter if the pilot's throttle is at minimum."
+#     Descent uses LAND_SPD_HIGH_MS down to LAND_ALT_LOW_M, then LAND_SPD_MS.
+schema: 1
+id: copter_land
+name:
+  en: Copter landing (LAND)
+  tr: Copter inisi (LAND)
+description:
+  en: >-
+    Switches to LAND and waits for the autopilot to touch down and disarm by
+    itself. Success is the disarm, not the mode change.
+  tr: >-
+    LAND moduna gecer ve otopilotun kendiliginden yere inip disarm etmesini
+    bekler. Basari olcutu mod degisimi degil, disarm olmasidir.
+sources:
+  - https://ardupilot.org/copter/docs/land-mode.html
+
+applies_to:
+  role: land
+  autopilot: ArduCopter
+  default: true
+  priority: 10
+
+timeout: 300
+
+steps:
+  - name: {en: Release any RC overrides, tr: Kumanda override'larini birak}
+    rc_release: true
+
+  - name: {en: Switch to LAND, tr: LAND moduna gec}
+    set_mode: LAND
+    timeout: 10
+
+  - name: {en: Confirm the vehicle is descending, tr: Aracin alcaldigini dogrula}
+    wait_for: {climb_rate_below: -0.2}
+    timeout: 30
+
+  - name: {en: Wait for touchdown and automatic disarm, tr: Yere inisi ve otomatik disarm'i bekle}
+    wait_for: {armed: false}
+    timeout: 240
+
+expect:
+  - condition: {armed: false}
+    message: {en: disarmed after landing, tr: inisten sonra disarm oldu}
+  - condition: {alt_below: 3.0}
+    message: {en: on the ground, tr: yerde}

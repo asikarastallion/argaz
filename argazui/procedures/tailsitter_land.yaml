@@ -1,0 +1,58 @@
+# Tailsitter vertical landing — QLAND, verified through to disarm.
+#
+# QLAND is the same descent a non-tailsitter quadplane uses; what differs is
+# the way in, which is why this is a separate file rather than a shared one:
+# a tailsitter arriving from QHOVER already has the correct nose-up attitude,
+# and the throttle stick must be released before QLAND takes over, otherwise a
+# stick left above mid from tailsitter_takeoff.yaml fights the descent.
+#
+# Sources:
+#   https://ardupilot.org/plane/docs/guide-tailsitter.html
+#   https://ardupilot.org/plane/docs/quadplane-flying.html
+#     QLAND is "an automatic descent to ground level".
+schema: 1
+id: tailsitter_land
+name:
+  en: Tailsitter landing (QLAND)
+  tr: Tailsitter inisi (QLAND)
+description:
+  en: >-
+    Releases the throttle stick, switches to QLAND, and waits for touchdown and
+    the automatic disarm.
+  tr: >-
+    Gaz cubugunu birakir, QLAND moduna gecer ve yere inisle otomatik disarm'i
+    bekler.
+sources:
+  - https://ardupilot.org/plane/docs/guide-tailsitter.html
+
+applies_to:
+  role: land
+  autopilot: ArduPlane
+  quadplane: true
+  tailsitter: true
+  default: true
+  priority: 20
+
+timeout: 420
+
+steps:
+  - name: {en: Release the throttle stick, tr: Gaz cubugunu birak}
+    rc_release: true
+
+  - name: {en: Switch to QLAND, tr: QLAND moduna gec}
+    set_mode: QLAND
+    timeout: 15
+
+  - name: {en: Confirm the aircraft is descending, tr: Aracin alcaldigini dogrula}
+    wait_for: {climb_rate_below: -0.2}
+    timeout: 45
+
+  - name: {en: Wait for touchdown and automatic disarm, tr: Yere inisi ve otomatik disarm'i bekle}
+    wait_for: {armed: false}
+    timeout: 330
+
+expect:
+  - condition: {armed: false}
+    message: {en: disarmed after landing, tr: inisten sonra disarm oldu}
+  - condition: {alt_below: 3.0}
+    message: {en: on the ground, tr: yerde}

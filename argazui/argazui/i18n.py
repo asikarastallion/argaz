@@ -120,6 +120,10 @@ CATALOG: dict[str, dict[str, str]] = {
                                 "SIMULATION terminal)",
                           "tr": " — gerekce bildirilmedi (SIMULASYON terminalindeki "
                                 "mesajlara bak)"},
+    "arm_state_unconfirmed": {"en": "{label}: the command was accepted but the vehicle "
+                                    "never reported the new armed state",
+                              "tr": "{label}: komut kabul edildi ama arac yeni arm "
+                                    "durumunu hic bildirmedi"},
     "rc_centered":       {"en": "RC{chan} moved to neutral (TRIM={trim})",
                           "tr": "RC{chan} notr konuma (TRIM={trim}) alindi"},
     "accel_calibrated":  {"en": "simple accelerometer calibration performed "
@@ -163,6 +167,75 @@ CATALOG: dict[str, dict[str, str]] = {
                           "tr": "UYARI: hala calisan surec grubu var: {groups}"},
     "all_closed":        {"en": "All processes have exited.",
                           "tr": "Tum surecler kapandi."},
+
+    # -------------------------------------------------- rc / mission primitives
+    "rc_override_ok":    {"en": "stick override: {channels}",
+                          "tr": "cubuk override: {channels}"},
+    "rc_released":       {"en": "stick overrides released",
+                          "tr": "cubuk override'lari birakildi"},
+    "rc_nothing_held":   {"en": "no stick override was active",
+                          "tr": "aktif cubuk override'i yoktu"},
+    "mission_uploaded":  {"en": "mission uploaded ({count} item(s))",
+                          "tr": "gorev yuklendi ({count} madde)"},
+    "mission_rejected":  {"en": "the vehicle rejected the mission ({result})",
+                          "tr": "arac gorevi reddetti ({result})"},
+    "mission_no_request": {"en": "the vehicle did not ask for the mission items",
+                           "tr": "arac gorev maddelerini istemedi"},
+    "mission_timeout":   {"en": "mission upload timed out",
+                          "tr": "gorev yuklemesi zaman asimina ugradi"},
+
+    # -------------------------------------------------- procedure engine
+    "proc_running":      {"en": "PROCEDURE: {name}",
+                          "tr": "PROSEDUR: {name}"},
+    "proc_step":         {"en": "  [{index}/{total}] {label}",
+                          "tr": "  [{index}/{total}] {label}"},
+    "proc_passed":       {"en": "PROCEDURE PASSED: {name} — every acceptance "
+                                "criterion was met",
+                          "tr": "PROSEDUR GECTI: {name} — tum kabul kriterleri "
+                                "saglandi"},
+    "proc_failed":       {"en": "PROCEDURE FAILED: {name}",
+                          "tr": "PROSEDUR BASARISIZ: {name}"},
+    "proc_slept":        {"en": "waited {seconds}s",
+                          "tr": "{seconds} sn beklendi"},
+    "proc_skipped":      {"en": "skipped — its condition does not hold ({seen})",
+                          "tr": "atlandi — kosulu saglanmiyor ({seen})"},
+    "proc_cancelled":    {"en": "the procedure was cancelled",
+                          "tr": "prosedur iptal edildi"},
+    "proc_wait_timeout": {"en": "the expected state did not arrive within {seconds}s "
+                                "— last seen: {seen}",
+                          "tr": "beklenen duruma {seconds} sn icinde ulasilmadi "
+                                "— son gorulen: {seen}"},
+    "proc_overall_timeout": {"en": "the procedure exceeded its overall timeout "
+                                   "of {seconds}s",
+                             "tr": "prosedur toplam {seconds} sn sinirini asti"},
+    "proc_param_out_of_range": {"en": "{name} is {value}, which is outside the range "
+                                      "this procedure needs",
+                                "tr": "{name} = {value}, bu prosedurun ihtiyac duydugu "
+                                      "araligin disinda"},
+    "proc_not_evaluated": {"en": "not evaluated — the procedure stopped earlier",
+                           "tr": "degerlendirilmedi — prosedur daha once durdu"},
+    "proc_unknown_step": {"en": "unimplemented step type: {kind}",
+                          "tr": "uygulanmamis adim tipi: {kind}"},
+    "proc_unknown_enum": {"en": "unknown MAVLink name: {name}",
+                          "tr": "bilinmeyen MAVLink adi: {name}"},
+    "proc_unknown_placeholder": {"en": "the procedure refers to an unknown value: {name}",
+                                 "tr": "prosedur bilinmeyen bir degere basvuruyor: {name}"},
+    "proc_none_for_vehicle": {"en": "No {role} procedure fits this vehicle "
+                                    "(capabilities: {caps}). See argazui/procedures/.",
+                              "tr": "Bu araca uyan bir {role} proseduru yok "
+                                    "(yetenekler: {caps}). argazui/procedures/ klasorune bak."},
+    "proc_not_found":    {"en": "there is no procedure named '{id}'",
+                          "tr": "'{id}' adinda bir prosedur yok"},
+    "proc_busy":         {"en": "a procedure is already running",
+                          "tr": "zaten calisan bir prosedur var"},
+    "proc_no_vehicle":   {"en": "no vehicle is connected — press START first",
+                          "tr": "bagli arac yok — once BASLAT"},
+    "proc_caps":         {"en": "Vehicle capabilities read from the aircraft: {caps}",
+                          "tr": "Aractan okunan yetenekler: {caps}"},
+    "proc_selected":     {"en": "{role}: using '{id}' ({name})",
+                          "tr": "{role}: '{id}' kullaniliyor ({name})"},
+    "proc_params_restored": {"en": "run-scoped parameters restored: {names}",
+                             "tr": "kosuya ozel parametreler geri alindi: {names}"},
 
     # -------------------------------------------------- misc
     "ui_connected":      {"en": "interface connected.",

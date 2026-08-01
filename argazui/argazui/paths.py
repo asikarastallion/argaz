@@ -29,6 +29,9 @@ STATIC_DIR = ARGAZUI_DIR / "static"
 RUN_DIR = ARGAZUI_DIR / "run"
 MODELS_JSON = CONFIG_DIR / "models.json"
 BUTTONS_JSON = CONFIG_DIR / "buttons.json"
+# Declarative takeoff/landing procedures. The UI button and the regression
+# test run the SAME file through the same runner — see procedures/SCHEMA.md.
+PROCEDURES_DIR = ARGAZUI_DIR / "procedures"
 
 # Kullanicinin gorev scriptleri
 SCRIPTS_DIR = ARGAZ / "scripts"

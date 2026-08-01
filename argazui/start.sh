@@ -12,13 +12,13 @@
 set -u
 cd "$(dirname "$0")" || exit 1
 
-REQUIRED="uvicorn fastapi pymavlink"
+REQUIRED="uvicorn fastapi pymavlink yaml"
 
 # Does this interpreter have every package we need?
 has_packages() {
     "$1" - <<'PY' >/dev/null 2>&1
 import importlib
-for m in ("uvicorn", "fastapi", "pymavlink"):
+for m in ("uvicorn", "fastapi", "pymavlink", "yaml"):
     importlib.import_module(m)
 PY
 }
@@ -42,7 +42,7 @@ if [ -z "$PY" ]; then
     for candidate in "${VIRTUAL_ENV:-}/bin/python3" "$HOME/venv-ardupilot/bin/python3"; do
         [ -n "$candidate" ] && [ -x "$candidate" ] || continue
         echo "ArgazUI: installing missing Python packages ($REQUIRED) -> $candidate"
-        if "$candidate" -m pip install --quiet fastapi uvicorn wsproto \
+        if "$candidate" -m pip install --quiet fastapi uvicorn wsproto pyyaml \
            && has_packages "$candidate"; then
             PY="$candidate"; break
         fi
@@ -55,7 +55,7 @@ ERROR: none of the candidate Python interpreters has the packages ArgazUI needs.
 Required: $REQUIRED
 
 Install them with:
-    ~/venv-ardupilot/bin/pip install fastapi uvicorn wsproto
+    ~/venv-ardupilot/bin/pip install fastapi uvicorn wsproto pyyaml
 
 Or point ArgazUI at the interpreter you want:
     ARGAZUI_PYTHON=/path/to/python3 ./start.sh

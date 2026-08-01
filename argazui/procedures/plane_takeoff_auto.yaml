@@ -1,0 +1,110 @@
+# Fixed-wing takeoff — AUTO mode with a one-item NAV_TAKEOFF mission.
+#
+# The alternative to TAKEOFF mode. It is the older documented route and is what
+# you want when the takeoff is the first leg of a mission rather than a
+# standalone climb. Offered as an explicit choice, not auto-selected.
+#
+# Sources:
+#   https://ardupilot.org/plane/docs/automatic-takeoff.html
+#     "The minimum pitch controls how steeply the aircraft will climb, at a
+#      minimum, during the takeoff. A value of between 10 and 15 degrees is
+#      recommended for most aircraft." / "The takeoff altitude controls the
+#      altitude above home at which the takeoff is considered complete."
+#     Sequence: mission with NAV_TAKEOFF -> arm -> "switch to AUTO mode".
+#   ardupilot/ArduPlane/takeoff.cpp, Plane::auto_takeoff_check()
+#     TKOFF_THR_MINACC / TKOFF_THR_DELAY gate the throttle for hand launches.
+schema: 1
+id: plane_takeoff_auto
+name:
+  en: Plane takeoff (AUTO mission)
+  tr: Plane kalkisi (AUTO gorevi)
+description:
+  en: >-
+    Uploads a single NAV_TAKEOFF mission item, arms, then switches to AUTO.
+    Use this when the takeoff should be the start of a mission.
+  tr: >-
+    Tek maddelik NAV_TAKEOFF gorevi yukler, arm eder ve AUTO moduna gecer.
+    Kalkisin bir gorevin baslangici olmasini istedigin durumda kullan.
+sources:
+  - https://ardupilot.org/plane/docs/automatic-takeoff.html
+
+applies_to:
+  role: takeoff
+  autopilot: ArduPlane
+  quadplane: false
+  default: false
+  priority: 5
+
+inputs:
+  - name: alt
+    label: {en: "altitude (m)", tr: "irtifa (m)"}
+    type: number
+    default: 50
+    min: 10
+    max: 500
+  - name: pitch
+    label: {en: "minimum climb pitch (deg)", tr: "en az tirmanma acisi (derece)"}
+    type: number
+    default: 12
+    min: 5
+    max: 30
+
+timeout: 300
+
+steps:
+  - name: {en: Check launch detection, tr: Firlatma algilamasini kontrol et}
+    get_param:
+      name: TKOFF_THR_MINACC
+      store_as: tkoff_minacc
+      max: 0
+      fail_message:
+        en: >-
+          TKOFF_THR_MINACC is {value}, so the throttle will not open until the
+          autopilot sees a launch acceleration. Set it to 0 for a simulated
+          runway takeoff.
+        tr: >-
+          TKOFF_THR_MINACC {value}, yani otopilot firlatma ivmesi gormeden gaz
+          acmaz. Simulasyondaki pist kalkisi icin 0 yap.
+
+  - name: {en: Upload the takeoff mission, tr: Kalkis gorevini yukle}
+    upload_mission:
+      items:
+        - command: MAV_CMD_NAV_TAKEOFF
+          frame: MAV_FRAME_GLOBAL_RELATIVE_ALT
+          p1: "{pitch}"          # minimum climb pitch, degrees
+          z: "{alt}"             # altitude above home at which takeoff completes
+    timeout: 30
+
+  - name: {en: Wait until pre-arm checks pass, tr: ARM oncesi kontrollerin gecmesini bekle}
+    wait_for: {prearm_ok: true}
+    timeout: 60
+    on_fail: continue
+
+  - name: {en: Arm the motors, tr: Motorlari kur}
+    arm: {recover: true}
+    timeout: 70
+
+  - name: {en: Switch to AUTO — the mission starts, tr: AUTO moduna gec — gorev basliyor}
+    set_mode: AUTO
+    timeout: 10
+
+  - name: {en: Confirm the takeoff roll started, tr: Kalkis kosusunun basladigini dogrula}
+    wait_for: {groundspeed_above: 5}
+    timeout: 45
+
+  - name: {en: Confirm the aircraft left the ground, tr: Ucagin yerden kesildigini dogrula}
+    wait_for: {alt_above: 5, climb_rate_above: 0.5}
+    timeout: 60
+
+  - name: {en: Wait for the target altitude, tr: Hedef irtifayi bekle}
+    wait_for: {alt_above: "{alt*0.85}"}
+    timeout: 150
+
+expect:
+  - condition: {alt_above: "{alt*0.85}"}
+    timeout: 30
+    message:
+      en: climbed to at least 85% of the commanded takeoff altitude
+      tr: komut verilen kalkis irtifasinin en az %85'ine tirmandi
+  - condition: {armed: true}
+    message: {en: still armed, tr: hala armli}

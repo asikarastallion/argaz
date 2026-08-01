@@ -68,6 +68,18 @@
     <p class="hint" id="cmd-hint"></p>
   </section>
 
+  <!-- ------------------------------------------------------------- procedure -->
+  <!-- Hidden until a procedure runs. Shows the same steps the regression test
+       executes, because both come from the same YAML file. -->
+  <section class="panel" id="proc-panel" hidden>
+    <h2><span data-i18n="proc_title">Procedure</span>
+        <small id="proc-name"></small>
+        <button class="btn link" id="btn-proc-cancel" data-i18n="proc_cancel">✕ cancel</button></h2>
+    <ol id="proc-steps" class="proc-steps"></ol>
+    <div id="proc-expect" class="proc-expect"></div>
+    <p class="hint" id="proc-hint"></p>
+  </section>
+
   <!-- --------------------------------------------------------- mission script -->
   <section class="panel">
     <h2><span data-i18n="mission_script">Mission Script</span>

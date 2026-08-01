@@ -60,6 +60,17 @@
       confirm_stop: "The running Gazebo / SITL / MAVProxy processes will be shut down.",
       ui_connected: "interface connected.",
       ui_lost: "connection lost, retrying in 2 s...",
+      proc_title: "Procedure",
+      proc_cancel: "✕ cancel",
+      proc_running: "running...",
+      proc_passed: "PASSED — every acceptance criterion was met",
+      proc_failed: "FAILED",
+      proc_accept: "Acceptance criteria",
+      proc_alternatives: "alternatives:",
+      proc_source: "from",
+      confirm_proc: "This runs the procedure below. Each step is verified "
+        + "against the vehicle's actual state, not just the ACK.",
+      proc_no_match: "no procedure fits this vehicle",
       hint_sim: "Gazebo / SITL / MAVProxy run here. For models launched with " +
                 "sim_vehicle.py you can type MAVProxy commands directly.",
       hint_shell: "Plain bash shell — mission scripts run here, and you can type " +
@@ -117,6 +128,17 @@
       confirm_stop: "Çalışan Gazebo / SITL / MAVProxy süreçleri kapatılacak.",
       ui_connected: "arayüz bağlandı.",
       ui_lost: "bağlantı koptu, 2 sn içinde yeniden denenecek...",
+      proc_title: "Prosedür",
+      proc_cancel: "✕ iptal",
+      proc_running: "çalışıyor...",
+      proc_passed: "GEÇTİ — tüm kabul kriterleri sağlandı",
+      proc_failed: "BAŞARISIZ",
+      proc_accept: "Kabul kriterleri",
+      proc_alternatives: "alternatifler:",
+      proc_source: "kaynak",
+      confirm_proc: "Aşağıdaki prosedür çalıştırılacak. Her adım sadece ACK'e "
+        + "değil, aracın gerçek durumuna karşı doğrulanır.",
+      proc_no_match: "bu araca uyan prosedür yok",
       hint_sim: "Gazebo / SITL / MAVProxy burada çalışır. sim_vehicle.py ile açılan " +
                 "modellerde MAVProxy komutlarını buraya yazabilirsin.",
       hint_shell: "Boş bash kabuğu — görev scriptleri burada çalışır, elle komut da " +
@@ -247,6 +269,8 @@
         cfg.term.write(buf);
       } else if (msg.type === "status") {
         applyStatus(msg.status);
+      } else if (msg.type === "procedure") {
+        applyProcedureEvent(msg);
       }
     };
     ws.onclose = () => {
@@ -270,10 +294,16 @@
 
   // ----------------------------------------------------------------- status
   function applyStatus(s) {
+    const wasLinked = linked;
+    const wasActive = active;
     lastStatus = s;
     active = s.active_model;
     linked = s.vehicle.connected;
     const v = s.vehicle;
+
+    // The vehicle's capabilities can only be read once it is talking, and they
+    // belong to that vehicle — so re-probe whenever the link or model changes.
+    if ((linked && !wasLinked) || active !== wasActive) loadProcedures();
 
     const model = $("pill-model");
     model.textContent = `${t("vehicle")}: ` + (s.active_model_name || "—");
@@ -414,7 +444,9 @@
     const wrap = $("buttons");
     const set = (cls && BUTTONS[cls]) || [];
     // LANG is part of the key so labels re-render on a language switch.
-    const key = [cls, enabled, linked, set.length, LANG].join("|");
+    const procKey = Object.entries(PROCS.roles || {})
+      .map(([r, v]) => `${r}:${v.selected || "-"}`).join(",");
+    const key = [cls, enabled, linked, set.length, LANG, procKey].join("|");
     if (wrap.dataset.key === key) return;   // status arrives every second
     wrap.dataset.key = key;
     wrap.innerHTML = "";
@@ -440,8 +472,21 @@
       const desc = (LANG === "tr" && b.desc_tr) || b.desc;
       if (desc) btn.title = desc;
 
+      // A procedure button takes its inputs from the procedure the vehicle
+      // selected; a v1.0 command button keeps taking them from buttons.json.
+      const isProc = !!(b.procedure_role || b.procedure);
+      const proc = isProc ? procForButton(b) : null;
+      const inputs = isProc ? ((proc && proc.inputs) || []) : (b.inputs || []);
+      if (isProc && !proc) {
+        btn.disabled = true;
+        btn.title = t("proc_no_match");
+      } else if (isProc) {
+        btn.title = [desc, `${t("proc_source")}: ${proc.id}.yaml`, proc.description]
+          .filter(Boolean).join("\n\n");
+      }
+
       const fields = {};
-      for (const inp of b.inputs || []) {
+      for (const inp of inputs) {
         const box = document.createElement("input");
         box.type = "number";
         box.value = inp.default;
@@ -455,11 +500,24 @@
         fields[inp.name] = box;
         g.append(btn, box, unit);
       }
-      if (!(b.inputs || []).length) g.append(btn);
+      if (!inputs.length) g.append(btn);
 
       btn.onclick = () => {
         const values = {};
         for (const [k, el] of Object.entries(fields)) values[k] = parseFloat(el.value);
+        if (isProc) {
+          if (!proc) return;
+          const preview = [`${proc.id}.yaml — ${proc.name}`, ""]
+            .concat(proc.steps.map((s, i) => `${i + 1}. ${s.name}`))
+            .concat(["", `${t("proc_accept")}:`])
+            .concat(proc.expect.map((e) => `• ${e}`))
+            .join("\n");
+          const go = () => runProcedure(b.procedure || null,
+                                        b.procedure ? null : b.procedure_role, values);
+          if (b.confirm) confirmDialog(b.label, `${t("confirm_proc")}\n\n${preview}`, go);
+          else go();
+          return;
+        }
         const preview = b.commands.join("  →  ");
         if (b.confirm) {
           confirmDialog(b.label, `${t("confirm_cmds")}\n\n${preview}`,
@@ -480,6 +538,102 @@
     });
     // The result is already printed to the terminal as an [ArgazUI] line.
   }
+
+  // ------------------------------------------------------------- procedures
+  // A button carrying `procedure_role` does not have its own command list.
+  // The steps, the inputs and the acceptance criteria all come from the YAML
+  // in argazui/procedures/ — the same file the regression tests run.
+  let PROCS = { capabilities: null, roles: {} };
+
+  async function loadProcedures() {
+    try {
+      PROCS = await (await fetch("/api/procedures")).json();
+    } catch (e) {
+      PROCS = { capabilities: null, roles: {} };
+    }
+    $("buttons").dataset.key = "";     // force a re-render with the new inputs
+    if (lastStatus) applyStatus(lastStatus);
+  }
+
+  function procForButton(b) {
+    if (b.procedure) {
+      for (const role of Object.keys(PROCS.roles || {})) {
+        const hit = (PROCS.roles[role].options || []).find((p) => p.id === b.procedure);
+        if (hit) return hit;
+      }
+      return null;
+    }
+    const role = PROCS.roles && PROCS.roles[b.procedure_role];
+    if (!role || !role.selected) return null;
+    return (role.options || []).find((p) => p.id === role.selected) || null;
+  }
+
+  async function runProcedure(procedureId, role, values) {
+    resetProcedurePanel();
+    await fetch("/api/procedure", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ procedure_id: procedureId || null, role: role || null, values }),
+    });
+  }
+
+  function resetProcedurePanel() {
+    $("proc-steps").innerHTML = "";
+    $("proc-expect").innerHTML = "";
+    $("proc-hint").textContent = "";
+    $("proc-panel").hidden = false;
+  }
+
+  const STEP_MARK = { pending: "·", running: "▸", passed: "✓", failed: "✕", skipped: "–" };
+
+  function applyProcedureEvent(msg) {
+    const panel = $("proc-panel");
+    if (msg.event === "start") {
+      resetProcedurePanel();
+      $("proc-name").textContent = `${msg.name} — ${t("proc_running")}`;
+      for (const step of msg.steps) {
+        const li = document.createElement("li");
+        li.id = "proc-step-" + step.index;
+        li.className = "step " + step.status;
+        li.innerHTML = `<span class="mark">${STEP_MARK[step.status]}</span>`
+          + `<span class="what">${esc(step.label)}</span><span class="detail"></span>`;
+        $("proc-steps").append(li);
+      }
+      panel.hidden = false;
+    } else if (msg.event === "step") {
+      const step = msg.step;
+      const li = $("proc-step-" + step.index);
+      if (!li) return;
+      li.className = "step " + step.status;
+      li.querySelector(".mark").textContent = STEP_MARK[step.status] || "·";
+      const detail = step.text ? `${step.text}` : "";
+      li.querySelector(".detail").textContent =
+        detail + (step.seconds ? `  (${step.seconds}s)` : "");
+    } else if (msg.event === "expect") {
+      const e = msg.expect;
+      const row = document.createElement("div");
+      row.className = "expect " + (e.passed ? "passed" : "failed");
+      row.innerHTML = `<span class="mark">${e.passed ? "✓" : "✕"}</span>`
+        + `<span class="what">${esc(e.label)}</span>`
+        + `<span class="detail">${esc(e.text || "")}</span>`;
+      if (!$("proc-expect").childElementCount) {
+        const h = document.createElement("div");
+        h.className = "expect-head";
+        h.textContent = t("proc_accept");
+        $("proc-expect").append(h);
+      }
+      $("proc-expect").append(row);
+    } else if (msg.event === "done") {
+      const r = msg.result;
+      $("proc-name").textContent = `${r.name} — `
+        + (r.ok ? t("proc_passed") : `${t("proc_failed")}${r.text ? ": " + r.text : ""}`);
+      $("proc-name").className = r.ok ? "ok" : "bad";
+      $("proc-hint").textContent = `${r.seconds}s`;
+      loadProcedures();
+    }
+  }
+
+  $("btn-proc-cancel").onclick = () => fetch("/api/procedure/cancel", { method: "POST" });
 
   // ---------------------------------------------------------------- scripts
   let SCRIPTS = { scripts: [], dir: "" };

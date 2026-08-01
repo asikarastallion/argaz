@@ -16,6 +16,15 @@
     "Placeholders {name} are filled from inputs. {name*100} applies a multiplier",
     "(e.g. metres -> centimetres).",
     "",
+    "A button may instead carry:",
+    "  procedure_role : 'takeoff' or 'land' — runs the procedure the connected",
+    "                   vehicle's own capabilities select, from",
+    "                   argazui/procedures/*.yaml. The inputs come from the",
+    "                   procedure, not from this file, and the regression tests",
+    "                   run the very same YAML. See procedures/SCHEMA.md.",
+    "  procedure      : a specific procedure id, bypassing the selection.",
+    "Buttons with 'commands' are unchanged and keep working exactly as in v1.0.",
+    "",
     "Command syntax understood by the MAVLink interpreter:",
     "  mode <MODE>           arm throttle [force]    disarm [force]",
     "  takeoff <metres>      param set <NAME> <VALUE>  rc <channel> <pwm>",
@@ -67,20 +76,9 @@
       "label": "TAKEOFF",
       "style": "danger",
       "confirm": true,
-      "inputs": [
-        {
-          "name": "alt",
-          "label": "altitude (m)",
-          "label_tr": "irtifa (m)",
-          "default": 10,
-          "min": 1,
-          "max": 200
-        }
-      ],
-      "commands": [
-        "mode guided",
-        "takeoff {alt}"
-      ]
+      "procedure_role": "takeoff",
+      "desc": "Runs the takeoff procedure selected for this vehicle and verifies it actually climbed",
+      "desc_tr": "Bu arac icin secilen kalkis prosedurunu calistirir ve gercekten tirmandigini dogrular"
     },
     {
       "id": "rtl",
@@ -94,9 +92,10 @@
       "id": "land",
       "label": "LAND",
       "style": "primary",
-      "commands": [
-        "mode land"
-      ]
+      "confirm": true,
+      "procedure_role": "land",
+      "desc": "Runs the landing procedure selected for this vehicle and verifies it reached disarm",
+      "desc_tr": "Bu arac icin secilen inis prosedurunu calistirir ve disarm'a ulastigini dogrular"
     },
     {
       "id": "circle",
@@ -195,23 +194,18 @@
       "label": "TAKEOFF",
       "style": "danger",
       "confirm": true,
-      "inputs": [
-        {
-          "name": "alt",
-          "label": "altitude (m)",
-          "label_tr": "irtifa (m)",
-          "default": 50,
-          "min": 5,
-          "max": 500
-        }
-      ],
-      "commands": [
-        "mode guided",
-        "arm throttle",
-        "takeoff {alt}"
-      ],
-      "desc": "GUIDED takeoff for Plane; for a runway departure use AUTO with a mission",
-      "desc_tr": "Plane icin GUIDED kalkis; pist ucusu istiyorsan AUTO + gorev kullan"
+      "procedure_role": "takeoff",
+      "desc": "Runway takeoff in TAKEOFF mode. v1.0 sent a Copter-style GUIDED + MAV_CMD_NAV_TAKEOFF here, which ArduPlane cannot act on for a fixed wing — see argazui/procedures/plane_takeoff.yaml.",
+      "desc_tr": "TAKEOFF modunda pist kalkisi. v1.0 burada Copter usulu GUIDED + MAV_CMD_NAV_TAKEOFF gonderiyordu; ArduPlane sabit kanatta bu komutu isleyemez — bkz. argazui/procedures/plane_takeoff.yaml."
+    },
+    {
+      "id": "land",
+      "label": "LAND",
+      "style": "primary",
+      "confirm": true,
+      "procedure_role": "land",
+      "desc": "Automatic fixed-wing approach and landing (AUTOLAND), verified through to disarm. Needs a takeoff that captured the takeoff direction.",
+      "desc_tr": "Otomatik sabit kanat yaklasmasi ve inisi (AUTOLAND), disarm'a kadar dogrulanir. Kalkis yonunun yakalandigi bir kalkis gerektirir."
     },
     {
       "id": "auto",
@@ -337,31 +331,18 @@
       "label": "Q-TAKEOFF",
       "style": "danger",
       "confirm": true,
-      "inputs": [
-        {
-          "name": "alt",
-          "label": "altitude (m)",
-          "label_tr": "irtifa (m)",
-          "default": 20,
-          "min": 2,
-          "max": 200
-        }
-      ],
-      "commands": [
-        "mode guided",
-        "arm throttle",
-        "takeoff {alt}"
-      ],
-      "desc": "On a QuadPlane a GUIDED takeoff is performed as a VTOL takeoff",
-      "desc_tr": "QuadPlane'de GUIDED kalkis VTOL kalkisi olarak gerceklesir"
+      "procedure_role": "takeoff",
+      "desc": "Vertical takeoff. A tailsitter gets its own procedure automatically — the choice is made from Q_ENABLE / Q_TAILSIT_ENABLE / Q_OPTIONS read from the aircraft, not from the registry.",
+      "desc_tr": "Dikey kalkis. Tailsitter'a kendi proseduru otomatik verilir — secim kayit defterinden degil, aractan okunan Q_ENABLE / Q_TAILSIT_ENABLE / Q_OPTIONS degerlerinden yapilir."
     },
     {
       "id": "qland",
       "label": "QLAND",
       "style": "primary",
-      "commands": [
-        "mode qland"
-      ]
+      "confirm": true,
+      "procedure_role": "land",
+      "desc": "Vertical landing, verified through to disarm",
+      "desc_tr": "Dikey inis, disarm'a kadar dogrulanir"
     },
     {
       "id": "qrtl",

@@ -1,0 +1,133 @@
+# QuadPlane VTOL takeoff — QLOITER with the throttle stick above mid.
+#
+# Sources:
+#   https://ardupilot.org/plane/docs/quadplane-flying.html
+#     "A typical test flight would be: VTOL takeoff in QLOITER or QHOVER."
+#     "At mid-stick the aircraft will hold altitude" — so above mid climbs and
+#     below mid descends.
+#   ardupilot/Tools/autotest/arduplane.py, takeoff_in_QHOVER()
+#     ArduPilot's own CI: change_mode -> wait_ready_to_arm -> arm_vehicle ->
+#     set_rc(3, 1700) to climb -> set_rc(3, 1500) to hold. The 1700/1500 PWM
+#     values below come from there, which is why this procedure first checks
+#     that RC3 really is a standard 1000-2000 channel.
+#   ardupilot/ArduPlane/quadplane.cpp, Q_OPTIONS bit 1 "Allow FW Takeoff"
+#     "if bit is not set then NAV_TAKEOFF command on quadplanes will instead
+#     perform a NAV_VTOL takeoff". This procedure deliberately does not use
+#     NAV_TAKEOFF at all, so it behaves the same whichever way that bit is set.
+schema: 1
+id: vtol_takeoff
+name:
+  en: VTOL takeoff (QLOITER)
+  tr: VTOL kalkisi (QLOITER)
+description:
+  en: >-
+    Vertical takeoff on a QuadPlane. Enters QLOITER, arms, raises the throttle
+    stick above mid to climb, then returns it to mid to hold altitude.
+  tr: >-
+    QuadPlane'de dikey kalkis. QLOITER moduna gecer, arm eder, tirmanmak icin
+    gaz cubugunu ortanin ustune alir, sonra irtifayi korumak icin ortaya geri
+    getirir.
+sources:
+  - https://ardupilot.org/plane/docs/quadplane-flying.html
+
+applies_to:
+  role: takeoff
+  autopilot: ArduPlane
+  quadplane: true
+  tailsitter: false
+  default: true
+  priority: 10
+
+inputs:
+  - name: alt
+    label: {en: "altitude (m)", tr: "irtifa (m)"}
+    type: number
+    default: 20
+    min: 2
+    max: 200
+
+timeout: 300
+
+steps:
+  # The stick PWM values below are literals from ArduPilot's own test: 1700 to
+  # climb, 1500 to hold. What actually has to be true for those numbers to mean
+  # "above mid" and "at mid" is:
+  #     RC3_MIN <= 1400  and  RC3_MAX >= 1700
+  # which puts mid = (MIN+MAX)/2 at 1550 or below, so 1700 is genuinely above
+  # mid and still inside the channel's range.
+  # These bounds are not cosmetic: Alti Transition ships RC3 as 1100-1900, not
+  # the 1000-2000 that "standard" would suggest, so a check written around
+  # 1000/2000 would have passed only by touching its own boundary.
+  - name: {en: Check the throttle channel bottom end, tr: Gaz kanalinin alt ucunu kontrol et}
+    get_param:
+      name: RC3_MIN
+      store_as: rc3_min
+      max: 1400
+      fail_message:
+        en: >-
+          RC3_MIN is {value}, so mid-stick is not below the 1700 PWM this
+          procedure uses to climb. The fixed stick values would not mean
+          "above mid" on this channel.
+        tr: >-
+          RC3_MIN {value}, yani cubugun ortasi bu prosedurun tirmanmak icin
+          kullandigi 1700 PWM'in altinda kalmiyor. Sabit cubuk degerleri bu
+          kanalda "ortanin ustu" anlamina gelmez.
+  - name: {en: Check the throttle channel top end, tr: Gaz kanalinin ust ucunu kontrol et}
+    get_param:
+      name: RC3_MAX
+      store_as: rc3_max
+      min: 1700
+      fail_message:
+        en: >-
+          RC3_MAX is {value}, which is below the 1700 PWM this procedure uses
+          to climb — the override would be clamped.
+        tr: >-
+          RC3_MAX {value}, bu prosedurun tirmanmak icin kullandigi 1700 PWM'in
+          altinda — override kirpilirdi.
+
+  - name: {en: Confirm the VTOL motors are enabled, tr: VTOL motorlarinin acik oldugunu dogrula}
+    get_param:
+      name: Q_ENABLE
+      store_as: q_enable
+      min: 1
+      fail_message:
+        en: "Q_ENABLE is {value} — this aircraft has no VTOL motors, so it cannot take off vertically."
+        tr: "Q_ENABLE {value} — bu aracin VTOL motoru yok, dikey kalkis yapamaz."
+
+  - name: {en: Switch to QLOITER, tr: QLOITER moduna gec}
+    set_mode: QLOITER
+    timeout: 10
+
+  - name: {en: Wait until pre-arm checks pass, tr: ARM oncesi kontrollerin gecmesini bekle}
+    wait_for: {prearm_ok: true}
+    timeout: 60
+    on_fail: continue
+
+  - name: {en: Arm the motors, tr: Motorlari kur}
+    arm: {recover: true}
+    timeout: 70
+
+  - name: {en: Throttle above mid to climb, tr: Tirmanmak icin gazi ortanin ustune al}
+    rc_override: {channels: {3: 1700}}
+
+  - name: {en: Confirm the aircraft is lifting off, tr: Aracin havalandigini dogrula}
+    wait_for: {alt_above: 1.0, climb_rate_above: 0.3}
+    timeout: 45
+
+  - name: {en: Wait for the target altitude, tr: Hedef irtifayi bekle}
+    wait_for: {alt_above: "{alt*0.9}"}
+    timeout: 150
+
+  - name: {en: Throttle to mid to hold altitude, tr: Irtifayi korumak icin gazi ortaya al}
+    rc_override: {channels: {3: 1500}, hold: 3}
+
+expect:
+  - condition: {alt_above: "{alt*0.85}"}
+    timeout: 20
+    message:
+      en: reached at least 85% of the requested altitude
+      tr: istenen irtifanin en az %85'ine ulasti
+  - condition: {armed: true}
+    message: {en: still armed, tr: hala armli}
+  - condition: {mode: QLOITER}
+    message: {en: hovering in QLOITER, tr: QLOITER modunda havada duruyor}

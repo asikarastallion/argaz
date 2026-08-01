@@ -203,6 +203,57 @@ settle in SITL (see Swan-K1). **Never use this on a real aircraft.**
 
 ---
 
+## 5b. Takeoff and landing procedures
+
+The **TAKEOFF** and **LAND** buttons do not send a fixed command list. They run
+a *procedure*: a declarative flight sequence in `argazui/procedures/*.yaml`,
+with its acceptance criteria written into the same file. The format is
+documented in [procedures/SCHEMA.md](procedures/SCHEMA.md).
+
+**Why.** In v1.0 every vehicle class got the Copter idiom — GUIDED, arm,
+`MAV_CMD_NAV_TAKEOFF`. On ArduPlane that command is compiled only under
+`HAL_QUADPLANE_ENABLED` and its handler returns `MAV_RESULT_FAILED` unless the
+aircraft is a quadplane, so on a fixed wing the button armed the aircraft and
+left it sitting on the runway. Taking off is a different *procedure* per
+aircraft, not a different argument to one command.
+
+**The procedure is chosen from the aircraft, not the registry.** When the link
+comes up, ArgazUI reads `Q_ENABLE`, `Q_TAILSIT_ENABLE` and `Q_OPTIONS` from the
+vehicle and picks the matching procedure. This catches things `models.json`
+does not know: SkyCat TVBS is registered as a plain QuadPlane but its parameter
+file sets `Q_TAILSIT_ENABLE=1`, so it gets the tailsitter procedure.
+
+| Aircraft | Takeoff | Landing |
+|---|---|---|
+| Copter | `copter_takeoff` — GUIDED + `MAV_CMD_NAV_TAKEOFF` | `copter_land` — LAND |
+| Fixed wing | `plane_takeoff` — TAKEOFF mode | `plane_land` — AUTOLAND |
+| QuadPlane | `vtol_takeoff` — QLOITER + throttle above mid | `vtol_land` — QLAND |
+| Tailsitter | `tailsitter_takeoff` — arm in QSTABILIZE, climb in QHOVER | `tailsitter_land` — QLAND |
+
+Alternatives that are not auto-selected: `plane_takeoff_auto` (AUTO mission),
+`vtol_takeoff_mission` (`NAV_VTOL_TAKEOFF`), `plane_land_rtl` (returns but does
+**not** land — a plane's RTL loiters).
+
+**An ACK is not success.** Every procedure ends in an `expect:` block that is
+checked against measured state — altitude, climb rate, mode, armed flag. The
+panel that appears under Quick Commands shows each step and each criterion as
+it is evaluated.
+
+**Parameters are run-scoped.** If a procedure sets a parameter (for example
+`TKOFF_ALT`), the previous value is restored when the procedure ends, including
+when it fails. Upstream `.param` files are never edited.
+
+**The tests run these same files.** There is no separate test implementation of
+a takeoff, so a passing test means a working button.
+
+A model can pin its own choice in `models.json`:
+
+```json
+"procedures": { "takeoff": "plane_takeoff_auto", "land": "plane_land" }
+```
+
+---
+
 ## 6. Adding a mission script
 
 1. Drop your `.py` file into `~/Documents/argaz/scripts/`.

@@ -292,3 +292,51 @@ select {
   .topbar { flex-wrap: wrap; }
   .indicators { order: 3; width: 100%; justify-content: flex-start; }
 }
+
+/* --- prosedür paneli --- */
+/* Adımlar buttons.json'dan değil, argazui/procedures/*.yaml'dan gelir; testler
+   de aynı dosyayı çalıştırır. */
+#proc-panel h2 small { color: var(--muted); font-weight: 500; }
+#proc-panel h2 small.ok { color: var(--ok, #4ade80); font-weight: 600; }
+#proc-panel h2 small.bad { color: var(--bad, #f87171); font-weight: 600; }
+#proc-panel h2 .link { margin-left: auto; }
+.proc-steps {
+  list-style: none; margin: 6px 0 0; padding: 0;
+  font-size: 13px; line-height: 1.55;
+}
+.proc-steps .step {
+  display: grid; grid-template-columns: 18px minmax(180px, auto) 1fr;
+  gap: 8px; padding: 3px 0; border-bottom: 1px solid var(--line);
+  color: var(--muted);
+}
+.proc-steps .step:last-child { border-bottom: 0; }
+.proc-steps .step .mark { text-align: center; font-weight: 700; }
+.proc-steps .step .what { color: var(--text); }
+.proc-steps .step .detail {
+  color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px; overflow-wrap: anywhere;
+}
+.proc-steps .step.running .mark,
+.proc-steps .step.running .what { color: var(--accent); }
+.proc-steps .step.passed .mark { color: var(--ok, #4ade80); }
+.proc-steps .step.failed .mark,
+.proc-steps .step.failed .what { color: var(--bad, #f87171); }
+.proc-steps .step.skipped { opacity: .55; }
+
+.proc-expect { margin-top: 10px; font-size: 13px; }
+.proc-expect .expect-head {
+  color: var(--muted); font-size: 12px; text-transform: uppercase;
+  letter-spacing: .04em; margin-bottom: 4px;
+}
+.proc-expect .expect {
+  display: grid; grid-template-columns: 18px minmax(180px, auto) 1fr;
+  gap: 8px; padding: 2px 0;
+}
+.proc-expect .expect .mark { text-align: center; font-weight: 700; }
+.proc-expect .expect.passed .mark { color: var(--ok, #4ade80); }
+.proc-expect .expect.failed .mark,
+.proc-expect .expect.failed .what { color: var(--bad, #f87171); }
+.proc-expect .expect .detail {
+  color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}

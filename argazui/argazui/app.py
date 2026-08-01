@@ -17,8 +17,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import paths
+from . import procedures as procs
 from .i18n import t, set_language, get_language, LANGUAGES
 from .mavlink_link import MavlinkLink, substitute
+from .procrunner import ProcedureRunner, probe_capabilities
 from .session import TerminalSession, build_launch_commands
 
 app = FastAPI(title="ArgazUI")
@@ -109,6 +111,12 @@ class Manager:
         self.mav = MavlinkLink(port=paths.UI_MAVLINK_PORT, on_log=hub.push_log)
         self.active_model: Optional[dict] = None
         self.lock = threading.Lock()
+        # Prosedur motoru durumu. Yetenekler araçtan OKUNUR (models.json'dan
+        # degil) ve model degisince sifirlanir — bkz. procedures.py.
+        self.caps: Optional[dict] = None
+        self.runner: Optional[ProcedureRunner] = None
+        self.proc_thread: Optional[threading.Thread] = None
+        self.last_result: Optional[dict] = None
 
     def session(self, stream: str) -> TerminalSession:
         return self.sim if stream == SIM else self.shell
@@ -188,6 +196,9 @@ class Manager:
             hub.push_log(t("mavlink_failed"))
 
     def _stop_locked(self) -> dict:
+        if self.runner:
+            self.runner.cancel()
+        self.caps = None            # yetenekler araca ait; arac gidince gecersiz
         self.mav.stop()
         if self.sim.is_alive():
             self.sim.stop_children(log=hub.push_log)
@@ -225,6 +236,111 @@ class Manager:
         ok = all(r.get("ok") for r in results) if results else False
         return {"ok": ok, "results": results}
 
+    # -- prosedurler --
+    def capabilities(self, refresh: bool = False) -> Optional[dict]:
+        """Aracin kendi konfigurasyonundan yeteneklerini okur (bir kez, onbellekli).
+
+        models.json'a GUVENMIYORUZ: SkyCat TVBS orada duz "QuadPlane" yaziyor
+        ama param dosyasi Q_TAILSIT_ENABLE=1 veriyor — yani tailsitter. Dogru
+        prosedur ancak aracin kendi parametreleri okunarak secilebilir.
+        """
+        if not self.mav.state.connected:
+            return None
+        if self.caps is None or refresh:
+            vehicle = (self.active_model or {}).get("vehicle")
+            self.caps = probe_capabilities(self.mav, vehicle=vehicle)
+            shown = ", ".join(f"{k}={v}" for k, v in self.caps.items() if k != "raw")
+            hub.push_log(t("proc_caps", caps=shown))
+        return self.caps
+
+    def procedure_overview(self) -> dict:
+        """UI icin: hangi prosedur secildi, hangi alternatifler var."""
+        lang = get_language()
+        caps = self.capabilities()
+        out = {"capabilities": caps, "roles": {}, "last_result": self.last_result,
+               "running": bool(self.proc_thread and self.proc_thread.is_alive())}
+        if caps is None:
+            return out
+        for role in procs.ROLES:
+            try:
+                chosen = procs.select(role, caps, self.active_model)
+                options = procs.candidates(role, caps)
+            except procs.ProcedureError as exc:
+                out["roles"][role] = {"error": str(exc)}
+                continue
+            out["roles"][role] = {
+                "selected": chosen.id if chosen else None,
+                "options": [p.as_dict(lang) for p in options],
+            }
+        return out
+
+    def resolve_procedure(self, procedure_id: Optional[str], role: Optional[str]):
+        """Bir istegi somut bir prosedure cevirir; hatayi metin olarak dondurur."""
+        if procedure_id:
+            proc = procs.get(procedure_id)
+            if proc is None:
+                return None, t("proc_not_found", id=procedure_id)
+            return proc, ""
+        caps = self.capabilities()
+        if caps is None:
+            return None, t("proc_no_vehicle")
+        proc = procs.select(role or "takeoff", caps, self.active_model)
+        if proc is None:
+            shown = ", ".join(f"{k}={v}" for k, v in caps.items() if k != "raw")
+            return None, t("proc_none_for_vehicle", role=role, caps=shown)
+        return proc, ""
+
+    def run_procedure(self, procedure_id: Optional[str], role: Optional[str],
+                      values: Optional[dict]) -> dict:
+        """Prosedur calistirmayi baslatir; ilerleme WebSocket'ten akar."""
+        if self.proc_thread and self.proc_thread.is_alive():
+            return {"ok": False, "text": t("proc_busy")}
+        if not self.mav.state.connected:
+            return {"ok": False, "text": t("proc_no_vehicle")}
+        try:
+            proc, err = self.resolve_procedure(procedure_id, role)
+        except procs.ProcedureError as exc:
+            return {"ok": False, "text": str(exc)}
+        if proc is None:
+            return {"ok": False, "text": err}
+
+        lang = get_language()
+        hub.push_log(t("proc_selected", role=proc.role, id=proc.id,
+                       name=proc.label(lang)))
+        self.runner = ProcedureRunner(self.mav, on_event=self._on_proc_event, lang=lang)
+
+        def _go() -> None:
+            hub.push_log(t("proc_running", name=proc.label(lang)))
+            result = self.runner.run(proc, values or {})
+            self.last_result = result
+            hub.push_log(result["text"])
+
+        self.proc_thread = threading.Thread(target=_go, name="procedure", daemon=True)
+        self.proc_thread.start()
+        return {"ok": True, "started": proc.id, "name": proc.label(lang),
+                "text": t("proc_running", name=proc.label(lang))}
+
+    def _on_proc_event(self, event: dict) -> None:
+        """Runner olaylarini hem WebSocket'e hem terminale yansitir."""
+        hub.push_json(event)
+        kind = event.get("event")
+        if kind == "step":
+            step = event.get("step") or {}
+            if step.get("status") in ("passed", "failed", "skipped"):
+                mark = {"passed": "OK", "failed": "FAIL", "skipped": "skip"}[step["status"]]
+                detail = f" — {step['text']}" if step.get("text") else ""
+                hub.push_log(f"  [{mark}] {step.get('label')}{detail}")
+        elif kind == "expect":
+            exp = event.get("expect") or {}
+            mark = "OK" if exp.get("passed") else "FAIL"
+            hub.push_log(f"  expect [{mark}] {exp.get('label')} — {exp.get('text')}")
+
+    def cancel_procedure(self) -> dict:
+        if self.runner and self.proc_thread and self.proc_thread.is_alive():
+            self.runner.cancel()
+            return {"ok": True, "text": t("proc_cancelled")}
+        return {"ok": False, "text": t("proc_busy")}
+
     def run_script(self, name: str) -> dict:
         target = (paths.SCRIPTS_DIR / name).resolve()
         if target.parent != paths.SCRIPTS_DIR.resolve() or not target.is_file():
@@ -245,6 +361,7 @@ class Manager:
             "vehicle_class": self.active_model["vehicle_class"] if self.active_model else None,
             "has_ros2": bool(self.active_model.get("has_ros2")) if self.active_model else False,
             "vehicle": self.mav.state.as_dict(),
+            "procedure_running": bool(self.proc_thread and self.proc_thread.is_alive()),
             "script_port": paths.SCRIPT_MAVLINK_PORT,
             "ui_port": paths.UI_MAVLINK_PORT,
             "lang": get_language(),
@@ -324,6 +441,28 @@ def api_command(req: CommandReq):
 @app.post("/api/script")
 def api_script(req: ScriptReq):
     return JSONResponse(mgr.run_script(req.name))
+
+
+class ProcedureReq(BaseModel):
+    procedure_id: Optional[str] = None
+    role: Optional[str] = None
+    values: dict = {}
+
+
+@app.get("/api/procedures")
+def api_procedures():
+    """Which procedures fit the connected vehicle, and which one is selected."""
+    return JSONResponse(mgr.procedure_overview())
+
+
+@app.post("/api/procedure")
+def api_procedure(req: ProcedureReq):
+    return JSONResponse(mgr.run_procedure(req.procedure_id, req.role, req.values))
+
+
+@app.post("/api/procedure/cancel")
+def api_procedure_cancel():
+    return JSONResponse(mgr.cancel_procedure())
 
 
 @app.post("/api/rescan")

@@ -1,0 +1,101 @@
+# QuadPlane VTOL takeoff — one-item AUTO mission with NAV_VTOL_TAKEOFF.
+#
+# The hands-off alternative to the QLOITER + stick route: the autopilot flies
+# the climb itself, so no RC override is involved at all.
+#
+# Sources:
+#   https://ardupilot.org/plane/docs/quadplane-auto-mode.html
+#     "The only parameter to a NAV_VTOL_TAKEOFF is the altitude above the
+#      takeoff point where the takeoff is complete." The climb rate is
+#      Q_WP_SPD_UP.
+#   ardupilot/ArduPlane/quadplane.cpp, Q_OPTIONS bit 1 "Allow FW Takeoff"
+#     "if bit is not set then NAV_TAKEOFF command on quadplanes will instead
+#      perform a NAV_VTOL takeoff".
+#     This is exactly why the mission item here is NAV_VTOL_TAKEOFF and never a
+#     plain NAV_TAKEOFF: on an aircraft with bit 1 set, a NAV_TAKEOFF item is a
+#     RUNWAY takeoff, and the same mission would mean two different things on
+#     two different quadplanes. Being explicit removes that ambiguity.
+#     (Swan-K1 ships with Q_OPTIONS=262274, which has bit 1 set.)
+#   ardupilot/ArduPlane/quadplane.cpp, Q_OPTIONS bit 18 "ARMVTOL"
+#     "arm only in VTOL modes (or AUTO mode when current nav cmd is VTOL
+#      Takeoff)" — satisfied here because the mission's first item is a VTOL
+#      takeoff, which is why arming happens after the mission upload.
+schema: 1
+id: vtol_takeoff_mission
+name:
+  en: VTOL takeoff (AUTO mission)
+  tr: VTOL kalkisi (AUTO gorevi)
+description:
+  en: >-
+    Uploads a single NAV_VTOL_TAKEOFF item, arms, and switches to AUTO. The
+    autopilot flies the vertical climb with no stick input.
+  tr: >-
+    Tek maddelik NAV_VTOL_TAKEOFF gorevi yukler, arm eder ve AUTO moduna gecer.
+    Dikey tirmanisi otopilot kendi ucar, cubuk girisi olmaz.
+sources:
+  - https://ardupilot.org/plane/docs/quadplane-auto-mode.html
+
+applies_to:
+  role: takeoff
+  autopilot: ArduPlane
+  quadplane: true
+  default: false
+  priority: 5
+
+inputs:
+  - name: alt
+    label: {en: "altitude (m)", tr: "irtifa (m)"}
+    type: number
+    default: 20
+    min: 2
+    max: 200
+
+timeout: 300
+
+steps:
+  - name: {en: Confirm the VTOL motors are enabled, tr: VTOL motorlarinin acik oldugunu dogrula}
+    get_param:
+      name: Q_ENABLE
+      store_as: q_enable
+      min: 1
+      fail_message:
+        en: "Q_ENABLE is {value} — this aircraft has no VTOL motors."
+        tr: "Q_ENABLE {value} — bu aracin VTOL motoru yok."
+
+  - name: {en: Upload the VTOL takeoff mission, tr: VTOL kalkis gorevini yukle}
+    upload_mission:
+      items:
+        - command: MAV_CMD_NAV_VTOL_TAKEOFF
+          frame: MAV_FRAME_GLOBAL_RELATIVE_ALT
+          z: "{alt}"
+    timeout: 30
+
+  - name: {en: Wait until pre-arm checks pass, tr: ARM oncesi kontrollerin gecmesini bekle}
+    wait_for: {prearm_ok: true}
+    timeout: 60
+    on_fail: continue
+
+  - name: {en: Arm the motors, tr: Motorlari kur}
+    arm: {recover: true}
+    timeout: 70
+
+  - name: {en: Switch to AUTO — the climb starts, tr: AUTO moduna gec — tirmanis basliyor}
+    set_mode: AUTO
+    timeout: 10
+
+  - name: {en: Confirm the aircraft is lifting off, tr: Aracin havalandigini dogrula}
+    wait_for: {alt_above: 1.0, climb_rate_above: 0.3}
+    timeout: 45
+
+  - name: {en: Wait for the target altitude, tr: Hedef irtifayi bekle}
+    wait_for: {alt_above: "{alt*0.9}"}
+    timeout: 150
+
+expect:
+  - condition: {alt_above: "{alt*0.85}"}
+    timeout: 20
+    message:
+      en: reached at least 85% of the commanded altitude
+      tr: komut verilen irtifanin en az %85'ine ulasti
+  - condition: {armed: true}
+    message: {en: still armed, tr: hala armli}

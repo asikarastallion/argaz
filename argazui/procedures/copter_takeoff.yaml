@@ -1,0 +1,78 @@
+# Copter takeoff — GUIDED + MAV_CMD_NAV_TAKEOFF.
+#
+# Sources:
+#   https://ardupilot.org/dev/docs/copter-commands-in-guided-mode.html
+#     lists MAV_CMD_NAV_TAKEOFF among the commands Copter accepts in GUIDED
+#     inside a COMMAND_LONG.
+#   ArduCopter/mode_guided.cpp, ModeGuided::do_user_takeoff_start()
+#     the altitude arrives in param7 and is relative to the current position.
+#
+# This is the v1.0 behaviour, which was correct for Copter. It is moved here
+# unchanged so that the button and the regression test share one definition —
+# the point of the move is the single-source rule, not a behaviour change.
+schema: 1
+id: copter_takeoff
+name:
+  en: Copter takeoff (GUIDED)
+  tr: Copter kalkisi (GUIDED)
+description:
+  en: >-
+    Switches to GUIDED, arms, and sends MAV_CMD_NAV_TAKEOFF. The multirotor
+    climbs straight up to the requested altitude and holds it.
+  tr: >-
+    GUIDED moduna gecer, arm eder ve MAV_CMD_NAV_TAKEOFF gonderir. Cok rotorlu
+    arac istenen irtifaya dik tirmanir ve orada tutunur.
+sources:
+  - https://ardupilot.org/dev/docs/copter-commands-in-guided-mode.html
+  - https://ardupilot.org/copter/docs/ac2_guidedmode.html
+
+applies_to:
+  role: takeoff
+  autopilot: ArduCopter
+  default: true
+  priority: 10
+
+inputs:
+  - name: alt
+    label: {en: "altitude (m)", tr: "irtifa (m)"}
+    type: number
+    default: 10
+    min: 1
+    max: 200
+
+timeout: 240
+
+steps:
+  - name: {en: Switch to GUIDED, tr: GUIDED moduna gec}
+    set_mode: GUIDED
+    timeout: 10
+
+  - name: {en: Arm the motors, tr: Motorlari kur}
+    arm: {recover: true}
+    timeout: 70
+
+  - name: {en: Send the takeoff command, tr: Kalkis komutunu gonder}
+    send_command:
+      command: MAV_CMD_NAV_TAKEOFF
+      type: long
+      params: {p7: "{alt}"}
+    timeout: 15
+
+  - name: {en: Confirm the vehicle is actually climbing, tr: Aracin gercekten tirmandigini dogrula}
+    wait_for: {alt_above: 1.0, climb_rate_above: 0.3}
+    timeout: 30
+
+  - name: {en: Wait for the target altitude, tr: Hedef irtifayi bekle}
+    wait_for: {alt_above: "{alt*0.9}"}
+    timeout: 120
+
+expect:
+  - condition: {alt_above: "{alt*0.9}"}
+    timeout: 20
+    message:
+      en: reached at least 90% of the requested altitude
+      tr: istenen irtifanin en az %90'ina ulasti
+  - condition: {armed: true}
+    message: {en: still armed, tr: hala armli}
+  - condition: {mode: GUIDED}
+    message: {en: still in GUIDED, tr: hala GUIDED modunda}

@@ -1,0 +1,56 @@
+# QuadPlane VTOL landing — QLAND, verified through to disarm.
+#
+# Sources:
+#   https://ardupilot.org/plane/docs/quadplane-flying.html
+#     QLAND is "an automatic descent to ground level"; it is also what the
+#     autopilot itself falls back to on a failsafe during a VTOL takeoff.
+#   ardupilot/ArduPlane/mode_qland.cpp and quadplane.cpp
+#     the automatic disarm after touchdown is delayed by LAND_DISARMDELAY.
+schema: 1
+id: vtol_land
+name:
+  en: VTOL landing (QLAND)
+  tr: VTOL inisi (QLAND)
+description:
+  en: >-
+    Descends vertically at the current position and disarms on touchdown.
+    Success is the disarm, not the mode change.
+  tr: >-
+    Bulundugu noktada dikey alcalir ve yere degince disarm olur. Basari olcutu
+    mod degisimi degil, disarm olmasidir.
+sources:
+  - https://ardupilot.org/plane/docs/quadplane-flying.html
+
+applies_to:
+  role: land
+  autopilot: ArduPlane
+  quadplane: true
+  tailsitter: false
+  default: true
+  priority: 10
+
+timeout: 420
+
+steps:
+  # QLAND controls the descent itself. A stick left above mid from a previous
+  # procedure would fight it, so drop the overrides first.
+  - name: {en: Release the throttle stick, tr: Gaz cubugunu birak}
+    rc_release: true
+
+  - name: {en: Switch to QLAND, tr: QLAND moduna gec}
+    set_mode: QLAND
+    timeout: 15
+
+  - name: {en: Confirm the aircraft is descending, tr: Aracin alcaldigini dogrula}
+    wait_for: {climb_rate_below: -0.2}
+    timeout: 45
+
+  - name: {en: Wait for touchdown and automatic disarm, tr: Yere inisi ve otomatik disarm'i bekle}
+    wait_for: {armed: false}
+    timeout: 330
+
+expect:
+  - condition: {armed: false}
+    message: {en: disarmed after landing, tr: inisten sonra disarm oldu}
+  - condition: {alt_below: 3.0}
+    message: {en: on the ground, tr: yerde}
