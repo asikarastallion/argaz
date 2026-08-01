@@ -222,15 +222,25 @@ Multi-vehicle / swarm simulation, authentication, remote access, graphical
 mission planning (MAVProxy's map covers part of it) and telemetry dashboards
 (MAVProxy's console covers the basics).
 
-## Notes on licensing
+## License
 
-ArduPilot, `ardupilot_gazebo` and `SITL_Models` are separate upstream projects
-under their own licences (GPLv3) and are **not redistributed here**. The model
-preview images are downloaded from those projects' documentation at setup time
-by `fetch_images.py` and are likewise not committed to this repository.
+ArgazUI is released under the **MIT License** — see [LICENSE](LICENSE).
 
-No licence has been chosen for ArgazUI itself yet — add a `LICENSE` file if you
-want others to reuse it.
+MIT fits because ArgazUI is a front end, not a fork: it launches ArduPilot,
+MAVProxy and Gazebo as separate processes and reads their documentation and
+parameter files from your own local clones. Running a GPL program as a
+subprocess does not make the caller a derivative work, so none of those
+projects' copyleft terms extend to this code. `pymavlink` (LGPL-3.0) is used as
+an unmodified, separately installed pip dependency, which the LGPL explicitly
+allows from differently licensed code.
+
+`xterm.js` (MIT) is vendored under `argazui/static/vendor/`; its notice, along
+with every dependency and upstream project, is listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+ArduPilot, `ardupilot_gazebo` and `SITL_Models` (all GPL-3.0) are **not
+redistributed here**, and neither are the model preview images — those are
+downloaded from the upstream documentation at setup time by `fetch_images.py`.
 
 ## Contact
 
