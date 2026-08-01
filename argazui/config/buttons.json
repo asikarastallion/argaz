@@ -1,0 +1,439 @@
+{
+  "_comment": [
+    "Quick command buttons. Edit this file to add your own; changes take effect",
+    "when the page is reloaded.",
+    "",
+    "Fields:",
+    "  id        : unique identifier",
+    "  label     : text shown on the button (English)",
+    "  label_tr  : optional Turkish label, used when the UI is set to TR",
+    "  commands  : MAVProxy-syntax commands, executed in order",
+    "  inputs    : optional numeric input boxes",
+    "  confirm   : true shows a confirmation dialog",
+    "  style     : primary | danger | normal (appearance only)",
+    "  desc      : tooltip (English); desc_tr is its Turkish counterpart",
+    "",
+    "Placeholders {name} are filled from inputs. {name*100} applies a multiplier",
+    "(e.g. metres -> centimetres).",
+    "",
+    "Command syntax understood by the MAVLink interpreter:",
+    "  mode <MODE>           arm throttle [force]    disarm [force]",
+    "  takeoff <metres>      param set <NAME> <VALUE>  rc <channel> <pwm>",
+    "Anything else is forwarded to the SIMULATION terminal."
+  ],
+  "Copter": [
+    {
+      "id": "arm",
+      "label": "ARM",
+      "style": "danger",
+      "confirm": true,
+      "commands": [
+        "mode guided",
+        "arm throttle"
+      ],
+      "desc": "Switches to GUIDED and arms the motors",
+      "desc_tr": "GUIDED moduna gecip motorlari kurar"
+    },
+    {
+      "id": "disarm",
+      "label": "DISARM",
+      "style": "normal",
+      "commands": [
+        "disarm"
+      ]
+    },
+    {
+      "id": "arm_force",
+      "label": "ARM (FORCE)",
+      "label_tr": "ARM (ZORLA)",
+      "style": "danger",
+      "confirm": true,
+      "commands": [
+        "arm force throttle"
+      ],
+      "desc": "Arms the motors BYPASSING the pre-arm checks. An escape hatch for models whose parameter file is a real hardware dump that does not settle in SITL (e.g. the Swan-K1 tailsitter). NEVER use this on a real aircraft.",
+      "desc_tr": "ARM oncesi kontrolleri ATLAYARAK motorlari kurar. Param dosyasi gercek donanimdan gelen ve SITL'de tam oturmayan modeller icin kacis yolu (ornek: Swan-K1 tailsitter). Gercek ucusta ASLA kullanma."
+    },
+    {
+      "id": "guided",
+      "label": "GUIDED",
+      "style": "normal",
+      "commands": [
+        "mode guided"
+      ]
+    },
+    {
+      "id": "takeoff",
+      "label": "TAKEOFF",
+      "style": "danger",
+      "confirm": true,
+      "inputs": [
+        {
+          "name": "alt",
+          "label": "altitude (m)",
+          "label_tr": "irtifa (m)",
+          "default": 10,
+          "min": 1,
+          "max": 200
+        }
+      ],
+      "commands": [
+        "mode guided",
+        "takeoff {alt}"
+      ]
+    },
+    {
+      "id": "rtl",
+      "label": "RTL",
+      "style": "primary",
+      "commands": [
+        "mode rtl"
+      ]
+    },
+    {
+      "id": "land",
+      "label": "LAND",
+      "style": "primary",
+      "commands": [
+        "mode land"
+      ]
+    },
+    {
+      "id": "circle",
+      "label": "CIRCLE",
+      "style": "normal",
+      "inputs": [
+        {
+          "name": "r",
+          "label": "radius (m)",
+          "label_tr": "yaricap (m)",
+          "default": 50,
+          "min": 1,
+          "max": 2000
+        }
+      ],
+      "commands": [
+        "param set CIRCLE_RADIUS_M {r}",
+        "mode circle"
+      ],
+      "desc": "NOTE: on this ArduPilot version the parameter is CIRCLE_RADIUS_M and its unit is METRES. The old centimetre-based CIRCLE_RADIUS has been removed.",
+      "desc_tr": "DIKKAT: bu ArduPilot surumunde parametre CIRCLE_RADIUS_M ve birimi METRE. Eski cm'lik CIRCLE_RADIUS kaldirilmis."
+    },
+    {
+      "id": "loiter",
+      "label": "LOITER",
+      "style": "normal",
+      "commands": [
+        "mode loiter"
+      ]
+    },
+    {
+      "id": "althold",
+      "label": "ALT_HOLD",
+      "style": "normal",
+      "commands": [
+        "mode alt_hold"
+      ]
+    },
+    {
+      "id": "stabilize",
+      "label": "STABILIZE",
+      "style": "normal",
+      "commands": [
+        "mode stabilize"
+      ]
+    }
+  ],
+  "Plane": [
+    {
+      "id": "arm",
+      "label": "ARM",
+      "style": "danger",
+      "confirm": true,
+      "commands": [
+        "arm throttle"
+      ]
+    },
+    {
+      "id": "disarm",
+      "label": "DISARM",
+      "style": "normal",
+      "commands": [
+        "disarm"
+      ]
+    },
+    {
+      "id": "arm_force",
+      "label": "ARM (FORCE)",
+      "label_tr": "ARM (ZORLA)",
+      "style": "danger",
+      "confirm": true,
+      "commands": [
+        "arm force throttle"
+      ],
+      "desc": "Arms the motors BYPASSING the pre-arm checks. An escape hatch for models whose parameter file is a real hardware dump that does not settle in SITL (e.g. the Swan-K1 tailsitter). NEVER use this on a real aircraft.",
+      "desc_tr": "ARM oncesi kontrolleri ATLAYARAK motorlari kurar. Param dosyasi gercek donanimdan gelen ve SITL'de tam oturmayan modeller icin kacis yolu (ornek: Swan-K1 tailsitter). Gercek ucusta ASLA kullanma."
+    },
+    {
+      "id": "manual",
+      "label": "MANUAL",
+      "style": "normal",
+      "commands": [
+        "mode manual"
+      ]
+    },
+    {
+      "id": "fbwa",
+      "label": "FBWA",
+      "style": "normal",
+      "commands": [
+        "mode fbwa"
+      ]
+    },
+    {
+      "id": "takeoff",
+      "label": "TAKEOFF",
+      "style": "danger",
+      "confirm": true,
+      "inputs": [
+        {
+          "name": "alt",
+          "label": "altitude (m)",
+          "label_tr": "irtifa (m)",
+          "default": 50,
+          "min": 5,
+          "max": 500
+        }
+      ],
+      "commands": [
+        "mode guided",
+        "arm throttle",
+        "takeoff {alt}"
+      ],
+      "desc": "GUIDED takeoff for Plane; for a runway departure use AUTO with a mission",
+      "desc_tr": "Plane icin GUIDED kalkis; pist ucusu istiyorsan AUTO + gorev kullan"
+    },
+    {
+      "id": "auto",
+      "label": "AUTO",
+      "style": "primary",
+      "commands": [
+        "mode auto"
+      ]
+    },
+    {
+      "id": "guided",
+      "label": "GUIDED",
+      "style": "normal",
+      "commands": [
+        "mode guided"
+      ]
+    },
+    {
+      "id": "rtl",
+      "label": "RTL",
+      "style": "primary",
+      "commands": [
+        "mode rtl"
+      ]
+    },
+    {
+      "id": "loiter_rad",
+      "label": "LOITER (radius)",
+      "label_tr": "LOITER (yaricap)",
+      "style": "normal",
+      "inputs": [
+        {
+          "name": "r",
+          "label": "radius (m)",
+          "label_tr": "yaricap (m)",
+          "default": 100,
+          "min": 10,
+          "max": 2000
+        }
+      ],
+      "commands": [
+        "param set WP_LOITER_RAD {r}",
+        "mode loiter"
+      ],
+      "desc": "On Plane the radius-controlled circle is LOITER; WP_LOITER_RAD is in METRES. (Plane's CIRCLE mode is a fixed-bank circle with no radius.)",
+      "desc_tr": "Plane'de yaricapi ayarlanabilen daire LOITER modudur; WP_LOITER_RAD METRE cinsindendir. (Plane'in CIRCLE modu sabit yatis acili, yaricapsizdir.)"
+    },
+    {
+      "id": "circle",
+      "label": "CIRCLE",
+      "style": "normal",
+      "commands": [
+        "mode circle"
+      ],
+      "desc": "Plane CIRCLE mode: a gentle fixed-bank circle that works without GPS. It has NO radius parameter.",
+      "desc_tr": "Plane CIRCLE modu: GPS'siz, sabit yatis acili nazik daire. Yaricap parametresi YOKTUR."
+    },
+    {
+      "id": "fbwb",
+      "label": "FBWB",
+      "style": "normal",
+      "commands": [
+        "mode fbwb"
+      ]
+    }
+  ],
+  "VTOL": [
+    {
+      "id": "arm",
+      "label": "ARM",
+      "style": "danger",
+      "confirm": true,
+      "commands": [
+        "arm throttle"
+      ]
+    },
+    {
+      "id": "disarm",
+      "label": "DISARM",
+      "style": "normal",
+      "commands": [
+        "disarm"
+      ]
+    },
+    {
+      "id": "arm_force",
+      "label": "ARM (FORCE)",
+      "label_tr": "ARM (ZORLA)",
+      "style": "danger",
+      "confirm": true,
+      "commands": [
+        "arm force throttle"
+      ],
+      "desc": "Arms the motors BYPASSING the pre-arm checks. An escape hatch for models whose parameter file is a real hardware dump that does not settle in SITL (e.g. the Swan-K1 tailsitter). NEVER use this on a real aircraft.",
+      "desc_tr": "ARM oncesi kontrolleri ATLAYARAK motorlari kurar. Param dosyasi gercek donanimdan gelen ve SITL'de tam oturmayan modeller icin kacis yolu (ornek: Swan-K1 tailsitter). Gercek ucusta ASLA kullanma."
+    },
+    {
+      "id": "qstabilize",
+      "label": "QSTABILIZE",
+      "style": "normal",
+      "commands": [
+        "mode qstabilize"
+      ]
+    },
+    {
+      "id": "qhover",
+      "label": "QHOVER",
+      "style": "normal",
+      "commands": [
+        "mode qhover"
+      ]
+    },
+    {
+      "id": "qloiter",
+      "label": "QLOITER",
+      "style": "normal",
+      "commands": [
+        "mode qloiter"
+      ]
+    },
+    {
+      "id": "qtakeoff",
+      "label": "Q-TAKEOFF",
+      "style": "danger",
+      "confirm": true,
+      "inputs": [
+        {
+          "name": "alt",
+          "label": "altitude (m)",
+          "label_tr": "irtifa (m)",
+          "default": 20,
+          "min": 2,
+          "max": 200
+        }
+      ],
+      "commands": [
+        "mode guided",
+        "arm throttle",
+        "takeoff {alt}"
+      ],
+      "desc": "On a QuadPlane a GUIDED takeoff is performed as a VTOL takeoff",
+      "desc_tr": "QuadPlane'de GUIDED kalkis VTOL kalkisi olarak gerceklesir"
+    },
+    {
+      "id": "qland",
+      "label": "QLAND",
+      "style": "primary",
+      "commands": [
+        "mode qland"
+      ]
+    },
+    {
+      "id": "qrtl",
+      "label": "QRTL",
+      "style": "primary",
+      "commands": [
+        "mode qrtl"
+      ]
+    },
+    {
+      "id": "manual",
+      "label": "MANUAL",
+      "style": "normal",
+      "commands": [
+        "mode manual"
+      ]
+    },
+    {
+      "id": "fbwa",
+      "label": "FBWA",
+      "style": "normal",
+      "commands": [
+        "mode fbwa"
+      ]
+    },
+    {
+      "id": "auto",
+      "label": "AUTO",
+      "style": "primary",
+      "commands": [
+        "mode auto"
+      ]
+    },
+    {
+      "id": "rtl",
+      "label": "RTL",
+      "style": "primary",
+      "commands": [
+        "mode rtl"
+      ]
+    },
+    {
+      "id": "loiter_rad",
+      "label": "LOITER (radius)",
+      "label_tr": "LOITER (yaricap)",
+      "style": "normal",
+      "inputs": [
+        {
+          "name": "r",
+          "label": "radius (m)",
+          "label_tr": "yaricap (m)",
+          "default": 100,
+          "min": 10,
+          "max": 2000
+        }
+      ],
+      "commands": [
+        "param set WP_LOITER_RAD {r}",
+        "mode loiter"
+      ],
+      "desc": "Fixed-wing LOITER for a QuadPlane; WP_LOITER_RAD is in METRES.",
+      "desc_tr": "QuadPlane sabit kanat LOITER'i; WP_LOITER_RAD METRE cinsindendir."
+    },
+    {
+      "id": "circle",
+      "label": "CIRCLE",
+      "style": "normal",
+      "commands": [
+        "mode circle"
+      ],
+      "desc": "Plane CIRCLE mode: a gentle fixed-bank circle that works without GPS. It has NO radius parameter.",
+      "desc_tr": "Plane CIRCLE modu: GPS'siz, sabit yatis acili nazik daire. Yaricap parametresi YOKTUR."
+    }
+  ]
+}

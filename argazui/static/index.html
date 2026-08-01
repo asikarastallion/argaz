@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ArgazUI</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>%F0%9F%9A%81</text></svg>">
+<link rel="stylesheet" href="/static/vendor/xterm.css">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">Argaz<span>UI</span>
+    <em data-i18n="tagline">ArduPilot SITL + Gazebo control panel</em>
+  </div>
+
+  <div class="indicators">
+    <span class="pill wide" id="pill-model">Vehicle: —</span>
+    <span class="pill" id="pill-link">MAVLink: —</span>
+    <span class="pill" id="pill-ready">READY: —</span>
+    <span class="pill" id="pill-mode">Mode: —</span>
+    <span class="pill" id="pill-armed">DISARMED</span>
+    <span class="pill" id="pill-alt">Alt: — m</span>
+    <span class="pill" id="pill-spd">Spd: — m/s</span>
+  </div>
+
+  <nav class="topnav">
+    <div class="langsw" title="Language / Dil">
+      <button class="langbtn active" data-set-lang="en">EN</button>
+      <button class="langbtn" data-set-lang="tr">TR</button>
+    </div>
+    <button class="navbtn" data-sheet="sheet-help" data-i18n="nav_help">HOW TO USE</button>
+    <button class="navbtn" data-sheet="sheet-about" data-i18n="nav_about">CONTACT</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ---------------------------------------------------------- model picker -->
+  <section class="panel models">
+    <div class="cols">
+      <div class="col" data-class="Copter"><h3>COPTER</h3><ul id="list-Copter"></ul></div>
+      <div class="col" data-class="Plane"><h3>PLANE</h3><ul id="list-Plane"></ul></div>
+      <div class="col" data-class="VTOL"><h3>VTOL</h3><ul id="list-VTOL"></ul></div>
+      <div class="col launch">
+        <h3 data-i18n="selected_model">SELECTED MODEL</h3>
+        <figure class="preview" id="preview" hidden>
+          <img id="preview-img" alt="">
+          <figcaption data-i18n="click_to_enlarge">click to enlarge</figcaption>
+        </figure>
+        <div class="preview placeholder" id="preview-none" data-i18n="pick_for_preview">
+          select a model to preview
+        </div>
+        <div class="selected" id="selected-name">— none selected —</div>
+        <div class="selected-meta" id="selected-meta"></div>
+        <button class="btn big start" id="btn-start" disabled data-i18n="btn_start">▶ START</button>
+        <button class="btn big stop" id="btn-stop" data-i18n="btn_stop">■ STOP</button>
+        <button class="btn link" id="btn-rescan" data-i18n="btn_rescan">⟳ rescan models</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- --------------------------------------------------------- quick commands -->
+  <section class="panel">
+    <h2><span data-i18n="quick_commands">Quick Commands</span>
+        <small id="cmd-context"></small></h2>
+    <div id="buttons" class="buttons"></div>
+    <p class="hint" id="cmd-hint"></p>
+  </section>
+
+  <!-- --------------------------------------------------------- mission script -->
+  <section class="panel">
+    <h2><span data-i18n="mission_script">Mission Script</span>
+        <small id="scripts-dir"></small></h2>
+    <div class="row">
+      <select id="script-select"></select>
+      <button class="btn" id="btn-script" data-i18n="btn_run_script">▶ RUN SCRIPT</button>
+      <button class="btn link" id="btn-script-refresh" data-i18n="btn_refresh">⟳ refresh</button>
+    </div>
+    <p class="hint" id="script-hint"></p>
+  </section>
+
+  <!-- --------------------------------------------------------------- terminal -->
+  <section class="panel terminal-panel">
+    <h2><span data-i18n="terminal">Terminal</span>
+        <small data-i18n="terminal_sub">real bash sessions — you can type here too</small></h2>
+    <div class="tabs">
+      <button class="tab active" data-stream="sim" data-i18n="tab_sim">SIMULATION</button>
+      <button class="tab" data-stream="shell" data-i18n="tab_shell">COMMAND / SCRIPT</button>
+      <span class="tabhint" id="tabhint"></span>
+    </div>
+    <div class="termwrap">
+      <div id="term-sim" class="termbox"></div>
+      <div id="term-shell" class="termbox" hidden></div>
+    </div>
+  </section>
+</main>
+
+<!-- ============================================================== HOW TO USE -->
+<div class="sheet-backdrop" id="sheet-help" hidden>
+  <div class="sheet">
+    <header>
+      <h2 data-i18n="nav_help_title">How to Use</h2>
+      <button class="sheet-close" data-close>✕</button>
+    </header>
+
+    <div class="sheet-body" data-lang-block="en">
+      <ol class="steps">
+        <li><b>Pick a model.</b> Choose one from the COPTER / PLANE / VTOL columns.
+            The right-hand panel shows a preview and how it will be launched.</li>
+        <li><b>▶ START.</b> Gazebo, SITL and MAVProxy come up. The commands are typed
+            into the SIMULATION terminal verbatim, so you can see exactly what ran.</li>
+        <li><b>Wait for READY.</b> ARM is <u>rejected</u> until the
+            <span class="chip ok">READY</span> chip in the top bar turns green. This is
+            normal — the autopilot needs to settle its sensors and set a home
+            position (usually 10–35 s).</li>
+        <li><b>Fly.</b> The Quick Commands change with the vehicle class. Every result
+            is written to the terminal; if a command is rejected, the autopilot's own
+            reason is shown.</li>
+        <li><b>Run a mission script</b> (optional). Python files in <code>scripts/</code>
+            are listed here and run in the COMMAND tab.</li>
+        <li><b>■ STOP.</b> Gazebo, SITL, MAVProxy and RViz are shut down cleanly.</li>
+      </ol>
+
+      <h3>The two terminal tabs</h3>
+      <table class="tbl">
+        <tr><th>SIMULATION</th>
+            <td>Gazebo / SITL / MAVProxy run here. For models launched with
+                <code>sim_vehicle.py</code>, MAVProxy is interactive — you can type
+                <code>status</code>, <code>wp list</code> or
+                <code>motortest 1 1 1005 2</code> straight into it.</td></tr>
+        <tr><th>COMMAND / SCRIPT</th>
+            <td>A plain bash shell. Mission scripts run here, and you can type any
+                shell command.</td></tr>
+      </table>
+      <p class="note">Why two terminals? The simulation occupies the shell's
+        foreground — that is required for MAVProxy to keep reading the keyboard —
+        so running a script needs a second shell.</p>
+
+      <h3>MAVLink ports</h3>
+      <table class="tbl">
+        <tr><th>14550</th><td>ArgazUI — quick command buttons and the status chips</td></tr>
+        <tr><th>14551</th><td>Your mission scripts. Two listeners cannot share one UDP
+            port, which is why they are split — use <b>14551</b> in your scripts.</td></tr>
+      </table>
+
+      <h3>Common situations</h3>
+      <table class="tbl">
+        <tr><th>ARM rejected</th>
+            <td>Almost always the vehicle is not ready yet. Wait for <b>READY</b> to turn
+                green and try again. The reason appears in the terminal (e.g.
+                <i>Arm: AHRS: waiting for home</i>).</td></tr>
+        <tr><th>AUTO does nothing</th>
+            <td>Without a loaded mission the autopilot will not stay in AUTO and falls
+                back to RTL. That is not a bug.</td></tr>
+        <tr><th>RViz does not open</th>
+            <td>RViz and the ROS 2/DDS bridge exist only for Iris. Other models do not
+                have that stack; the panel states "RViz/DDS: no".</td></tr>
+        <tr><th>Buttons are dimmed</th>
+            <td>They activate when a vehicle is running <i>and</i> MAVLink is connected.</td></tr>
+      </table>
+
+      <p class="note">For more detail (adding models, buttons and scripts,
+        troubleshooting) see <code>argazui/USAGE.md</code> in the project folder.</p>
+    </div>
+
+    <div class="sheet-body" data-lang-block="tr" hidden>
+      <ol class="steps">
+        <li><b>Model seç.</b> Soldaki COPTER / PLANE / VTOL sütunlarından birini işaretle.
+            Sağdaki panelde aracın önizlemesi ve nasıl başlatılacağı görünür.</li>
+        <li><b>▶ BAŞLAT.</b> Gazebo, SITL ve MAVProxy açılır. Komutlar SİMÜLASYON
+            terminaline aynen yazılır — ne çalıştırıldığını görebilirsin.</li>
+        <li><b>HAZIR göstergesini bekle.</b> Üst çubuktaki
+            <span class="chip ok">HAZIR</span> yeşile dönmeden ARM <u>reddedilir</u>.
+            Bu normaldir: otopilotun sensörleri oturması ve ev konumunu belirlemesi
+            gerekir (genelde 10–35 sn).</li>
+        <li><b>Uçur.</b> Hızlı Komutlar bölümündeki butonlar aracın sınıfına göre
+            değişir. Her komutun sonucu terminale yazılır; reddedilirse otopilotun
+            gerekçesi de görünür.</li>
+        <li><b>Görev scripti çalıştır</b> (isteğe bağlı). <code>scripts/</code>
+            klasöründeki Python dosyaları listelenir, KOMUT sekmesinde çalışırlar.</li>
+        <li><b>■ DURDUR.</b> Gazebo, SITL, MAVProxy ve RViz temizce kapatılır.</li>
+      </ol>
+
+      <h3>Terminalin iki sekmesi</h3>
+      <table class="tbl">
+        <tr><th>SİMÜLASYON</th>
+            <td>Gazebo / SITL / MAVProxy burada çalışır. <code>sim_vehicle.py</code> ile
+                açılan modellerde MAVProxy etkileşimlidir — buraya <code>status</code>,
+                <code>wp list</code>, <code>motortest 1 1 1005 2</code> gibi komutları
+                elle yazabilirsin.</td></tr>
+        <tr><th>KOMUT / SCRIPT</th>
+            <td>Boş bir bash kabuğu. Görev scriptleri burada çalışır; istediğin kabuk
+                komutunu da yazabilirsin.</td></tr>
+      </table>
+      <p class="note">Neden iki terminal? Simülasyon kabuğun ön planını işgal eder
+        (MAVProxy'nin klavyeden komut alabilmesi için bu zorunludur), bu yüzden script
+        çalıştırmaya ayrı bir kabuk gerekir.</p>
+
+      <h3>MAVLink portları</h3>
+      <table class="tbl">
+        <tr><th>14550</th><td>ArgazUI — hızlı komut butonları ve üstteki göstergeler</td></tr>
+        <tr><th>14551</th><td>Senin görev scriptlerin. Aynı porta iki dinleyici
+            bağlanamadığı için ayrıldılar; scriptlerinde <b>14551</b> kullan.</td></tr>
+      </table>
+
+      <h3>Sık karşılaşılanlar</h3>
+      <table class="tbl">
+        <tr><th>ARM reddedildi</th>
+            <td>Neredeyse her zaman araç henüz hazır değildir. <b>HAZIR</b> yeşile
+                dönünce tekrar dene. Gerekçe terminalde yazar (ör.
+                <i>Arm: AHRS: waiting for home</i>).</td></tr>
+        <tr><th>AUTO çalışmıyor</th>
+            <td>Yüklü bir görev (waypoint) yoksa otopilot AUTO'da kalmaz, RTL'e düşer.
+                Bu bir hata değildir.</td></tr>
+        <tr><th>RViz açılmıyor</th>
+            <td>RViz ve ROS2/DDS köprüsü yalnızca Iris'te vardır. Diğer modellerde bu
+                altyapı yoktur; panel bunu "RViz/DDS: yok" diye belirtir.</td></tr>
+        <tr><th>Butonlar soluk</th>
+            <td>Bir araç çalışıyor <i>ve</i> MAVLink bağlıyken aktifleşirler.</td></tr>
+      </table>
+
+      <p class="note">Daha ayrıntılı bilgi (yeni model/buton/script ekleme, sorun
+        giderme) için proje klasöründeki <code>argazui/USAGE.md</code> dosyasına bak.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================= CONTACT -->
+<div class="sheet-backdrop" id="sheet-about" hidden>
+  <div class="sheet narrow">
+    <header>
+      <h2 data-i18n="nav_about_title">Contact &amp; Project</h2>
+      <button class="sheet-close" data-close>✕</button>
+    </header>
+
+    <div class="sheet-body" data-lang-block="en">
+      <p class="lead">ArgazUI was built to drive ArduPilot SITL + Gazebo flight tests
+        from a single local panel, removing the loop of opening several terminals and
+        retyping the same commands for every attempt.</p>
+
+      <h3>Developer</h3>
+      <div class="contact">
+        <a class="contact-row" href="mailto:mserdarsokmen@gmail.com">
+          <span class="ic">✉</span>
+          <span><b>E-mail</b><em>mserdarsokmen@gmail.com</em></span>
+        </a>
+        <a class="contact-row" href="https://www.linkedin.com/in/mserdarsokmen"
+           target="_blank" rel="noopener noreferrer">
+          <span class="ic">in</span>
+          <span><b>LinkedIn</b><em>linkedin.com/in/mserdarsokmen</em></span>
+        </a>
+        <a class="contact-row" href="https://github.com/asikarastallion"
+           target="_blank" rel="noopener noreferrer">
+          <span class="ic">&lt;/&gt;</span>
+          <span><b>GitHub</b><em>github.com/asikarastallion</em></span>
+        </a>
+      </div>
+
+      <h3>Built with</h3>
+      <table class="tbl">
+        <tr><th>Backend</th><td>Python · FastAPI · Uvicorn · pty · pymavlink</td></tr>
+        <tr><th>Frontend</th><td>Vanilla JS · xterm.js (vendored, no CDN)</td></tr>
+        <tr><th>Simulation</th><td>ArduPilot SITL · Gazebo Harmonic · ROS 2 Jazzy</td></tr>
+        <tr><th>Access</th><td><code>127.0.0.1</code> only — not exposed to the network</td></tr>
+      </table>
+
+      <h3>Model imagery</h3>
+      <p class="note">Preview images come from the ArduPilot
+        <a href="https://github.com/ArduPilot/SITL_Models" target="_blank"
+           rel="noopener noreferrer">SITL_Models</a> and
+        <a href="https://github.com/ArduPilot/ardupilot_gazebo" target="_blank"
+           rel="noopener noreferrer">ardupilot_gazebo</a> documentation and are stored
+        locally, so the page never fetches anything remotely.</p>
+
+      <p class="note">ArgazUI does not modify your existing <code>argaz</code> setup;
+        <code>env.sh</code>, <code>ardupilot/</code> and <code>ardu_ws/</code> are only
+        read and executed.</p>
+    </div>
+
+    <div class="sheet-body" data-lang-block="tr" hidden>
+      <p class="lead">ArgazUI, ArduPilot SITL + Gazebo uçuş denemelerini tek bir yerel
+        panelden yönetmek için geliştirildi. Amaç, her denemede birkaç terminal açıp
+        elle komut yazma döngüsünü ortadan kaldırmak.</p>
+
+      <h3>Geliştirici</h3>
+      <div class="contact">
+        <a class="contact-row" href="mailto:mserdarsokmen@gmail.com">
+          <span class="ic">✉</span>
+          <span><b>E-posta</b><em>mserdarsokmen@gmail.com</em></span>
+        </a>
+        <a class="contact-row" href="https://www.linkedin.com/in/mserdarsokmen"
+           target="_blank" rel="noopener noreferrer">
+          <span class="ic">in</span>
+          <span><b>LinkedIn</b><em>linkedin.com/in/mserdarsokmen</em></span>
+        </a>
+        <a class="contact-row" href="https://github.com/asikarastallion"
+           target="_blank" rel="noopener noreferrer">
+          <span class="ic">&lt;/&gt;</span>
+          <span><b>GitHub</b><em>github.com/asikarastallion</em></span>
+        </a>
+      </div>
+
+      <h3>Teknik künye</h3>
+      <table class="tbl">
+        <tr><th>Arka uç</th><td>Python · FastAPI · Uvicorn · pty · pymavlink</td></tr>
+        <tr><th>Ön yüz</th><td>Vanilla JS · xterm.js (yerel, CDN'siz)</td></tr>
+        <tr><th>Simülasyon</th><td>ArduPilot SITL · Gazebo Harmonic · ROS 2 Jazzy</td></tr>
+        <tr><th>Erişim</th><td>Yalnızca <code>127.0.0.1</code> — dışarıya kapalı</td></tr>
+      </table>
+
+      <h3>Model görselleri</h3>
+      <p class="note">Önizleme görselleri ArduPilot
+        <a href="https://github.com/ArduPilot/SITL_Models" target="_blank"
+           rel="noopener noreferrer">SITL_Models</a> ve
+        <a href="https://github.com/ArduPilot/ardupilot_gazebo" target="_blank"
+           rel="noopener noreferrer">ardupilot_gazebo</a> depolarının
+        dokümanlarından alınmış, yerel olarak saklanmaktadır.</p>
+
+      <p class="note">ArgazUI mevcut <code>argaz</code> kurulumunu değiştirmez;
+        <code>env.sh</code>, <code>ardupilot/</code> ve <code>ardu_ws/</code>
+        yalnızca okunur ve çalıştırılır.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================ lightbox -->
+<div class="sheet-backdrop lightbox" id="lightbox" hidden>
+  <figure>
+    <img id="lightbox-img" alt="">
+    <figcaption id="lightbox-cap"></figcaption>
+  </figure>
+</div>
+
+<div class="modal-backdrop" id="modal" hidden>
+  <div class="modal">
+    <h3 id="modal-title">Confirm</h3>
+    <p id="modal-text"></p>
+    <div class="modal-actions">
+      <button class="btn" id="modal-cancel" data-i18n="cancel">Cancel</button>
+      <button class="btn danger" id="modal-ok" data-i18n="confirm_yes">Yes, apply</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/vendor/xterm.js"></script>
+<script src="/static/vendor/addon-fit.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

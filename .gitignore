@@ -1,0 +1,36 @@
+# ---------------------------------------------------------------- vendor trees
+# These are separate upstream projects cloned alongside ArgazUI (>10 GB total).
+# They are NOT part of this repository — see README for how to obtain them.
+/ardupilot/
+/ardu_ws/
+/SITL_Models/
+/Micro-XRCE-DDS-Gen/
+/terrain/
+
+# ------------------------------------------------------------ runtime artefacts
+# Per-model SITL working directories (eeprom, logs, terrain, generated params)
+/argazui/run/
+
+# SITL leftovers in the argaz root from manual sessions
+/eeprom.bin
+/mav.parm
+/mav.tlog*
+/last_*.txt
+/*_test*.txt
+/quadplane_*test*.txt
+
+# ------------------------------------------------------------- model imagery
+# Fetched from the upstream ArduPilot docs; regenerate with:
+#   python3 -m argazui.fetch_images
+/argazui/static/models/
+
+# ------------------------------------------------------------------- editors
+__pycache__/
+*.py[cod]
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# SITL dataflash logs written into the argaz root by manual sessions
+/logs/
