@@ -21,6 +21,7 @@ Port ayrimi:
 """
 from __future__ import annotations
 
+import math
 import re
 import threading
 import time
@@ -70,6 +71,17 @@ class VehicleState:
     # Arac acildiktan ~10 sn sonra True olur; oncesinde ARM reddedilir.
     prearm_ok: bool = False
     prearm_known: bool = False
+    # Attitude, in degrees and degrees per second. Present because acceptance
+    # criteria judge HOW the aircraft flew, not only where it ended up: an
+    # altitude reading cannot tell a controlled climb from a tumble that
+    # happened to gain height. See StabilityWatch.
+    roll: float = 0.0
+    pitch: float = 0.0
+    yaw: float = 0.0
+    roll_rate: float = 0.0
+    pitch_rate: float = 0.0
+    yaw_rate: float = 0.0
+    attitude_known: bool = False
 
     def as_dict(self) -> dict:
         return {
@@ -79,6 +91,8 @@ class VehicleState:
             "alt": round(self.alt, 1),
             "groundspeed": round(self.groundspeed, 1),
             "climb": round(self.climb, 1),
+            "roll": round(self.roll, 1),
+            "pitch": round(self.pitch, 1),
             "sysid": self.sysid,
             "prearm_ok": self.prearm_ok,
             "prearm_known": self.prearm_known,
@@ -88,6 +102,106 @@ class VehicleState:
             # "never heard from the vehicle" are different problems.
             "heartbeat_age": (None if not self.last_heartbeat
                               else round(time.time() - self.last_heartbeat, 1)),
+        }
+
+
+# Attitude is now something a procedure may accept or reject, so it has to
+# arrive fast enough to judge. MAV_DATA_STREAM_ALL at 4 Hz was chosen when the
+# only questions were "what mode" and "how high"; at 4 Hz a 2 Hz oscillation
+# and a steady hover are indistinguishable, and the aircraft this criterion
+# was written for oscillates at roughly that rate.
+ATTITUDE_STREAM_HZ = 10
+
+
+class StabilityWatch:
+    """Records how the airframe behaved, not just where it ended up.
+
+    WHY THIS EXISTS
+    ---------------
+    `tailsitter_takeoff` passed three times while the aircraft was tumbling.
+    It reached altitude, stayed armed and reported QHOVER — and those were the
+    only three things the acceptance criteria looked at. Altitude is a side
+    effect of a thrust vector that happened to point roughly up for a while;
+    nothing in the criteria could tell a controlled climb from a fall upwards.
+
+    So the attitude envelope is measured continuously for the whole of a
+    procedure, and criteria are evaluated against it afterwards.
+
+    WHY TIME OUTSIDE A BAND, RATHER THAN A PEAK
+    -------------------------------------------
+    A peak is one sample: a gust, a mode change or a single noisy reading
+    makes it useless as a verdict. What separates a tumble from a manoeuvre is
+    how LONG the aircraft stays outside its band, so every limit is judged
+    against accumulated seconds and each procedure declares how many of those
+    seconds it forgives.
+
+    WHY THE VEHICLE'S CLOCK AND NOT OURS
+    ------------------------------------
+    Every sample is weighted by the interval between its own timestamp and the
+    previous one, taken from ATTITUDE.time_boot_ms. Wall-clock timing was tried
+    first and is wrong twice over: telemetry arrives in bursts whenever the
+    receive buffer is drained, so a hundred messages covering ten seconds of
+    flight all land within a few milliseconds and contribute almost nothing;
+    and under SITL speedup a wall-clock second is not a second of flight at
+    all. The limits in a procedure are about the aircraft, so they are counted
+    on the aircraft's clock — which also makes them mean the same thing at
+    speedup 1 and speedup 10.
+    """
+
+    __slots__ = ("_samples", "_last")
+
+    # An interval longer than this is a gap in the telemetry, not a long
+    # stretch of flight in one attitude. It is counted at this value rather
+    # than in full so that a dropout can neither manufacture nor excuse time
+    # outside a band.
+    MAX_GAP = 0.5
+
+    def __init__(self) -> None:
+        self._samples: list[tuple] = []      # (t, roll, pitch, max|rate|, dt)
+        self._last: Optional[float] = None
+
+    def reset(self) -> None:
+        self._samples = []
+        self._last = None
+
+    def add(self, when: float, roll: float, pitch: float,
+            rates: tuple[float, float, float]) -> None:
+        """`when` is vehicle time in seconds (ATTITUDE.time_boot_ms / 1000)."""
+        # The first sample of a window has no predecessor and so carries no
+        # time. That is the only honest weight for an interval nobody observed.
+        dt = 0.0
+        if self._last is not None and when > self._last:
+            dt = min(when - self._last, self.MAX_GAP)
+        self._samples.append((when, roll, pitch, max(abs(r) for r in rates), dt))
+        self._last = when
+
+    # ------------------------------------------------------------------ queries
+    @property
+    def seconds(self) -> float:
+        return sum(s[4] for s in self._samples)
+
+    def outside_seconds(self, axis: str, low: float, high: float) -> float:
+        index = 1 if axis == "roll" else 2
+        return sum(s[4] for s in self._samples if not (low <= s[index] <= high))
+
+    def rate_above_seconds(self, limit: float) -> float:
+        return sum(s[4] for s in self._samples if s[3] > limit)
+
+    def report(self) -> dict:
+        """The measured envelope, for the run record and the flight report."""
+        if not self._samples:
+            return {"samples": 0, "seconds": 0.0}
+        rolls = [s[1] for s in self._samples]
+        pitches = [s[2] for s in self._samples]
+        rates = sorted(s[3] for s in self._samples)
+        return {
+            "samples": len(self._samples),
+            "seconds": round(self.seconds, 1),
+            "roll_min": round(min(rolls), 1), "roll_max": round(max(rolls), 1),
+            "pitch_min": round(min(pitches), 1), "pitch_max": round(max(pitches), 1),
+            "rate_peak": round(rates[-1], 1),
+            "rate_p95": round(rates[int(len(rates) * 0.95) - 1 if len(rates) > 1 else 0], 1),
+            "rate_median": round(rates[len(rates) // 2], 1),
         }
 
 
@@ -183,6 +297,10 @@ class MavlinkLink:
         self._hb_last_sent: float = 0.0
         self._state_sampled: float = 0.0
         self._streams_requested: bool = False
+        # The attitude envelope for the procedure currently running. Owned by
+        # the link because `_absorb` is the one place every message passes
+        # through; scoped by the runner, which resets it before its first step.
+        self.stability = StabilityWatch()
 
     def emit(self, kind: str, **payload) -> None:
         """Bir olayi kosu kaydina bildirir; hicbir zaman cagirana hata dondurmez."""
@@ -329,6 +447,11 @@ class MavlinkLink:
         try:
             self._conn.mav.request_data_stream_send(
                 *self._target(), mavutil.mavlink.MAV_DATA_STREAM_ALL, 4, 1)
+            # ATTITUDE (EXTRA1) faster than the rest — see ATTITUDE_STREAM_HZ.
+            # Asked for after STREAM_ALL so it wins on the overlapping stream.
+            self._conn.mav.request_data_stream_send(
+                *self._target(), mavutil.mavlink.MAV_DATA_STREAM_EXTRA1,
+                ATTITUDE_STREAM_HZ, 1)
             self._streams_requested = True
         except Exception:
             pass
@@ -367,6 +490,18 @@ class MavlinkLink:
             if self.state.armed != was_armed:
                 self.emit("armed" if self.state.armed else "disarmed",
                           mode=self.state.mode, alt=round(self.state.alt, 1))
+        elif t == "ATTITUDE":
+            self.state.roll = math.degrees(msg.roll)
+            self.state.pitch = math.degrees(msg.pitch)
+            self.state.yaw = math.degrees(msg.yaw)
+            self.state.roll_rate = math.degrees(msg.rollspeed)
+            self.state.pitch_rate = math.degrees(msg.pitchspeed)
+            self.state.yaw_rate = math.degrees(msg.yawspeed)
+            self.state.attitude_known = True
+            self.stability.add(getattr(msg, "time_boot_ms", 0) / 1000.0,
+                               self.state.roll, self.state.pitch,
+                               (self.state.roll_rate, self.state.pitch_rate,
+                                self.state.yaw_rate))
         elif t == "GLOBAL_POSITION_INT":
             self.state.alt = msg.relative_alt / 1000.0
         elif t == "VFR_HUD":

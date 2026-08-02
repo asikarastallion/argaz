@@ -292,8 +292,59 @@ Used by `wait_for`, `when`, and `expect`.
 | `groundspeed_above: 5` | `VFR_HUD.groundspeed` (m/s) is greater |
 | `prearm_ok: true` | the `SYS_STATUS` pre-arm health bit is set |
 | `param: {name: Q_ENABLE, min: 1}` | the parameter is within bounds |
+| `attitude_stable: {...}` | the aircraft stayed inside a declared attitude envelope — see below |
 
 Numeric values accept `{placeholder}` strings.
+
+### `attitude_stable`
+
+Every condition above answers *where the aircraft ended up*. This one answers
+*how it got there*, and it exists because the difference turned out to matter:
+
+> `tailsitter_takeoff` passed three times on an aircraft that was tumbling at
+> up to 1300 °/s. It reached altitude, stayed armed and reported QHOVER — the
+> only three things the criteria asked about. Altitude is a side effect of a
+> thrust vector that happened to point roughly upwards.
+
+```yaml
+attitude_stable:
+  roll:  [-20, 20]     # degrees, earth frame; omit to not judge this axis
+  pitch: [-20, 20]
+  max_rate: 60         # deg/s, body frame, largest of |p|, |q|, |r|
+  tolerance: 2         # seconds outside ANY limit that are forgiven
+  min_seconds: 5       # below this much measured attitude the criterion FAILS
+```
+
+At least one of `roll`, `pitch`, `max_rate` is required: an envelope that
+limits nothing accepts everything.
+
+**Judged in seconds, not peaks.** A peak is one sample, and one sample is
+noise — a gust, a mode change, a bad reading. What separates a manoeuvre from
+a loss of control is how *long* the aircraft stays outside its band, so each
+limit is measured in accumulated seconds against the `tolerance` the procedure
+declares. Defaults: `tolerance: 1`, `min_seconds: 5`.
+
+**Measured on the vehicle's clock.** Samples are weighted by
+`ATTITUDE.time_boot_ms`, not by arrival time. Telemetry arrives in bursts
+whenever the receive buffer drains, and under SITL speedup a wall-clock second
+is not a second of flight; both would make the numbers meaningless.
+
+**Too little data fails.** If less than `min_seconds` of attitude was
+measured, the criterion fails and says so. "Nothing was measured" and "nothing
+was wrong" are the two answers this project exists to keep apart.
+
+**Evaluated once, not polled.** The envelope covers the whole procedure and
+can only accumulate, so `timeout:` does not apply — waiting cannot repair an
+excursion that already happened.
+
+**Choosing a band.** Euler angles are degenerate at a vertical attitude: with
+the nose near +90° pitch, roll and yaw describe the same rotation and the
+reported roll swings across its full range while the aircraft sits still. A
+tailsitter therefore bands pitch and *deliberately omits roll*, leaning on
+`max_rate` — body-frame rates have no singularity at any attitude.
+
+The measured envelope is written to `result.json` as `stability` whether or
+not any criterion asked for it.
 
 ## `expect`
 

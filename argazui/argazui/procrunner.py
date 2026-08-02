@@ -149,6 +149,25 @@ OUTCOME_PASSED = "passed"
 OUTCOME_FAILED = "failed"
 OUTCOME_ERROR = "error"
 
+# Conditions measured over the procedure so far rather than at this instant.
+# Polling them is worse than pointless: the quantity only accumulates, so a
+# `_wait_for` loop would spin until its timeout and then report the same
+# verdict it had at the first check — while the aircraft carried on doing
+# whatever it was doing. They are evaluated exactly once.
+MONOTONE_CONDITIONS = ("attitude_stable",)
+
+# Applied when a procedure states a band but no forgiveness. Every real flight
+# crosses a limit briefly — a mode change, a gust, the moment thrust takes the
+# weight — and a criterion with no tolerance would fail those. One second is
+# short enough that a tumble cannot hide inside it.
+DEFAULT_STABILITY_TOLERANCE = 1.0
+
+# Below this much measured attitude, the criterion FAILS rather than passes.
+# A missing telemetry stream must never read as good behaviour: "nothing was
+# measured" and "nothing was wrong" are the two answers this project exists to
+# keep apart.
+DEFAULT_STABILITY_MIN_SECONDS = 5.0
+
 
 def _pump_for(seconds: float):
     """A worker-thread job that just keeps the link's message pump running.
@@ -203,6 +222,11 @@ class ProcedureRunner:
         for key, raw in cond.items():
             if key == "param" and isinstance(raw, dict):
                 out[key] = {k: self._resolve(v, values) for k, v in raw.items()}
+            elif key == "attitude_stable" and isinstance(raw, dict):
+                out[key] = {k: ([float(self._resolve(b, values)) for b in v]
+                                if isinstance(v, (list, tuple))
+                                else float(self._resolve(v, values)))
+                            for k, v in raw.items()}
             elif key == "mode_in":
                 out[key] = [str(self._resolve(v, values)) for v in raw]
             elif key in ("mode",):
@@ -251,6 +275,10 @@ class ProcedureRunner:
             elif key == "groundspeed_above":
                 ok &= (st.groundspeed > want)
                 seen.append(f"gs={st.groundspeed:.1f}m/s")
+            elif key == "attitude_stable":
+                held, text = self._check_stability(want)
+                ok &= held
+                seen.append(text)
             elif key == "param":
                 value = self.link.submit(
                     lambda l, n=want["name"]: {"ok": True, "value": l._param_get(n)},
@@ -267,7 +295,50 @@ class ProcedureRunner:
                         ok = False
         return ok, ", ".join(seen)
 
+    def _check_stability(self, limits: dict) -> tuple[bool, str]:
+        """Judges the attitude envelope this procedure has accumulated.
+
+        The verdict is stated in seconds, not in peaks: how long the aircraft
+        spent outside each declared band, against the forgiveness the procedure
+        declared. A peak is one sample and one sample is noise; time outside is
+        what separates a manoeuvre from a loss of control.
+        """
+        watch = self.link.stability
+        tolerance = float(limits.get("tolerance", DEFAULT_STABILITY_TOLERANCE))
+        minimum = float(limits.get("min_seconds", DEFAULT_STABILITY_MIN_SECONDS))
+        measured = watch.seconds
+
+        if measured < minimum:
+            # Not "we saw nothing wrong" — "we saw nothing".
+            return False, t("stab_no_data", measured=f"{measured:.1f}",
+                            needed=f"{minimum:g}")
+
+        ok = True
+        parts = []
+        for axis in ("roll", "pitch"):
+            if axis not in limits:
+                continue
+            low, high = limits[axis]
+            outside = watch.outside_seconds(axis, low, high)
+            if outside > tolerance:
+                ok = False
+            parts.append(t("stab_axis", axis=axis, low=f"{low:g}", high=f"{high:g}",
+                           outside=f"{outside:.1f}"))
+        if "max_rate" in limits:
+            limit = float(limits["max_rate"])
+            above = watch.rate_above_seconds(limit)
+            if above > tolerance:
+                ok = False
+            parts.append(t("stab_rate", limit=f"{limit:g}", above=f"{above:.1f}",
+                           peak=f"{watch.report().get('rate_peak', 0):.0f}"))
+        return ok, t("stab_summary", detail="; ".join(parts),
+                     tolerance=f"{tolerance:g}", measured=f"{measured:.0f}")
+
     def _wait_for(self, cond: dict, timeout: float) -> tuple[bool, str]:
+        # See MONOTONE_CONDITIONS: an envelope that has already been broken
+        # stays broken, so waiting on one only delays the same answer.
+        if any(key in cond for key in MONOTONE_CONDITIONS):
+            return self._check(cond)
         deadline = time.time() + timeout
         seen = ""
         while time.time() < deadline:
@@ -445,6 +516,11 @@ class ProcedureRunner:
 
         try:
             self._apply_overrides(proc, values, changed_params)
+            # From here to the last acceptance check, how the aircraft behaves
+            # is on the record. Reset after the overrides so the parameter
+            # writes — during which the vehicle is still sitting on the ground
+            # — are not counted as flight.
+            self.link.stability.reset()
 
             for step, result in zip(proc.steps, steps):
                 if self._cancel:
@@ -514,6 +590,10 @@ class ProcedureRunner:
             "values": _plain(values),
             "steps": [s.as_dict() for s in steps],
             "expect": [e.as_dict() for e in expects],
+            # The measured envelope, recorded whether or not any criterion
+            # asked about it. A procedure that declares no attitude limit still
+            # leaves the evidence behind for whoever reads the run later.
+            "stability": self.link.stability.report(),
             "params_changed": _plain(changed_params),
             "seconds": round(time.time() - started, 1),
             "text": aborted_text or (t("proc_passed", name=proc.label(self.lang))

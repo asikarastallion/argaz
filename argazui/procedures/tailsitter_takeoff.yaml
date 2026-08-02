@@ -129,3 +129,31 @@ expect:
     message: {en: still armed, tr: hala armli}
   - condition: {mode: QHOVER}
     message: {en: hovering in QHOVER, tr: QHOVER modunda havada duruyor}
+
+  # WHY THIS CRITERION EXISTS, AND WHY IT HAS NO ROLL BAND
+  #
+  # This procedure passed three times on an aircraft that was tumbling. It
+  # reached altitude, stayed armed and reported QHOVER, and those were the
+  # only three things asked. Altitude is a side effect of a thrust vector that
+  # happened to point roughly upwards; it cannot distinguish a hover from a
+  # fall in the wrong direction.
+  #
+  # Pitch: a tailsitter hovers nose-up, so its band is centred near +90° and
+  # not near zero. The width allows the lean it uses to hold position and
+  # refuses the flop onto its belly that a departure produces.
+  #
+  # Roll is deliberately NOT banded. Euler angles are degenerate at a vertical
+  # attitude — with the nose near +90° pitch, roll and yaw describe the same
+  # rotation and the reported roll swings across its whole range while the
+  # aircraft sits perfectly still. Banding it would fail every healthy hover.
+  #
+  # The rate limit carries the check instead. ATTITUDE's rollspeed/pitchspeed/
+  # yawspeed are BODY-frame rates: they have no singularity at any attitude,
+  # so they mean the same thing nose-up as they do level. A tailsitter holding
+  # station turns at a few tens of degrees per second; sustained rates beyond
+  # 90°/s are a vehicle being thrown around by its own controller.
+  - condition:
+      attitude_stable: {pitch: [55, 115], max_rate: 90, tolerance: 3}
+    message:
+      en: held a nose-up hover instead of tumbling
+      tr: takla atmak yerine burun-yukari havada durdu

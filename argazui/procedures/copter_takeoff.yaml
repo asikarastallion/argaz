@@ -76,3 +76,17 @@ expect:
     message: {en: still armed, tr: hala armli}
   - condition: {mode: GUIDED}
     message: {en: still in GUIDED, tr: hala GUIDED modunda}
+
+  # A GUIDED takeoff is a station-keeping vertical climb: the autopilot holds
+  # position, so there is no reason for the airframe to lean. 20° is generous
+  # for that — it is roughly the lean a multirotor uses to correct a metre of
+  # drift — and anything sustained beyond it means the aircraft is going
+  # somewhere nobody asked it to. 60°/s likewise: a copter correcting itself
+  # turns at a few tens of degrees per second, and only a loss of control
+  # keeps it above 60 for longer than a moment.
+  - condition:
+      attitude_stable: {roll: [-20, 20], pitch: [-20, 20], max_rate: 60,
+                        tolerance: 2}
+    message:
+      en: stayed level throughout the climb
+      tr: tirmanis boyunca seviyede kaldi

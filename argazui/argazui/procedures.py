@@ -48,8 +48,13 @@ STEP_TYPES = (
 CONDITION_KEYS = (
     "armed", "mode", "mode_in", "alt_above", "alt_below",
     "climb_rate_above", "climb_rate_below", "groundspeed_above",
-    "prearm_ok", "param",
+    "prearm_ok", "param", "attitude_stable",
 )
+
+# `attitude_stable` is judged over the whole procedure rather than at an
+# instant, and a violation already in the past cannot be undone by waiting —
+# see MONOTONE_CONDITIONS in procrunner.py.
+STABILITY_KEYS = ("roll", "pitch", "max_rate", "tolerance", "min_seconds")
 
 ROLES = ("takeoff", "land")
 
@@ -89,7 +94,44 @@ def _check_condition(cond: Any, where: str) -> dict:
         p = cond["param"]
         if not isinstance(p, dict) or "name" not in p:
             raise ProcedureError(f"{where}: param condition needs a 'name'")
+    if "attitude_stable" in cond:
+        _check_stability(cond["attitude_stable"], f"{where}.attitude_stable")
     return cond
+
+
+def _check_stability(spec: Any, where: str) -> None:
+    """Validates an attitude envelope limit.
+
+    Deliberately strict about the band being a two-element ordered pair: a
+    reversed band silently rejects everything, which would look like a broken
+    aircraft rather than a broken procedure.
+    """
+    if not isinstance(spec, dict) or not spec:
+        raise ProcedureError(f"{where}: expected a map of limits, "
+                             f"e.g. {{max_rate: 90, tolerance: 2}}")
+    for key in spec:
+        if key not in STABILITY_KEYS:
+            raise ProcedureError(
+                f"{where}: unknown limit '{key}'. Known: {', '.join(STABILITY_KEYS)}")
+    if not any(k in spec for k in ("roll", "pitch", "max_rate")):
+        raise ProcedureError(
+            f"{where}: state at least one of roll, pitch or max_rate — an envelope "
+            f"criterion that limits nothing accepts everything")
+    for axis in ("roll", "pitch"):
+        if axis not in spec:
+            continue
+        band = spec[axis]
+        if (not isinstance(band, (list, tuple)) or len(band) != 2
+                or not all(isinstance(v, (int, float)) for v in band)):
+            raise ProcedureError(f"{where}.{axis}: expected [low, high] in degrees")
+        if float(band[0]) >= float(band[1]):
+            raise ProcedureError(
+                f"{where}.{axis}: low ({band[0]}) must be below high ({band[1]})")
+    if "max_rate" in spec and float(spec["max_rate"]) <= 0:
+        raise ProcedureError(f"{where}.max_rate: must be a positive rate in deg/s")
+    for key in ("tolerance", "min_seconds"):
+        if key in spec and float(spec[key]) < 0:
+            raise ProcedureError(f"{where}.{key}: must not be negative")
 
 
 @dataclass

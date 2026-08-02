@@ -131,3 +131,15 @@ expect:
     message: {en: still armed, tr: hala armli}
   - condition: {mode: QLOITER}
     message: {en: hovering in QLOITER, tr: QLOITER modunda havada duruyor}
+
+  # A quadplane in its VTOL modes is flying as a multirotor and is held to the
+  # same envelope as one, with a little more room: it carries a wing, so a
+  # crosswind pushes it around more than a bare multirotor and Q_ANGLE_MAX
+  # ships at 30°. Beyond that band, sustained, the wing is flying the aircraft
+  # rather than the rotors.
+  - condition:
+      attitude_stable: {roll: [-30, 30], pitch: [-30, 30], max_rate: 60,
+                        tolerance: 2}
+    message:
+      en: hovered on its rotors without departing
+      tr: rotorlari uzerinde savrulmadan havada durdu

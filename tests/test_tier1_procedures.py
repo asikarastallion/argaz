@@ -47,6 +47,27 @@ FRAMES = [
         "expect_takeoff": "vtol_takeoff", "expect_land": "vtol_land",
         "takeoff_values": {"alt": 25}, "cruise_mode": "QHOVER",
     },
+    # THIS FRAME FAILS, AND IS KEPT ANYWAY. See docs/status.md and CHANGELOG.
+    #
+    # `plane-tailsitter` arms, changes mode, obeys the throttle stick and
+    # climbs past 20 m — every step of the procedure passes — while tumbling
+    # at up to 1300 °/s. It ships no VTOL attitude tuning at all
+    # (Q_A_RAT_RLL_P/Q_A_RAT_PIT_P are left at ArduPilot's 0.25 defaults), and
+    # ArduPilot's own test suite lists it as a known-broken frame:
+    #
+    #     "plane-tailsitter": "unstable in hover; unflyable in cruise"
+    #        — ardupilot/Tools/autotest/arduplane.py, FlyEachFrame
+    #
+    # Upstream skips it. The one alternative, `quadplane-copter_tailsitter`,
+    # is properly tuned and rock-steady (peak 0.1 °/s) but produces no lift
+    # from stick input at any throttle up to full — upstream flies it only
+    # through AUTO missions and excludes it from its pilot-RC test for the
+    # same reason.
+    #
+    # So tier 1 cannot verify the tailsitter takeoff on this checkout. The
+    # honest way to say that is a red test, not an xfail: tuning the airframe
+    # until our own test passes would prove nothing, and marking it green
+    # would put back exactly the unearned tick this version removed.
     {
         "id": "sitl_tailsitter", "name": "SITL tailsitter frame", "vehicle_class": "VTOL",
         "method": "sitl_frame", "vehicle": "ArduPlane", "frame": "plane-tailsitter",

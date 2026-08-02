@@ -214,6 +214,24 @@ CATALOG: dict[str, dict[str, str]] = {
                                       "araligin disinda"},
     "proc_not_evaluated": {"en": "not evaluated — the procedure stopped earlier",
                            "tr": "degerlendirilmedi — prosedur daha once durdu"},
+    # Attitude envelope criteria. Stated in seconds spent outside a band,
+    # because that is what the verdict is actually based on.
+    "stab_axis":         {"en": "{axis} outside [{low},{high}]° for {outside}s",
+                          "tr": "{axis} [{low},{high}]° disinda {outside} sn"},
+    "stab_rate":         {"en": "turn rate above {limit}°/s for {above}s "
+                                "(peak {peak}°/s)",
+                          "tr": "donus hizi {limit}°/sn ustunde {above} sn "
+                                "(tepe {peak}°/sn)"},
+    "stab_summary":      {"en": "{detail} — allowed {tolerance}s each, "
+                                "measured over {measured}s",
+                          "tr": "{detail} — her biri icin {tolerance} sn izin var, "
+                                "{measured} sn boyunca olculdu"},
+    "stab_no_data":      {"en": "attitude was measured for only {measured}s of the "
+                                "{needed}s this criterion needs — not judged as "
+                                "stable, judged as unmeasured",
+                          "tr": "tutum yalnizca {measured} sn olculdu, bu kriter "
+                                "{needed} sn istiyor — kararli sayilmadi, "
+                                "olculmemis sayildi"},
     "proc_unknown_step": {"en": "unimplemented step type: {kind}",
                           "tr": "uygulanmamis adim tipi: {kind}"},
     "proc_unknown_enum": {"en": "unknown MAVLink name: {name}",

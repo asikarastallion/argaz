@@ -162,3 +162,18 @@ expect:
     message:
       en: still in TAKEOFF mode, loitering at altitude
       tr: hala TAKEOFF modunda, irtifada bekliyor
+
+  # A fixed wing is not a hovering aircraft, so its band is wider and shaped
+  # differently. Pitch: TKOFF_LVL_PITCH climbs the aircraft out nose-high and
+  # ArduPilot's own default is 15°, so the band allows up to 45 and refuses a
+  # sustained nose-down, which during a takeoff means the climb has been lost.
+  # Roll: TAKEOFF ends in a loiter, and a loiter is a coordinated turn — 45° is
+  # beyond LIM_ROLL_CD's 45° default only if the aircraft has stopped obeying
+  # it. Rate: 90°/s is far above anything a plane does deliberately at these
+  # speeds; a wing does not roll that fast without departing.
+  - condition:
+      attitude_stable: {roll: [-45, 45], pitch: [-15, 45], max_rate: 90,
+                        tolerance: 3}
+    message:
+      en: flew the climb-out and loiter within a fixed wing's normal envelope
+      tr: tirmanis ve bekleyisi sabit kanadin normal zarfi icinde ucurdu
