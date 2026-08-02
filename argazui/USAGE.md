@@ -115,7 +115,7 @@ ARM and TAKEOFF ask for confirmation.
 
 ### 2.4 Mission Script
 
-Lists the `.py` files in `~/Documents/argaz/scripts/`.
+Lists the `.py` files in your argaz root's `scripts/` folder (`scripts_root` in `argaz.toml`).
 **▶ RUN SCRIPT** runs the selected file in the **COMMAND / SCRIPT** terminal.
 
 ### 2.5 Terminal — two tabs
