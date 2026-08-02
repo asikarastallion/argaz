@@ -40,6 +40,7 @@ sources:                        # required, non-empty: where the flow comes from
   - https://ardupilot.org/plane/docs/takeoff-mode.html
 applies_to: {...}               # required, see below
 inputs: [...]                   # optional
+overrides: [...]                # optional, see below — the ONLY way to change a parameter
 timeout: 240                    # optional, whole-procedure ceiling in seconds
 steps: [...]                    # required, non-empty
 expect: [...]                   # required, non-empty
@@ -104,6 +105,45 @@ the multiplier form converts units (metres → centimetres). Values captured by
 `get_param: store_as:` join the same namespace and can be referenced the same
 way.
 
+### `overrides`
+
+The **only** way a procedure may change the vehicle's configuration.
+
+```yaml
+overrides:
+  - param: TKOFF_ALT
+    value: "{alt}"              # placeholders allowed
+    restore: true               # optional, default true
+    reason:                     # REQUIRED, {en, tr}
+      en: >-
+        TAKEOFF mode has no altitude argument: it climbs to whatever TKOFF_ALT
+        says. The altitude asked for on the button is only meaningful as this
+        parameter.
+      tr: >-
+        TAKEOFF modunun irtifa argumani yoktur; butonda istenen irtifa ancak
+        bu parametre olarak anlam kazanir.
+```
+
+Every declared override is applied **before the first step**, and restored when
+the procedure ends — passed, failed, errored or cancelled alike. Whether each
+restore actually succeeded is recorded; a failed restore is stated, never
+assumed away. Upstream `.param` files are never written.
+
+Three rules the validator enforces:
+
+1. `reason` is mandatory. A procedure may not change the aircraft without
+   saying why.
+2. A parameter may be declared only once.
+3. **A `set_param` step may only write a parameter that is declared here.** The
+   step type still exists for a change that has to happen part-way through a
+   flow, but it cannot introduce a change the declaration never mentioned.
+
+The reason this is a hard rule rather than a convention: a test tool that
+adjusts the vehicle until its own test passes proves nothing, and that is
+precisely the class of problem ArgazUI was built to expose. Making every
+override declared, justified, restored and printed at the top of the run's
+flight report is what keeps a green result meaningful.
+
 ---
 
 ## Steps
@@ -139,9 +179,11 @@ force-arms when the normal arm was actually refused:
   set_param: {name: TKOFF_ALT, value: "{alt}"}
 ```
 
-**Run-scoped.** The previous value is captured before writing and restored when
-the procedure ends (including on failure), and both are recorded in the run
-directory. Upstream `.param` files are never touched.
+Only valid for a parameter already declared in `overrides:` — the validator
+rejects anything else, so no change can reach the aircraft undeclared. Use a
+step when the *timing* of the write matters; when it does not, the declaration
+alone is enough and no step is needed. Restoration is handled by the override
+declaration either way.
 
 ### `get_param`
 
@@ -272,6 +314,25 @@ expect:
 Each entry is evaluated after the steps finish. `timeout` (default 30 s) lets a
 criterion wait for a state that is still developing. Every criterion must hold
 for the procedure to pass, and each one's pass/fail lands in `result.json`.
+
+### What `expect:` decides, and what it does not
+
+A run's `outcome` is one of three values, and `expect:` is what separates the
+first two:
+
+| outcome | meaning |
+|---|---|
+| `passed` | every step ran and every criterion held |
+| `failed` | a step or a criterion did not hold — a real result about the aircraft, and CI goes red |
+| `error` | the procedure could not be evaluated at all: a malformed step, a dropped link, a bug in the runner. Says nothing about the aircraft. |
+
+Separately, `flightlog.py` reads the dataflash log afterwards and produces
+**advisories** — vibration, EKF innovation test ratios, attitude tracking, a
+binary built from a different commit than the checkout. Advisories are counted
+in `result.json` as `advisory_count`, shown as their own chip in the UI, and
+**never change an outcome**. A noisy airframe must not mark a working takeoff
+as broken, and a genuine acceptance failure must not hide among health
+warnings.
 
 ---
 

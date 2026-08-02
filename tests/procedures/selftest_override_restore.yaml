@@ -1,0 +1,69 @@
+# A procedure that is DESIGNED TO FAIL, used by one test.
+#
+# It is not a flight flow and is not offered in the UI: it lives in tests/
+# rather than argazui/procedures/, so it is never loaded by the registry and
+# cannot be selected by a button. What it exercises is the engine — the promise
+# that a declared override is put back when a procedure stops part way through.
+#
+# That path had never been executed before v1.1 phase 4. Every real procedure
+# that had been flown happened to succeed, so "restored on failure" was an
+# untested claim in SCHEMA.md. This makes it a checked one.
+#
+# TKOFF_ALT is chosen because it exists on ArduPlane, is harmless on the ground
+# and is the same parameter plane_takeoff overrides, so the test covers the
+# real case rather than a synthetic one.
+schema: 1
+id: selftest_override_restore
+name:
+  en: Self-test — an override survives a mid-procedure failure
+  tr: Oz-test — override, prosedur ortada kalinca da geri alinir
+description:
+  en: >-
+    Declares an override, then waits for an altitude the aircraft cannot reach
+    while sitting on the runway. The wait times out, the procedure fails, and
+    the override must still be restored.
+  tr: >-
+    Bir override beyan eder, sonra pistte dururken ulasilamayacak bir irtifayi
+    bekler. Bekleme zaman asimina ugrar, prosedur basarisiz olur, ama
+    override'in yine de geri alinmasi gerekir.
+sources:
+  - https://ardupilot.org/plane/docs/parameters.html#tkoff-alt
+  - argazui/procedures/SCHEMA.md
+
+applies_to:
+  role: takeoff
+  autopilot: ArduPlane
+  # Deliberately not `default`, and this file is outside the procedures
+  # directory anyway — nothing can auto-select it.
+  default: false
+  priority: -100
+
+timeout: 60
+
+overrides:
+  - param: TKOFF_ALT
+    value: 123
+    reason:
+      en: >-
+        A recognisable value the test asserts is written and then put back.
+        123 m is not a plausible default for any airframe, so a restore that
+        silently did nothing would be visible rather than coincidental.
+      tr: >-
+        Testin once yazildigini sonra geri alindigini dogruladigi, ayirt
+        edilebilir bir deger. 123 m hicbir ucak icin makul bir varsayilan
+        degildir; boylece sessizce hicbir sey yapmayan bir geri alma
+        tesadufen dogru gorunmez.
+
+steps:
+  - name: {en: Fail on purpose, tr: Bilerek basarisiz ol}
+    # The aircraft is disarmed on the runway. It will never be at 5000 m, so
+    # this times out and aborts the procedure — which is the point.
+    wait_for: {alt_above: 5000}
+    timeout: 5
+
+expect:
+  - condition: {alt_above: 5000}
+    timeout: 1
+    message:
+      en: never reached — the procedure is expected to fail before this
+      tr: hic ulasilmaz — prosedurun bundan once basarisiz olmasi beklenir

@@ -32,12 +32,8 @@ holds everything up to that moment, which is exactly when it is most wanted.
 from __future__ import annotations
 
 import json
-import os
-import platform
 import re
 import shutil
-import subprocess
-import sys
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -46,8 +42,25 @@ from typing import Any, Callable, Optional
 from . import paths
 from .flightlog import analyse, newest_log
 from .i18n import t
+from .versions import environment
 
-RESULT_SCHEMA = 1
+# 2 (v1.1 phase 4): `status` is now one of the values in STATUSES and is about
+# acceptance criteria only, and `advisory_count` was added alongside it. In
+# schema 1 the single `ok` flag was doing both jobs.
+RESULT_SCHEMA = 2
+
+# What a run's acceptance verdict can be. Health findings live in
+# `advisory_count` and never appear here.
+STATUS_PASSED = "passed"        # every procedure met every acceptance criterion
+STATUS_FAILED = "failed"        # at least one criterion did not hold
+STATUS_ERROR = "error"          # a procedure could not be evaluated at all
+STATUS_NO_PROCEDURE = "no-procedure"   # flown by hand; nothing was asserted
+STATUSES = (STATUS_PASSED, STATUS_FAILED, STATUS_ERROR, STATUS_NO_PROCEDURE)
+
+# A run directory is named <UTC stamp>_<model id>. Matching on the name is how
+# the listing tells a run apart from anything else that shares the runs root —
+# the regression suite's runs/tests/ sub-directory, most obviously.
+RUN_ID_PATTERN = re.compile(r"^\d{8}T\d{6}Z_.+")
 
 # CSI / OSC / two-character escapes. The terminal stream is full of colour and
 # cursor movement from MAVProxy's console; a log file wants the text only.
@@ -71,54 +84,19 @@ def clean_terminal_text(data: bytes) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
-def _command_output(args: list[str], cwd: Optional[Path] = None,
-                    timeout: float = 10.0) -> str:
-    try:
-        result = subprocess.run(args, cwd=str(cwd) if cwd else None,
-                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                text=True, timeout=timeout, check=False)
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return f"(unavailable: {exc})"
-    if result.returncode != 0:
-        return f"(exit {result.returncode})"
-    return next((line.strip() for line in result.stdout.splitlines() if line.strip()),
-                "(no output)")
+def _write_versions(directory: Path, firmware: str = "") -> dict[str, str]:
+    """Writes versions.txt using the one canonical version record.
 
-
-def collect_versions() -> dict[str, str]:
-    """Everything needed to say which software produced a run.
-
-    A missing component is recorded as unavailable rather than omitted: a
-    report that silently drops the Gazebo version reads the same whether
-    Gazebo was absent or simply not asked.
+    Called twice: once at `finish()`, when the firmware string is not yet
+    known, and again after the dataflash log has been parsed. The second pass
+    is what makes the file's `ardupilot =` line comparable across runs — see
+    versions.py for why there is exactly one such line.
     """
-    from . import __version__
-
-    ardupilot = paths.ARDUPILOT
-    if (ardupilot / ".git").exists():
-        sha = _command_output(["git", "-C", str(ardupilot), "rev-parse", "HEAD"])
-        described = _command_output(
-            ["git", "-C", str(ardupilot), "describe", "--tags", "--always", "--dirty"])
-    else:
-        sha = described = "(not a git checkout)"
-
-    try:
-        from pymavlink import __version__ as pymavlink_version
-    except Exception:
-        pymavlink_version = "(unavailable)"
-
-    return {
-        "argazui": __version__,
-        "ardupilot_sha": sha,
-        "ardupilot_describe": described,
-        "ardupilot_root": str(ardupilot),
-        "gz_sim": _command_output(["gz", "sim", "--version"]),
-        "ros_distro": os.environ.get("ROS_DISTRO", "(not set in the server environment)"),
-        "python": sys.version.split()[0],
-        "python_executable": sys.executable,
-        "pymavlink": pymavlink_version,
-        "host": f"{platform.system()} {platform.release()} ({platform.machine()})",
-    }
+    record = environment(firmware)
+    (directory / "versions.txt").write_text(
+        "\n".join(f"{key} = {value}" for key, value in record.items()) + "\n",
+        encoding="utf-8")
+    return record
 
 
 class RunRecorder:
@@ -148,6 +126,7 @@ class RunRecorder:
         self._events = (self.dir / "mavlink_events.jsonl").open("a", encoding="utf-8")
         self._procedures: list[dict] = []
         self._scenarios: list[str] = []
+        self._flaky: list[dict] = []
         self._finished = False
         self._last_state: Optional[tuple] = None
 
@@ -192,7 +171,21 @@ class RunRecorder:
             except (ValueError, OSError, TypeError):
                 pass
 
-    def add_procedure(self, procedure, result: dict, values: Optional[dict] = None) -> None:
+    def mark_flaky(self, procedure_id: str, reason: str) -> None:
+        """Records that a procedure only succeeded on a retry.
+
+        The regression suite is allowed exactly one retry for SITL timing, and
+        it must cost something: a run with a retry is reported as `flaky` in
+        docs/status.md, never as `passed`. Retrying quietly until green is the
+        behaviour this project exists to prevent, so the retry is recorded
+        here rather than swallowed in the test.
+        """
+        with self._lock:
+            self._flaky.append({"procedure": procedure_id, "reason": reason,
+                                "utc": _iso()})
+
+    def add_procedure(self, procedure, result: dict, values: Optional[dict] = None,
+                      attempt: int = 1) -> None:
         """Records one procedure execution and the YAML that drove it.
 
         The YAML is stored verbatim. That is the point of the single-source
@@ -207,6 +200,7 @@ class RunRecorder:
             "file": procedure.path.name,
             "sources": procedure.sources,
             "started_utc": _iso(),
+            "attempt": attempt,
             "values": values or result.get("values") or {},
             "result": result,
         }
@@ -216,13 +210,25 @@ class RunRecorder:
                 f"# ---------------------------------------------------------------\n"
                 f"# executed {entry['started_utc']} — {procedure.id} ({procedure.role})\n"
                 f"# inputs: {json.dumps(entry['values'], ensure_ascii=False)}\n"
-                f"# outcome: {'PASSED' if result.get('ok') else 'FAILED'}\n"
+                f"# outcome: {str(result.get('outcome', 'unknown')).upper()}\n"
                 f"# source file: {procedure.path.name}\n"
                 f"# ---------------------------------------------------------------\n"
                 f"{procedure.raw_text.rstrip()}\n")
         self.event({"kind": "procedure", "procedure": procedure.id,
-                    "role": procedure.role, "ok": bool(result.get("ok")),
+                    "role": procedure.role, "outcome": result.get("outcome"),
                     "text": result.get("text", "")})
+
+    def overrides(self) -> list[dict]:
+        """Every parameter the run's procedures changed, in order.
+
+        Flattened out of the procedure results so the report can lead with it
+        without knowing how procedures are structured.
+        """
+        out: list[dict] = []
+        for entry in self._procedures:
+            for name, record in (entry["result"].get("params_changed") or {}).items():
+                out.append({"param": name, "procedure": entry["procedure"], **record})
+        return out
 
     # ------------------------------------------------------------------ finish
     def finish(self, report: bool = True) -> dict:
@@ -245,9 +251,9 @@ class RunRecorder:
                 except (ValueError, OSError):
                     pass
 
-        (self.dir / "versions.txt").write_text(
-            "\n".join(f"{key} = {value}" for key, value in collect_versions().items()) + "\n",
-            encoding="utf-8")
+        # First pass, without the firmware string — the log has not been read
+        # yet. `_make_report` rewrites it once the firmware is known.
+        _write_versions(self.dir)
 
         if self._scenarios:
             body = ("# Procedures executed during this run, in order and verbatim.\n"
@@ -291,13 +297,15 @@ class RunRecorder:
         return target
 
     def _result(self, finished: datetime, dataflash: Optional[Path]) -> dict:
-        outcomes = [entry["result"].get("ok") for entry in self._procedures]
-        if not outcomes:
-            ok, status = None, "no-procedure"
-        elif all(outcomes):
-            ok, status = True, "passed"
-        else:
-            ok, status = False, "failed"
+        """The run's own record.
+
+        `status` answers one question only: did the procedures meet their
+        acceptance criteria? Health findings are counted separately in
+        `advisory_count`, which stays None until the flight report has been
+        produced — "not computed yet" and "nothing flagged" are different
+        answers and must not look the same.
+        """
+        status = aggregate_status(self._procedures)
 
         from . import __version__
         return {
@@ -307,12 +315,16 @@ class RunRecorder:
             "started_utc": _iso(self.started),
             "finished_utc": _iso(finished),
             "seconds": round(finished.timestamp() - self.started_monotonic, 1),
-            "ok": ok,
             "status": status,
+            "advisory_count": None,
+            "flaky": list(self._flaky),
+            "ok": status == STATUS_PASSED and not self._flaky,
             "model": {key: self.model.get(key) for key in
                       ("id", "name", "vehicle_class", "method", "vehicle", "frame",
                        "param_file", "world", "env", "has_ros2")},
+            "build": {},                 # filled in once the log has been read
             "work_dir": str(self.work_dir),
+            "overrides": self.overrides(),
             "procedures": self._procedures,
             "artefacts": {
                 "console_log": "console.log",
@@ -331,9 +343,10 @@ class RunRecorder:
             "model_name": self.model.get("name"),
             "procedures": [entry["procedure"] for entry in self._procedures],
             "status": result["status"],
+            "overrides": result.get("overrides") or [],
         }
         try:
-            analyse(dataflash, self.dir, meta=meta)
+            report = analyse(dataflash, self.dir, meta=meta)
         except Exception as exc:                     # a bad log must not be fatal
             (self.dir / "report.md").write_text(
                 f"# Flight report — {self.run_id}\n\n"
@@ -343,7 +356,13 @@ class RunRecorder:
                 f"`MAVExplorer.py {dataflash.name}`.\n", encoding="utf-8")
             self.on_log(t("run_failed", err=exc))
             return
-        self.on_log(t("run_report_ready", id=self.run_id))
+        # The advisory count and the build record only exist once the log has
+        # been read, so result.json is completed here rather than guessed at
+        # earlier. The status is untouched: advisories never change a verdict.
+        attach_report(self.dir, report)
+        _write_versions(self.dir, report["log"].get("firmware", ""))
+        self.on_log(t("run_report_ready", id=self.run_id,
+                      advisories=report["advisory_count"]))
 
     def summary(self) -> dict:
         path = self.dir / "result.json"
@@ -356,8 +375,77 @@ class RunRecorder:
 
 
 # --------------------------------------------------------------------------- browsing
-def _badge(result: dict) -> str:
-    return result.get("status") or ("passed" if result.get("ok") else "failed")
+def attach_report(directory: Path, report: dict) -> None:
+    """Folds the report's advisory count and build record back into result.json.
+
+    Kept separate from `RunRecorder` so `argazui report` can do the same thing
+    when it regenerates an old run: the two paths must not drift, or a
+    regenerated run would disagree with a freshly flown one.
+    """
+    path = Path(directory) / "result.json"
+    if not path.is_file():
+        return
+    try:
+        result = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return
+    result["advisory_count"] = report.get("advisory_count", 0)
+    result["advisories"] = report.get("advisories", [])
+    result["build"] = report.get("build", {})
+    path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n",
+                    encoding="utf-8")
+
+
+def aggregate_status(procedures: list[dict]) -> str:
+    """The run's acceptance verdict, from the LAST attempt of each procedure.
+
+    Only the last attempt counts because the suite is allowed one retry for
+    SITL timing. That leniency is paid for elsewhere and visibly: the retry is
+    recorded in `flaky`, every attempt stays in `procedures`, and the status
+    table reports the run as `flaky` rather than `passed`. Without the `flaky`
+    record this rule would be a way to hide failures, which is why the two
+    always ship together.
+    """
+    last: dict[tuple, str] = {}
+    for entry in procedures:
+        key = (entry.get("procedure"), entry.get("role"))
+        last[key] = _outcome_of(entry)
+    outcomes = list(last.values())
+    if not outcomes:
+        return STATUS_NO_PROCEDURE
+    if any(o == STATUS_ERROR for o in outcomes):
+        return STATUS_ERROR
+    if all(o == STATUS_PASSED for o in outcomes):
+        return STATUS_PASSED
+    return STATUS_FAILED
+
+
+def overrides_of(result: dict) -> list[dict]:
+    """The parameters a stored run changed.
+
+    Prefers the top-level list written by schema 2, and falls back to
+    flattening the procedure results. The fallback is what lets a run recorded
+    before this field existed still show its overrides when its report is
+    regenerated, instead of claiming the flight changed nothing.
+    """
+    declared = result.get("overrides")
+    if declared:
+        return declared
+    out: list[dict] = []
+    for entry in result.get("procedures", []):
+        changed = (entry.get("result") or {}).get("params_changed") or {}
+        for name, record in changed.items():
+            out.append({"param": name, "procedure": entry.get("procedure"), **record})
+    return out
+
+
+def _outcome_of(entry: dict) -> str:
+    """A procedure's outcome, tolerating runs recorded before the field existed."""
+    result = entry.get("result") or {}
+    outcome = result.get("outcome")
+    if outcome:
+        return outcome
+    return STATUS_PASSED if result.get("ok") else STATUS_FAILED
 
 
 def list_runs(root: Optional[Path] = None, limit: int = 200) -> list[dict]:
@@ -372,7 +460,10 @@ def list_runs(root: Optional[Path] = None, limit: int = 200) -> list[dict]:
         return []
     out: list[dict] = []
     for entry in sorted(root.iterdir(), reverse=True):
-        if not entry.is_dir() or entry.name.startswith("."):
+        # Only directories that are actually named like a run. The regression
+        # suite writes into runs/tests/, and that sub-directory must not be
+        # listed as a mysterious "incomplete" flight of its own.
+        if not entry.is_dir() or not RUN_ID_PATTERN.match(entry.name):
             continue
         out.append(describe_run(entry))
         if len(out) >= limit:
@@ -398,22 +489,17 @@ def describe_run(directory: Path) -> dict:
 
     procedures = [
         {"id": entry.get("procedure"), "role": entry.get("role"),
-         "ok": bool((entry.get("result") or {}).get("ok"))}
+         "outcome": _outcome_of(entry)}
         for entry in result.get("procedures", [])
     ]
-    warnings = None
-    report = directory / "report.json"
-    if report.is_file():
-        try:
-            warnings = len(json.loads(report.read_text(encoding="utf-8")).get("warnings", []))
-        except (OSError, json.JSONDecodeError, AttributeError):
-            warnings = None
+    # None means "the report has not been produced yet", which is not the same
+    # answer as zero. The UI shows the two differently.
+    advisories = result.get("advisory_count")
 
     return {
         "run_id": result.get("run_id") or directory.name,
         "dir": str(directory),
-        "status": _badge(result) if result else "incomplete",
-        "ok": result.get("ok"),
+        "status": result.get("status", "incomplete") if result else "incomplete",
         "started_utc": result.get("started_utc"),
         "finished_utc": result.get("finished_utc"),
         "seconds": result.get("seconds"),
@@ -421,7 +507,10 @@ def describe_run(directory: Path) -> dict:
         "procedures": procedures,
         "dataflash": dataflash,
         "has_report": (directory / "report.md").is_file(),
-        "report_warnings": warnings,
+        "flaky": result.get("flaky") or [],
+        "advisory_count": advisories,
+        "overrides": overrides_of(result),
+        "build": result.get("build") or {},
         "mavexplorer": f"MAVExplorer.py {directory / dataflash}" if dataflash else None,
     }
 
@@ -476,6 +565,12 @@ def regenerate_report(run_id: str, root: Optional[Path] = None) -> dict:
         "model_name": (result.get("model") or {}).get("name"),
         "procedures": [entry.get("procedure") for entry in result.get("procedures", [])],
         "status": result.get("status"),
+        "overrides": overrides_of(result),
     }
-    analyse(logs[0], base, meta=meta)
-    return {"ok": True, "text": f"report regenerated for {base.name}"}
+    report = analyse(logs[0], base, meta=meta)
+    # Same completion path as a freshly flown run, so a regenerated run and a
+    # new one cannot end up describing themselves differently.
+    attach_report(base, report)
+    _write_versions(base, report["log"].get("firmware", ""))
+    return {"ok": True, "text": f"report regenerated for {base.name}",
+            "advisory_count": report["advisory_count"]}

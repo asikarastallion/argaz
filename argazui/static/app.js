@@ -91,10 +91,20 @@
       runs_rebuilding: "rebuilding the report…",
       runs_no_report: "No report for this run yet.",
       runs_no_bin: "this run has no dataflash log",
-      runs_warnings: "{n} flagged",
-      runs_clean: "nothing flagged",
-      st_passed: "PASSED", st_failed: "FAILED",
+      runs_advisories: "{n} advisory",
+      runs_clean: "no advisories",
+      runs_adv_pending: "advisories: pending",
+      runs_adv_title: "Health findings from the dataflash log (vibration, EKF, " +
+                      "attitude tracking). They never change a run's pass/fail " +
+                      "result — that comes from the procedure's acceptance criteria.",
+      st_passed: "PASSED", st_failed: "FAILED", st_error: "ERROR",
       st_no_procedure: "no procedure", st_incomplete: "incomplete",
+      st_passed_title: "Every acceptance criterion of every procedure held.",
+      st_failed_title: "A step or an acceptance criterion did not hold.",
+      st_error_title: "The procedure could not be evaluated — a fault in ArgazUI " +
+                      "or the link, not a verdict about the aircraft.",
+      st_no_procedure_title: "The model was started and stopped without running a " +
+                             "procedure, so nothing was asserted.",
       runs_files: "Files in this run: {files}",
     },
     tr: {
@@ -180,10 +190,20 @@
       runs_rebuilding: "rapor yeniden üretiliyor…",
       runs_no_report: "Bu koşunun henüz raporu yok.",
       runs_no_bin: "bu koşuda dataflash log yok",
-      runs_warnings: "{n} uyarı",
-      runs_clean: "uyarı yok",
-      st_passed: "GEÇTİ", st_failed: "BAŞARISIZ",
+      runs_advisories: "{n} danışma",
+      runs_clean: "danışma uyarısı yok",
+      runs_adv_pending: "danışma: bekliyor",
+      runs_adv_title: "Dataflash logundan çıkan sağlık bulguları (titreşim, EKF, " +
+                      "tutum takibi). Koşunun geçti/kaldı sonucunu asla " +
+                      "değiştirmezler — o sonuç prosedürün kabul kriterlerinden gelir.",
+      st_passed: "GEÇTİ", st_failed: "BAŞARISIZ", st_error: "HATA",
       st_no_procedure: "prosedür yok", st_incomplete: "yarım",
+      st_passed_title: "Her prosedürün her kabul kriteri sağlandı.",
+      st_failed_title: "Bir adım ya da bir kabul kriteri sağlanmadı.",
+      st_error_title: "Prosedür değerlendirilemedi — ArgazUI ya da bağlantıdaki " +
+                      "bir arıza; araç hakkında bir hüküm değil.",
+      st_no_procedure_title: "Model başlatılıp durduruldu ama prosedür " +
+                             "çalıştırılmadı; hiçbir şey iddia edilmedi.",
       runs_files: "Bu koşudaki dosyalar: {files}",
     },
   };
@@ -692,8 +712,12 @@
   let RUNS = { runs: [], root: "", active: null };
   let openRun = null;
 
+  // The acceptance verdict and the health advisories are two separate things
+  // and are shown as two separate chips. A noisy airframe must not read as a
+  // broken takeoff, and a genuine acceptance failure must not hide among
+  // vibration warnings.
   const RUN_STATUS = {
-    passed: "st_passed", failed: "st_failed",
+    passed: "st_passed", failed: "st_failed", error: "st_error",
     "no-procedure": "st_no_procedure", incomplete: "st_incomplete",
   };
 
@@ -747,8 +771,14 @@
       proc.textContent = procedures;
 
       const badge = document.createElement("td");
-      badge.innerHTML = `<span class="runbadge ${esc(status)}">${esc(label)}</span>`
-        + `<span class="runs-dur">${esc(seconds)}</span>`;
+      const chip = document.createElement("span");
+      chip.className = "runbadge " + status;
+      chip.textContent = label;
+      chip.title = t(`${RUN_STATUS[run.status] || "st_incomplete"}_title`);
+      const dur = document.createElement("span");
+      dur.className = "runs-dur";
+      dur.textContent = seconds;
+      badge.append(chip, dur);
 
       const actions = document.createElement("td");
       actions.className = "runs-actions";
@@ -767,14 +797,20 @@
           + encodeURIComponent(run.dataflash);
         actions.append(dl);
       }
-      if (run.report_warnings !== null && run.report_warnings !== undefined) {
-        const flag = document.createElement("span");
-        flag.className = "runs-warn" + (run.report_warnings ? " on" : "");
-        flag.textContent = run.report_warnings
-          ? t("runs_warnings", { n: run.report_warnings })
+      // null is "the report has not been produced yet", which is a different
+      // answer from zero and is labelled as such.
+      const flag = document.createElement("span");
+      if (run.advisory_count === null || run.advisory_count === undefined) {
+        flag.className = "runs-adv pending";
+        flag.textContent = run.has_report ? t("runs_clean") : t("runs_adv_pending");
+      } else {
+        flag.className = "runs-adv" + (run.advisory_count ? " on" : "");
+        flag.textContent = run.advisory_count
+          ? t("runs_advisories", { n: run.advisory_count })
           : t("runs_clean");
-        actions.append(flag);
       }
+      flag.title = t("runs_adv_title");
+      actions.append(flag);
 
       tr.append(when, model, proc, badge, actions);
       body.append(tr);

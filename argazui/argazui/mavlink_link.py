@@ -90,7 +90,14 @@ class VehicleState:
 # expires and the vehicle falls back to the real RC input. In SITL that input
 # is the throttle at 1000, so a one-shot "stick up" override would stop a VTOL
 # climb after three seconds. Anything holding a stick has to keep saying so.
-RC_KEEPALIVE_INTERVAL = 0.5
+#
+# 0.25 s rather than 0.5: RC_OVERRIDE_TIME counts VEHICLE seconds, so under
+# SITL speedup the wall-clock budget shrinks by the same factor. At speedup 5
+# the 3 s timeout arrives after 0.6 wall-clock seconds, which a 0.5 s
+# keepalive only just meets — a held VTOL throttle would drop out and look
+# like a procedure bug rather than a timing one. At speedup 1 the extra
+# packets cost nothing.
+RC_KEEPALIVE_INTERVAL = 0.25
 
 # ArgazUI konusan bir yer istasyonudur, o halde heartbeat de gondermelidir.
 # Gondermezse otopilot GCS'i kaybettigini dusunup failsafe'e giriyor — gercek

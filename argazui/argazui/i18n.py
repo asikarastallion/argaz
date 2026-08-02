@@ -236,6 +236,24 @@ CATALOG: dict[str, dict[str, str]] = {
                           "tr": "{role}: '{id}' kullaniliyor ({name})"},
     "proc_params_restored": {"en": "run-scoped parameters restored: {names}",
                              "tr": "kosuya ozel parametreler geri alindi: {names}"},
+    "proc_override_failed": {"en": "could not apply the declared override {name} = "
+                                   "{value}: {text}",
+                             "tr": "beyan edilen {name} = {value} override'i "
+                                   "uygulanamadi: {text}"},
+    "proc_override_applied": {"en": "override {name} = {value} (was {previous}) — {reason}",
+                              "tr": "override {name} = {value} (onceki: {previous}) "
+                                    "— {reason}"},
+    "proc_restore_failed": {"en": "WARNING: {name} could NOT be restored to {value}. "
+                                  "The vehicle is still running with the value this "
+                                  "procedure set.",
+                            "tr": "UYARI: {name} degeri {value} olarak GERI ALINAMADI. "
+                                  "Arac hala bu prosedurun yazdigi degerle calisiyor."},
+    "proc_internal_error": {"en": "the procedure could not be evaluated (this is a "
+                                  "fault in ArgazUI or the link, not a verdict about "
+                                  "the aircraft): {err}",
+                            "tr": "prosedur degerlendirilemedi (bu ArgazUI ya da "
+                                  "baglantidaki bir arizadir, arac hakkinda bir hukum "
+                                  "degildir): {err}"},
 
     # -------------------------------------------------- run artefacts
     "run_started":       {"en": "Recording this session as run '{id}' "
@@ -247,8 +265,12 @@ CATALOG: dict[str, dict[str, str]] = {
                           "tr": "Kosu dizini acilamadi, bu oturum arsivlenmeyecek: {err}"},
     "run_saved":         {"en": "Run '{id}' saved ({status}) -> {path}",
                           "tr": "Kosu '{id}' kaydedildi ({status}) -> {path}"},
-    "run_report_ready":  {"en": "Flight report ready for run '{id}'",
-                          "tr": "'{id}' kosusunun ucus raporu hazir"},
+    "run_report_ready":  {"en": "Flight report ready for run '{id}' — {advisories} "
+                                "advisory item(s). Advisories are health findings; "
+                                "they do not change the run's pass/fail result.",
+                          "tr": "'{id}' kosusunun ucus raporu hazir — {advisories} "
+                                "danisma uyarisi. Bu uyarilar saglik bulgusudur; "
+                                "kosunun gecti/kaldi sonucunu degistirmez."},
     "run_unknown":       {"en": "there is no run named '{id}'",
                           "tr": "'{id}' adinda bir kosu yok"},
     "run_no_report":     {"en": "run '{id}' has no flight report — it may still be "

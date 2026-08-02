@@ -16,12 +16,33 @@ Waits inside a step go through the link's `_recv_until`, so the message pump
 keeps running: vehicle state stays fresh and RC overrides keep being refreshed
 for the whole of a two-minute climb.
 
-PARAMETERS ARE RUN-SCOPED
--------------------------
-`set_param` records the previous value and restores it when the procedure
-ends, including when it fails or is aborted. Upstream `.param` files are never
-written. `result["params"]` carries both values so the run directory can record
-what was changed (v1.1 phase 3).
+PARAMETERS ARE RUN-SCOPED AND DECLARED
+--------------------------------------
+A procedure may only change a parameter it has declared in its `overrides:`
+block, with a reason (see SCHEMA.md). The declared values are applied before
+the first step and restored when the procedure ends, including when it fails
+or is aborted. Upstream `.param` files are never written, and
+`result["params_changed"]` records what was set, what it was before, and
+whether the restore succeeded.
+
+The declaration requirement is not bureaucracy. A test harness that quietly
+edits the vehicle's configuration to make its own test pass is exactly the
+failure mode this project exists to expose, so an override has to be visible
+in the procedure, in the run directory and at the top of the flight report.
+
+TWO KINDS OF VERDICT
+--------------------
+`outcome` is `passed`, `failed` or `error`:
+
+  * `passed` — every step ran and every `expect:` criterion held.
+  * `failed` — a step or an acceptance criterion did not hold. This is a real
+    result about the aircraft, and CI must go red for it.
+  * `error`  — the procedure could not be evaluated at all (a bug here, a
+    dropped link, a malformed step). Not a verdict about the aircraft.
+
+Vibration, EKF innovation and attitude-tracking findings are NOT part of this.
+They are advisories produced by flightlog.py from the dataflash log; they are
+recorded and shown, and they never turn a flight into a failure.
 """
 from __future__ import annotations
 
@@ -121,7 +142,12 @@ def _plain(obj):
 
 
 class ProcedureAborted(Exception):
-    pass
+    """A step or criterion did not hold — a verdict about the aircraft."""
+
+
+OUTCOME_PASSED = "passed"
+OUTCOME_FAILED = "failed"
+OUTCOME_ERROR = "error"
 
 
 def _pump_for(seconds: float):
@@ -368,6 +394,39 @@ class ProcedureRunner:
 
         return {"ok": False, "text": t("proc_unknown_step", kind=kind)}
 
+    # ------------------------------------------------------------------ overrides
+    def _apply_overrides(self, proc: Procedure, values: dict,
+                         changed_params: dict) -> None:
+        """Writes every declared override before the first step runs.
+
+        Applying them up front rather than mid-flow is what makes the contract
+        checkable: for the whole procedure the vehicle is configured exactly as
+        the `overrides:` block says, and `_restore` puts it back afterwards.
+        """
+        for override in proc.overrides:
+            value = self._resolve(override.value, values)
+            name = override.param
+
+            def _set(link: MavlinkLink, n=name, v=value) -> dict:
+                previous = link._param_get(n)
+                res = link._do_param(["set", n, str(v)])
+                if res.get("ok"):
+                    res["previous"] = previous
+                return res
+
+            res = self.link.submit(_set, 15.0, f"override {name}")
+            record = {"set_to": value, "restore_to": res.get("previous"),
+                      "restore": bool(override.restore),
+                      "reason": override.reason_text(self.lang),
+                      "applied": bool(res.get("ok"))}
+            changed_params[name] = record
+            self._emit("override", override={"param": name, **_plain(record)})
+            if not res.get("ok"):
+                raise ProcedureAborted(
+                    t("proc_override_failed", name=name,
+                      value=f"{value:g}" if isinstance(value, float) else value,
+                      text=res.get("text", "")))
+
     # ------------------------------------------------------------------ run
     def run(self, proc: Procedure, values: Optional[dict] = None) -> dict:
         """Executes a procedure and returns a machine-readable result."""
@@ -378,11 +437,15 @@ class ProcedureRunner:
         changed_params: dict = {}
         started = time.time()
         aborted_text = ""
+        outcome = OUTCOME_PASSED
 
         self._emit("start", procedure=proc.id, name=proc.label(self.lang),
-                   values=_plain(values), steps=[s.as_dict() for s in steps])
+                   values=_plain(values), steps=[s.as_dict() for s in steps],
+                   overrides=[o.as_dict(self.lang) for o in proc.overrides])
 
         try:
+            self._apply_overrides(proc, values, changed_params)
+
             for step, result in zip(proc.steps, steps):
                 if self._cancel:
                     raise ProcedureAborted(t("proc_cancelled"))
@@ -423,22 +486,28 @@ class ProcedureRunner:
 
             passed = all(e.passed for e in expects) and \
                 all(s.status in ("passed", "skipped") for s in steps)
+            outcome = OUTCOME_PASSED if passed else OUTCOME_FAILED
 
         except ProcedureAborted as exc:
             aborted_text = str(exc)
-            for s in steps:
-                if s.status in ("pending", "running"):
-                    s.status = "skipped" if s.status == "pending" else "failed"
-            expects = [ExpectResult(label=e.label(self.lang),
-                                    condition=_plain(e.condition), passed=False,
-                                    text=t("proc_not_evaluated"))
-                       for e in proc.expect]
-            passed = False
+            outcome = OUTCOME_FAILED
+            expects = self._unevaluated(proc, steps)
+        except Exception as exc:
+            # Anything that is not a flight verdict: a malformed step reaching
+            # the runner, the link dropping, a bug in here. Before this, such
+            # an exception escaped into the procedure thread and the UI simply
+            # stopped updating. It is now an `error` outcome — distinct from a
+            # `failed` one, because it says nothing about the aircraft.
+            aborted_text = t("proc_internal_error", err=f"{type(exc).__name__}: {exc}")
+            outcome = OUTCOME_ERROR
+            expects = self._unevaluated(proc, steps)
         finally:
             self._restore(changed_params)
 
+        passed = outcome == OUTCOME_PASSED
         result = {
             "ok": passed,
+            "outcome": outcome,
             "procedure": proc.id,
             "name": proc.label(self.lang),
             "role": proc.role,
@@ -454,20 +523,42 @@ class ProcedureRunner:
         self._emit("done", result=result)
         return result
 
+    def _unevaluated(self, proc: Procedure, steps: list[StepResult]) -> list[ExpectResult]:
+        """Marks the criteria that never got a chance to run."""
+        for s in steps:
+            if s.status in ("pending", "running"):
+                s.status = "skipped" if s.status == "pending" else "failed"
+        return [ExpectResult(label=e.label(self.lang), condition=_plain(e.condition),
+                             passed=False, text=t("proc_not_evaluated"))
+                for e in proc.expect]
+
     def _restore(self, changed_params: dict) -> None:
         """Puts back every parameter the procedure changed.
 
-        Runs from a `finally`, so an aborted or cancelled procedure leaves the
-        vehicle configured exactly as it was found.
+        Runs from a `finally`, so an aborted, cancelled or errored procedure
+        leaves the vehicle configured exactly as it was found. Whether each
+        restore actually succeeded is recorded — a failed restore is a fact
+        about the vehicle's current state and has to reach the run directory
+        instead of being assumed away.
         """
         for name, record in changed_params.items():
+            if record.get("restore") is False:
+                record["restored"] = None       # deliberately left in place
+                continue
             previous = record.get("restore_to")
             if previous is None:
+                # The parameter could not be read before it was written, so
+                # there is nothing to put back and nothing to claim.
+                record["restored"] = None
                 continue
             res = self.link.submit(
                 lambda l, n=name, v=previous: l._do_param(["set", n, str(v)]),
                 timeout=10.0, label=f"restore {name}")
             record["restored"] = bool(res.get("ok"))
+            if not res.get("ok"):
+                self._emit("restore_failed",
+                           override={"param": name, "restore_to": previous,
+                                     "text": res.get("text", "")})
 
 
 def _enum(module, name: str) -> int:

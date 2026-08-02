@@ -17,11 +17,20 @@ three reasons:
 The single pass below therefore produces the parameter files, the report and
 the plots together — the log is only read once.
 
-THRESHOLDS
-----------
-Every warning threshold is named in `THRESHOLDS` with the ArduPilot page it
-comes from. Nothing here decides that a flight was "good"; it reports measured
-numbers and flags the ones ArduPilot's own documentation calls out.
+ADVISORIES ARE NOT FAILURES
+---------------------------
+Nothing in this module can fail a flight. Whether a procedure worked is
+decided by its `expect:` block in procrunner.py, and only by that.
+
+What this module produces is *advisories*: measured quantities that crossed a
+threshold worth a human look — vibration, EKF innovation test ratios, attitude
+tracking, a binary built from a different commit than the checkout. They are
+counted in `result.json`, shown separately in the UI, and never turn a passing
+run into a failing one. Conflating the two would mean either a noisy airframe
+marking a working takeoff as broken, or a genuine acceptance failure hiding
+among health warnings.
+
+Every threshold is named in `THRESHOLDS` with the ArduPilot page it comes from.
 """
 from __future__ import annotations
 
@@ -34,6 +43,8 @@ from typing import Any, Optional
 
 from pymavlink import mavutil
 from pymavlink.DFReader import DFReader_binary
+
+from .versions import build_id
 
 # ArduPilot libraries/AP_Logger/AP_Logger.h, enum class LogEvent.
 # Only the events that matter for a takeoff/landing report are named; an
@@ -76,6 +87,12 @@ NOTABLE_MESSAGE_HINTS = (
 )
 
 MAX_SERIES_POINTS = 600      # report.json stays readable and small
+
+
+def _advisory(code: str, what: str, detail: str, threshold: str, source: str) -> dict:
+    """One health finding. `code` is stable so tooling can count them by kind."""
+    return {"code": code, "what": what, "detail": detail,
+            "threshold": threshold, "source": source}
 
 
 def _mode_names(firmware: str, mav_type: Optional[int]) -> dict:
@@ -339,6 +356,16 @@ def _plots(collector: _Collector, modes: list[dict], intervals: list[dict],
     return written
 
 
+def _num(value) -> str:
+    """Formats a parameter value for the report, or a dash when unknown."""
+    if value is None:
+        return "—"
+    try:
+        return f"{float(value):g}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
 def _markdown(report: dict) -> str:
     """Renders report.json as the human-readable report.md."""
     out: list[str] = []
@@ -350,6 +377,30 @@ def _markdown(report: dict) -> str:
     add(f"Generated {report['generated_utc']} by ArgazUI {meta.get('argazui_version', '?')}.")
     add("")
 
+    # ------------------------------------------------------ what was changed
+    # This comes first, before any measurement. If the run reconfigured the
+    # aircraft, that has to be the first thing a reader sees — every number
+    # below was measured on a vehicle in this state, not a stock one.
+    overrides = meta.get("overrides") or []
+    add("## Parameters this run changed")
+    add("")
+    if not overrides:
+        add("None. The aircraft flew with exactly the configuration it booted with.")
+    else:
+        add("| Parameter | Set to | Was | Restored | Why |")
+        add("|---|---:|---:|---|---|")
+        for item in overrides:
+            restored = {True: "yes", False: "**NO**", None: "n/a"}[item.get("restored")]
+            was = item.get("restore_to")
+            add(f"| `{item['param']}` | {_num(item.get('set_to'))} | {_num(was)} "
+                f"| {restored} | {item.get('reason') or '—'} |")
+        if any(item.get("restored") is False for item in overrides):
+            add("")
+            add("**A restore failed.** The vehicle is still configured with a value "
+                "this run wrote. Upstream `.param` files are untouched, but the "
+                "running instance is not in the state it started in.")
+    add("")
+
     add("## Flight")
     add("")
     add("| | |")
@@ -358,7 +409,7 @@ def _markdown(report: dict) -> str:
         add(f"| Model | {meta['model_name']} (`{meta.get('model_id', '')}`) |")
     if meta.get("procedures"):
         add(f"| Procedures | {', '.join(meta['procedures'])} |")
-    add(f"| Firmware | {report['log']['firmware'] or 'unknown'} |")
+    add(f"| Build | {report['build']['text']} |")
     add(f"| Log | `{report['log']['file']}` ({report['log']['size_bytes'] / 1e6:.1f} MB) |")
     add(f"| Log duration | {report['log']['seconds']:.1f} s |")
     add(f"| Armed time | {report['armed']['total_seconds']:.1f} s "
@@ -368,19 +419,22 @@ def _markdown(report: dict) -> str:
         else "| Maximum altitude | not logged |")
     add("")
 
-    warnings = report["warnings"]
-    add("## Verdict")
+    advisories = report["advisories"]
+    add("## Advisories")
     add("")
-    if warnings:
-        add(f"{len(warnings)} item(s) flagged for review:")
+    add("*Advisories never fail a run.* Whether the flight did what it was asked "
+        "is decided by the procedure's acceptance criteria in `result.json`; "
+        "these are health measurements that crossed a threshold worth a look.")
+    add("")
+    if advisories:
+        add(f"{len(advisories)} item(s) flagged:")
         add("")
-        for item in warnings:
-            add(f"- **{item['what']}** — {item['detail']} "
+        for item in advisories:
+            add(f"- **{item['what']}** (`{item['code']}`) — {item['detail']} "
                 f"(threshold {item['threshold']}, source: {item['source']})")
     else:
-        add("Nothing crossed a review threshold. Vibration, EKF innovation test "
-            "ratios, attitude tracking and battery stayed inside the limits listed "
-            "under *Thresholds* below.")
+        add("None. Vibration, EKF innovation test ratios, attitude tracking and "
+            "battery stayed inside the limits listed under *Thresholds* below.")
     add("")
 
     add("## Mode timeline")
@@ -583,34 +637,49 @@ def analyse(bin_path: Path, out_dir: Optional[Path] = None,
             "consumed_mah": round(max(row[3] for row in collector.bat), 1),
         }
 
-    warnings: list[dict] = []
+    build = build_id(collector.firmware)
+
+    advisories: list[dict] = []
+    if build.firmware_matches_checkout is False:
+        # The binary that flew is not the source tree that will be blamed for
+        # the result. Comparing this run against another is meaningless until
+        # that is resolved, so it leads the list.
+        advisories.append(_advisory(
+            "firmware_checkout_mismatch", "Firmware is not the checkout",
+            f"the binary was built from {build.firmware_hash} but the ArduPilot "
+            f"checkout is at {build.short_sha}",
+            "the two must match", "ArgazUI — regression baseline"))
     if vibration:
         worst = max(vibration["x_max"], vibration["y_max"], vibration["z_max"])
         if worst > THRESHOLDS["vibe_ms2"]:
-            warnings.append({"what": "Vibration", "detail": f"peak {worst:.1f} m/s/s",
-                             "threshold": f"{THRESHOLDS['vibe_ms2']:.0f} m/s/s",
-                             "source": "ardupilot.org — Measuring Vibration"})
+            advisories.append(_advisory(
+                "vibration", "Vibration", f"peak {worst:.1f} m/s/s",
+                f"{THRESHOLDS['vibe_ms2']:.0f} m/s/s",
+                "ardupilot.org — Measuring Vibration"))
         if vibration["clip_total"]:
-            warnings.append({"what": "Accelerometer clipping",
-                             "detail": f"{vibration['clip_total']} event(s)",
-                             "threshold": "0", "source": "ardupilot.org — Measuring Vibration"})
+            advisories.append(_advisory(
+                "accel_clipping", "Accelerometer clipping",
+                f"{vibration['clip_total']} event(s)", "0",
+                "ardupilot.org — Measuring Vibration"))
     if ekf:
         for key, label in (("sv_max", "velocity"), ("sp_max", "position"),
                            ("sh_max", "height"), ("sm_max", "magnetometer"),
                            ("svt_max", "airspeed")):
             if ekf[key] > THRESHOLDS["ekf_test_ratio"]:
-                warnings.append({"what": f"EKF {label} innovation",
-                                 "detail": f"test ratio peaked at {ekf[key]:.2f}",
-                                 "threshold": f"{THRESHOLDS['ekf_test_ratio']:.1f}",
-                                 "source": "ardupilot.org — EKF overview"})
+                advisories.append(_advisory(
+                    f"ekf_{label}", f"EKF {label} innovation",
+                    f"test ratio peaked at {ekf[key]:.2f}",
+                    f"{THRESHOLDS['ekf_test_ratio']:.1f}",
+                    "ardupilot.org — EKF overview"))
     if attitude:
         for axis in ("roll", "pitch"):
             if attitude[f"{axis}_max"] > THRESHOLDS["attitude_error_deg"]:
-                warnings.append({"what": f"{axis.capitalize()} tracking error",
-                                 "detail": f"peaked at {attitude[f'{axis}_max']:.1f}° "
-                                           f"(RMS {attitude[f'{axis}_rms']:.1f}°)",
-                                 "threshold": f"{THRESHOLDS['attitude_error_deg']:.0f}°",
-                                 "source": "ArgazUI review trigger"})
+                advisories.append(_advisory(
+                    f"attitude_{axis}", f"{axis.capitalize()} tracking error",
+                    f"peaked at {attitude[f'{axis}_max']:.1f}° "
+                    f"(RMS {attitude[f'{axis}_rms']:.1f}°)",
+                    f"{THRESHOLDS['attitude_error_deg']:.0f}°",
+                    "ArgazUI review trigger"))
 
     notable = []
     for message in collector.messages:
@@ -635,6 +704,7 @@ def analyse(bin_path: Path, out_dir: Optional[Path] = None,
             "message_counts": dict(sorted(collector.counts.items(),
                                           key=lambda kv: -kv[1])[:20]),
         },
+        "build": build.as_dict(),
         "modes": modes,
         "events": collector.events,
         "armed": {"intervals": intervals, "total_seconds": round(armed_total, 1)},
@@ -645,7 +715,8 @@ def analyse(bin_path: Path, out_dir: Optional[Path] = None,
         "battery": battery,
         "params": params,
         "notable_messages": notable[:40],
-        "warnings": warnings,
+        "advisories": advisories,
+        "advisory_count": len(advisories),
         "plots": plot_files,
         "thresholds": THRESHOLDS,
     }

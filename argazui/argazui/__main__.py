@@ -102,13 +102,16 @@ def _list_runs(as_json: bool) -> int:
     if not found:
         print(f"No runs recorded yet under {paths.RUNS_DIR}.")
         return 0
-    print(f"{'run':38s} {'status':12s} {'dur':>7s}  procedures")
+    print(f"{'run':38s} {'status':13s} {'adv':>4s} {'dur':>7s}  procedures")
     for entry in found:
         procedures = ", ".join(
-            f"{p['id']}{'' if p['ok'] else ' (failed)'}" for p in entry["procedures"])
+            f"{p['id']}" + ("" if p["outcome"] == "passed" else f" ({p['outcome']})")
+            for p in entry["procedures"])
         seconds = f"{entry['seconds']:.0f}s" if entry.get("seconds") else "-"
-        print(f"{entry['run_id']:38s} {entry['status']:12s} {seconds:>7s}  "
-              f"{procedures or '-'}")
+        count = entry.get("advisory_count")
+        advisories = "-" if count is None else str(count)
+        print(f"{entry['run_id']:38s} {entry['status']:13s} {advisories:>4s} "
+              f"{seconds:>7s}  {procedures or '-'}")
     print(f"\n{len(found)} run(s) under {paths.RUNS_DIR}")
     return 0
 
@@ -158,12 +161,17 @@ def _make_report(target: str, as_json: bool) -> int:
     print(f"      {out / 'params_full.txt'}  ({report['params']['total']} parameters)")
     print(f"      {out / 'params_diff.txt'}  "
           f"({report['params']['non_default']} differ from default)")
-    for warning in report["warnings"]:
-        print(f"  ! {warning['what']}: {warning['detail']}")
-    if not report["warnings"]:
+    print(f"  build: {report['build']['text']}")
+    # Advisories are health findings, never a verdict. The exit code stays 0
+    # for them: `argazui report` reads a log, it does not judge a flight.
+    for advisory in report["advisories"]:
+        print(f"  ! advisory {advisory['code']}: {advisory['detail']}")
+    if not report["advisories"]:
         print("  no measurement crossed a review threshold")
     if path.is_dir() and run_dir(path.name) is not None:
-        print(f"  status: {describe_run(path)['status']}")
+        row = describe_run(path)
+        print(f"  acceptance status: {row['status']}  "
+              f"(advisories: {row['advisory_count']})")
     return 0
 
 

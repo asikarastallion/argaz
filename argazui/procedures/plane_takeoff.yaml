@@ -57,6 +57,29 @@ inputs:
 
 timeout: 300
 
+# Run-scoped configuration changes. Applied before the first step, restored
+# when the procedure ends however it ends, and listed at the top of the run's
+# flight report. See SCHEMA.md — a procedure may not change a parameter that is
+# not declared here.
+overrides:
+  - param: TKOFF_ALT
+    value: "{alt}"
+    reason:
+      en: >-
+        TAKEOFF mode has no altitude argument: it climbs to whatever TKOFF_ALT
+        says and then loiters there
+        (ardupilot/ArduPlane/mode_takeoff.cpp, ModeTakeoff::update). The
+        altitude asked for on the button is therefore only meaningful as this
+        parameter. The aircraft's own value is put back afterwards, so the
+        model's .param file and its stored settings are unchanged.
+      tr: >-
+        TAKEOFF modunun irtifa argumani yoktur: TKOFF_ALT ne diyorsa oraya
+        tirmanir ve orada bekler
+        (ardupilot/ArduPlane/mode_takeoff.cpp, ModeTakeoff::update). Butonda
+        istenen irtifa ancak bu parametre olarak anlam kazanir. Aracin kendi
+        degeri sonradan geri konur; modelin .param dosyasi ve kayitli ayarlari
+        degismez.
+
 steps:
   # ---------------------------------------------------------------- checks
   # TKOFF_DIST is the distance to the point the aircraft loiters at once it is
@@ -100,13 +123,7 @@ steps:
           kalkis yap.
 
   # ---------------------------------------------------------------- setup
-  # Run-scoped: the previous value is restored when the procedure ends and both
-  # values are written to the run directory. The model's .param file is not
-  # touched.
-  - name: {en: Set the takeoff altitude, tr: Kalkis irtifasini ayarla}
-    set_param: {name: TKOFF_ALT, value: "{alt}"}
-    timeout: 10
-
+  # TKOFF_ALT is set by the declared override above, before this point.
   - name: {en: Switch to TAKEOFF mode, tr: TAKEOFF moduna gec}
     set_mode: TAKEOFF
     timeout: 10

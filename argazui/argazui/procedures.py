@@ -120,6 +120,33 @@ class Expectation:
 
 
 @dataclass
+class Override:
+    """A parameter this procedure needs changed, and why.
+
+    WHY A DECLARATION RATHER THAN JUST A STEP
+    -----------------------------------------
+    v1.1 phase 1 let any `set_param` step quietly rewrite the vehicle. That is
+    the same class of behaviour this project exists to catch: a test tool that
+    adjusts the aircraft until its own test passes proves nothing. Declaring
+    the change here forces three things — it is visible in the procedure, the
+    reason is written down in both languages, and the run directory and the
+    flight report both lead with the list.
+    """
+
+    param: str
+    value: Any
+    reason: dict = field(default_factory=dict)
+    restore: bool = True
+
+    def reason_text(self, lang: str = "en") -> str:
+        return self.reason.get(lang) or self.reason.get("en") or ""
+
+    def as_dict(self, lang: str = "en") -> dict:
+        return {"param": self.param, "value": self.value,
+                "reason": self.reason_text(lang), "restore": self.restore}
+
+
+@dataclass
 class Input:
     name: str
     label: dict
@@ -150,6 +177,7 @@ class Procedure:
     default: bool
     priority: int
     inputs: list[Input]
+    overrides: list[Override]
     steps: list[Step]
     expect: list[Expectation]
     timeout: float
@@ -174,6 +202,7 @@ class Procedure:
             "priority": self.priority,
             "sources": self.sources,
             "inputs": [i.as_dict(lang) for i in self.inputs],
+            "overrides": [o.as_dict(lang) for o in self.overrides],
             "steps": [{"name": s.label(lang), "kind": s.kind} for s in self.steps],
             "expect": [e.label(lang) for e in self.expect],
         }
@@ -305,10 +334,53 @@ def parse(text: str, path: Path) -> Procedure:
             maximum=None if raw.get("max") is None else float(raw["max"]),
         ))
 
+    overrides = []
+    raw_overrides = doc.get("overrides")
+    if raw_overrides is not None and not isinstance(raw_overrides, list):
+        raise ProcedureError(f"{where}: 'overrides' must be a list")
+    for i, raw in enumerate(raw_overrides or []):
+        spot = f"{where}.overrides[{i}]"
+        if not isinstance(raw, dict):
+            raise ProcedureError(f"{spot}: an override must be a map")
+        for key in raw:
+            if key not in ("param", "value", "reason", "restore"):
+                raise ProcedureError(f"{spot}: unknown override key '{key}'")
+        if "param" not in raw or "value" not in raw:
+            raise ProcedureError(f"{spot}: an override needs 'param' and 'value'")
+        # The reason is mandatory. An override without a stated justification
+        # is exactly the silent reconfiguration this schema exists to prevent,
+        # so it fails at load time rather than in flight.
+        if not raw.get("reason"):
+            raise ProcedureError(
+                f"{spot}: override of {raw['param']!r} needs a 'reason' — a procedure "
+                f"may not change the vehicle's configuration without saying why")
+        overrides.append(Override(
+            param=str(raw["param"]).upper(),
+            value=raw["value"],
+            reason=_text(raw["reason"], f"{spot}.reason"),
+            restore=bool(raw.get("restore", True)),
+        ))
+    declared = {o.param for o in overrides}
+    if len(declared) != len(overrides):
+        raise ProcedureError(f"{where}: the same parameter is overridden twice")
+
     raw_steps = doc.get("steps")
     if not isinstance(raw_steps, list) or not raw_steps:
         raise ProcedureError(f"{where}: 'steps' must be a non-empty list")
     steps = [_parse_step(s, f"{where}.steps[{i}]") for i, s in enumerate(raw_steps)]
+
+    # A `set_param` step may only touch a declared override. The step type
+    # still exists because a procedure can legitimately need to change a value
+    # part way through its own flow; what it may not do is introduce a change
+    # that the `overrides:` block, the run directory and the report never saw.
+    for i, step in enumerate(steps):
+        if step.kind != "set_param":
+            continue
+        name = str(step.value["name"]).upper()
+        if name not in declared:
+            raise ProcedureError(
+                f"{where}.steps[{i}]: set_param writes {name}, which is not declared in "
+                f"'overrides:'. Declare it there with a reason, or drop the step.")
 
     raw_expect = doc.get("expect")
     if not isinstance(raw_expect, list) or not raw_expect:
@@ -336,6 +408,7 @@ def parse(text: str, path: Path) -> Procedure:
         default=bool(applies.get("default", False)),
         priority=int(applies.get("priority", 0)),
         inputs=inputs,
+        overrides=overrides,
         steps=steps,
         expect=expect,
         timeout=float(doc.get("timeout", 300)),

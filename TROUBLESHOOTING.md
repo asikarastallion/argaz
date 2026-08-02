@@ -1,7 +1,10 @@
 # ARGAZ — Sorun Giderme Rehberi
 ArduPilot SITL + ROS 2 Jazzy + Gazebo Harmonic (Ubuntu 24.04)
 
-Proje kökü: `/home/asikarastallion/Documents/argaz`
+Proje kökü: `$ARGAZ`. Bu değişkeni `env.sh` kendi bulunduğu dizinden
+türetir, yani depoyu nereye klonladıysan orası. Aşağıdaki komutlarda
+`$ARGAZ` geçen her yer için önce `source env.sh` çalıştırmış ol —
+bu rehberde makineye özgü mutlak yol bilinçli olarak kullanılmıyor.
 
 ---
 
@@ -78,7 +81,7 @@ Sadece Harmonic ailesi (`gz-sim8`, `gz-*8` gibi) kalmalı.
 ```bash
 sudo wget https://raw.githubusercontent.com/osrf/osrf-rosdep/master/gz/00-gazebo.list -O /etc/ros/rosdep/sources.list.d/00-gazebo.list
 rosdep update
-cd /home/asikarastallion/Documents/argaz/ardu_ws
+cd $ARGAZ/ardu_ws
 rosdep install --from-paths src --ignore-src -y
 ```
 
@@ -97,7 +100,7 @@ rosdep install --from-paths src --ignore-src -y
    (`env.sh` bunu otomatik yapıyor ama yeni açtığın bir terminalde unutma.)
 3. Temiz build dene (bazen eski cache bozuk kalıyor):
    ```bash
-   cd /home/asikarastallion/Documents/argaz/ardu_ws
+   cd $ARGAZ/ardu_ws
    rm -rf build install log
    colcon build --packages-up-to ardupilot_gz_bringup
    ```
@@ -131,7 +134,7 @@ sudo apt install libgz-sim8-dev
 **Çözüm:**
 - Submodule'leri unuttuysan (repoyu `--recurse-submodules` olmadan klonladıysan):
   ```bash
-  cd /home/asikarastallion/Documents/argaz/ardupilot
+  cd $ARGAZ/ardupilot
   git submodule update --init --recursive
   ```
 - Prereqs scriptini tekrar çalıştır:
@@ -168,12 +171,19 @@ sudo apt install libgz-sim8-dev
 **Belirti:** Yeni bir simülasyon başlatınca port hatası, ya da Gazebo/SITL "zaten çalışıyor" gibi davranıyor.
 
 **Çözüm:**
+Süreçleri **isimle** öldürme. `pkill -f arducopter` gibi bir komut, o
+komutu içeren kendi kabuğunu da eşleştirip yanlış süreci kapatabilir
+(ArgazUI bu yüzden /proc üzerinden PGID ile temizlik yapıyor — bkz.
+`argazui/USAGE.md`, bölüm 10). Bunun yerine portu tutan süreci bul ve
+PID ile kapat:
+
 ```bash
-pkill -f sim_vehicle.py
-pkill -f arducopter
-pkill -f gz
+ss -lunp | grep -E '14550|14551'    # MAVLink portları
+ss -ltnp | grep 5760                 # SITL'in kendi TCP portu
+kill -TERM <pid>                     # yanıt vermezse: kill -KILL <pid>
 ```
-Sonra tekrar dene.
+Sonra tekrar dene. ArgazUI kullanıyorsan zaten **■ DURDUR** bu temizliği
+doğru şekilde yapıyor.
 
 ---
 
@@ -185,7 +195,7 @@ Sonra tekrar dene.
 
 **Çözüm:**
 ```bash
-source /home/asikarastallion/Documents/argaz/ardu_ws/install/setup.bash
+source $ARGAZ/ardu_ws/install/setup.bash
 ```
 Kalıcı çözüm için `env.sh` zaten bunu otomatik yapıyor — eğer hâlâ bulamıyorsa, build'in gerçekten başarıyla bittiğinden emin ol (Madde 4'e bak).
 
@@ -215,7 +225,8 @@ Hâlâ olmuyorsa `.bashrc` içinde satırın gerçekten eklendiğini kontrol et:
 ```bash
 tail -5 ~/.bashrc
 ```
-`source /home/asikarastallion/Documents/argaz/env.sh` satırı orada olmalı.
+`source <depo dizini>/env.sh` satırı orada olmalı — burada `$ARGAZ`
+kullanılamaz, çünkü onu tanımlayan zaten `env.sh`'ın kendisi.
 
 ---
 
@@ -223,9 +234,9 @@ tail -5 ~/.bashrc
 
 Bir şeyler çok karıştıysa ve sadece proje klasörünü silip yeniden başlamak istersen (ROS2/Gazebo sistem paketlerine dokunmadan):
 ```bash
-rm -rf /home/asikarastallion/Documents/argaz/ardu_ws/build
-rm -rf /home/asikarastallion/Documents/argaz/ardu_ws/install
-rm -rf /home/asikarastallion/Documents/argaz/ardu_ws/log
+rm -rf $ARGAZ/ardu_ws/build
+rm -rf $ARGAZ/ardu_ws/install
+rm -rf $ARGAZ/ardu_ws/log
 ```
 `src/` klasörünü ve `ardupilot/` klasörünü silmene gerek yok, sadece build çıktıları temizlenir.
 
@@ -253,7 +264,7 @@ symbol lookup error: /snap/core20/current/lib/x86_64-linux-gnu/libpthread.so.0: 
 
 **Teşhis:** Başarısız komutu elle çalıştırıp gerçek hatayı gör (launch bazen stderr'i yutuyor):
 ```bash
-source /home/asikarastallion/Documents/argaz/env.sh
+source $ARGAZ/env.sh
 timeout 5 /opt/ros/jazzy/lib/rviz2/rviz2 --help 2>&1 | head -20
 ```
 `symbol lookup error` ve `/snap/...` yolu görüyorsan bu sorun kesinleşmiş demektir.
@@ -292,6 +303,6 @@ echo $ROS_DISTRO
 ros2 pkg list | grep ardupilot
 
 # Workspace içindeki tüm repoları güncelle
-cd /home/asikarastallion/Documents/argaz/ardu_ws
+cd $ARGAZ/ardu_ws
 vcs pull src
 ```

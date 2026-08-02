@@ -398,6 +398,17 @@ class Manager:
             exp = event.get("expect") or {}
             mark = "OK" if exp.get("passed") else "FAIL"
             hub.push_log(f"  expect [{mark}] {exp.get('label')} — {exp.get('text')}")
+        elif kind == "override":
+            # A declared parameter change is announced with its reason, so the
+            # terminal shows the same justification the run directory records.
+            ovr = event.get("override") or {}
+            hub.push_log(t("proc_override_applied", name=ovr.get("param"),
+                           value=ovr.get("set_to"), previous=ovr.get("restore_to"),
+                           reason=ovr.get("reason")))
+        elif kind == "restore_failed":
+            ovr = event.get("override") or {}
+            hub.push_log(t("proc_restore_failed", name=ovr.get("param"),
+                           value=ovr.get("restore_to")))
 
     def cancel_procedure(self) -> dict:
         if self.runner and self.proc_thread and self.proc_thread.is_alive():
