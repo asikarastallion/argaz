@@ -16,12 +16,20 @@ RUN git clone --depth 1 --branch "${ARDUPILOT_REF}" \
     ./waf configure --board sitl && ./waf copter && ./waf plane
 
 COPY argazui /opt/argaz/argazui
+COPY tests /opt/argaz/tests
+COPY pytest.ini /opt/argaz/pytest.ini
 COPY argaz.toml /opt/argaz/argaz.toml
 COPY docker/container-env.sh /opt/argaz/env.sh
 RUN cp /opt/argaz/env.sh /opt/argaz/quadplane_env.sh && \
     mkdir -p /opt/argaz/ardu_ws && chmod +x /opt/argaz/env.sh /opt/argaz/quadplane_env.sh
 RUN python3 -m pip install --break-system-packages --no-cache-dir \
-    -r /opt/argaz/argazui/requirements.txt
+    -r /opt/argaz/argazui/requirements.txt \
+    -r /opt/argaz/argazui/requirements-test.txt
+# The e2e layer needs a real browser. --with-deps pulls the shared libraries
+# headless Chromium needs on a bare Ubuntu image; without them the browser
+# launches and immediately dies, which reads as a test failure rather than a
+# missing dependency.
+RUN python3 -m playwright install --with-deps chromium
 
 ENV ARGAZ_ROOT=/opt/argaz \
     PYTHONUNBUFFERED=1

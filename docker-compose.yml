@@ -12,3 +12,14 @@ services:
       dockerfile: docker/Dockerfile.tier2
     image: argazui:tier2
     command: ["doctor"]
+
+  # The tier-1 regression suite, including the browser e2e layer. This is what
+  # CI runs on every push; `doctor-tier1` above only checks prerequisites.
+  tier1:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.tier1
+    image: argazui:tier1
+    working_dir: /opt/argaz
+    entrypoint: ["python3", "-m", "pytest"]
+    command: ["tests/", "-m", "tier1", "-q"]

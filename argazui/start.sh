@@ -200,13 +200,26 @@ if [ -n "$HOLDER_PID" ]; then
         fi
         echo "ArgazUI: --replace given; sending SIGTERM to pid $HOLDER_PID..." >&2
         kill -TERM "$HOLDER_PID" 2>/dev/null || true
-        for _ in $(seq 1 20); do
-            kill -0 "$HOLDER_PID" 2>/dev/null || break
+        # Wait for the PORT to be released, not for the pid to disappear.
+        # Two reasons, both found by testing rather than reasoning:
+        #   * `kill -0` succeeds on a zombie, so when the old server is a child
+        #     of the shell running this script it can look alive long after it
+        #     has exited — the loop then never breaks.
+        #   * The process exiting is not the same as the socket being freed;
+        #     without waiting for that, the doctor preflight a second later
+        #     fails with EADDRINUSE and --replace reports a fake failure.
+        # The port is what we actually need, so the port is what we wait on.
+        # 30 s: a clean shutdown closes two pty sessions with a 3 s grace each
+        # and may be stopping a simulation, measured at ~6 s idle.
+        freed=0
+        for _ in $(seq 1 60); do
+            if [ -z "$(ss -ltnH "sport = :$PORT" 2>/dev/null)" ]; then freed=1; break; fi
             sleep 0.5
         done
-        if kill -0 "$HOLDER_PID" 2>/dev/null; then
+        if [ "$freed" = "0" ]; then
             echo "" >&2
-            echo "ArgazUI: pid $HOLDER_PID is STILL RUNNING 10 s after SIGTERM." >&2
+            echo "ArgazUI: 127.0.0.1:$PORT is STILL HELD 30 s after SIGTERM to pid" >&2
+            echo "         $HOLDER_PID." >&2
             echo "  It is not escalated to SIGKILL automatically: an ArgazUI that is" >&2
             echo "  shutting a simulation down needs that time, and killing it there" >&2
             echo "  would leave Gazebo and SITL orphaned and the run half-recorded." >&2
@@ -221,27 +234,7 @@ if [ -n "$HOLDER_PID" ]; then
             echo "" >&2
             exit 1
         fi
-        # The process being gone is NOT the same as the port being free: the
-        # kernel keeps the listening socket bound for a moment after the last
-        # reference drops. Without this wait, the doctor check that runs a
-        # second later fails with EADDRINUSE and --replace reports a fake
-        # prerequisite failure — which is exactly what happened the first time
-        # this path was exercised end to end.
-        freed=0
-        for _ in $(seq 1 40); do
-            if [ -z "$(ss -ltnH "sport = :$PORT" 2>/dev/null)" ]; then freed=1; break; fi
-            sleep 0.25
-        done
-        if [ "$freed" = "0" ]; then
-            echo "ArgazUI: pid $HOLDER_PID has exited but 127.0.0.1:$PORT is still" >&2
-            echo "         bound after 10 s. Wait a moment and run the same command" >&2
-            echo "         again:" >&2
-            echo "" >&2
-            echo "    $HERE/start.sh --replace" >&2
-            echo "" >&2
-            exit 1
-        fi
-        echo "ArgazUI: the previous server has exited; taking over port $PORT." >&2
+        echo "ArgazUI: port $PORT released; taking over." >&2
     else
         echo "" >&2
         echo "  Take it over (stops that server with SIGTERM, then starts this one):" >&2

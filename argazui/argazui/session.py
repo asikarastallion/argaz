@@ -99,6 +99,25 @@ def build_launch_commands(model: dict) -> list[str]:
     lines = [f"source {shlex.quote(str(env_file))}"]
 
     method = model["method"]
+    if method == "sitl_only":
+        # SITL's own physics, no Gazebo at all. `--model JSON` is deliberately
+        # absent: it tells SITL to wait for an external physics backend, so a
+        # vehicle launched that way without Gazebo never boots and never sends
+        # a heartbeat. MAVProxy still runs (ArgazUI needs its 14550 fan-out)
+        # but without --console/--map, which need a display.
+        rundir = paths.RUN_DIR / model["id"]
+        lines.append(f"mkdir -p {shlex.quote(str(rundir))}")
+        lines.append(f"cd {shlex.quote(str(rundir))}")
+        sitl = ["sim_vehicle.py", "-v", model.get("vehicle") or "ArduPlane"]
+        if model.get("frame"):
+            sitl += ["-f", model["frame"]]
+        if model.get("param_file"):
+            sitl.append(f"--add-param-file={model['param_file']}")
+        sitl += model.get("extra_sitl_args", [])
+        sitl += ["--out", f"127.0.0.1:{paths.SCRIPT_MAVLINK_PORT}"]
+        lines.append(" ".join(sitl))
+        return lines
+
     if method == "ros2_launch":
         ros2 = model.get("ros2") or {}
         parts = ["ros2", "launch", ros2["package"], ros2["launch_file"], *ros2.get("args", [])]

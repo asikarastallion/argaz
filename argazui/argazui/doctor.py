@@ -152,6 +152,15 @@ def _port(port: int, label: str, kind: int = socket.SOCK_STREAM) -> Check:
         return Check(f"port_{label}", False, True, f"cannot create socket to check port {port}: {exc}",
                      "Run doctor on the target host, where it can inspect local ports.")
     try:
+        if kind == socket.SOCK_STREAM:
+            # Bind the way the server will. asyncio's create_server sets
+            # SO_REUSEADDR by default, so a plain bind here is STRICTER than
+            # uvicorn and reports a conflict the server would never hit: a
+            # socket left in TIME_WAIT by a just-stopped ArgazUI is invisible
+            # to `ss -ltn` but blocks an unadorned bind. That false positive
+            # made `start.sh --replace` fail its own preflight moments after
+            # successfully freeing the port.
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind(("127.0.0.1", port))
         return Check(f"port_{label}", True, True, f"127.0.0.1:{port} is available")
     except OSError as exc:

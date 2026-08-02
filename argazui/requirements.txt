@@ -1,6 +1,6 @@
+# Runtime dependencies only — see requirements-test.txt for the suite.
 fastapi
 pymavlink
 pyyaml
-pytest
 uvicorn
 wsproto

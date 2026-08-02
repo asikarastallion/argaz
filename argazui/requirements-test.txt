@@ -1,0 +1,9 @@
+# Test-only dependencies. Kept out of requirements.txt so that installing
+# ArgazUI to *fly* does not also pull in a browser driver — start.sh only ever
+# installs the runtime set.
+pytest
+# The e2e layer drives a real headless Chromium. It is what catches the class
+# of bug that reaches users: the page looking populated while its console
+# carries an uncaught exception. After installing this, fetch the browser with:
+#     python3 -m playwright install chromium
+playwright
