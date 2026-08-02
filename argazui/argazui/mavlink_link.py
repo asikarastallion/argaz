@@ -82,6 +82,12 @@ class VehicleState:
             "sysid": self.sysid,
             "prearm_ok": self.prearm_ok,
             "prearm_known": self.prearm_known,
+            # Seconds since the last vehicle heartbeat, or None if none has
+            # ever arrived. The interface needs this to say WHY the link is
+            # down instead of showing a bare dash: "no heartbeat for 12 s" and
+            # "never heard from the vehicle" are different problems.
+            "heartbeat_age": (None if not self.last_heartbeat
+                              else round(time.time() - self.last_heartbeat, 1)),
         }
 
 
@@ -436,6 +442,10 @@ class MavlinkLink:
             return job.result.get(timeout=timeout + 10.0)
         except Empty:
             return {"ok": False, "text": t("cmd_timeout", cmd=label)}
+
+    def is_running(self) -> bool:
+        """Is the link's worker thread alive? (i.e. has START been pressed)"""
+        return bool(self._thread and self._thread.is_alive())
 
     def wait_ready(self, timeout: float = 120.0) -> bool:
         """Ilk heartbeat gelene kadar bekler (worker thread'de degil, disaridan)."""

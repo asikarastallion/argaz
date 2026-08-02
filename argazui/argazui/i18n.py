@@ -279,6 +279,32 @@ CATALOG: dict[str, dict[str, str]] = {
                                 "olabilir ya da oturum dataflash logu birakmamis"},
     "run_no_file":       {"en": "no such file in this run: {name}",
                           "tr": "bu kosuda boyle bir dosya yok: {name}"},
+    "run_bin_copy_failed": {"en": "the dataflash log at {path} could not be copied "
+                                  "into the run directory: {err}",
+                            "tr": "{path} konumundaki dataflash logu kosu dizinine "
+                                  "kopyalanamadi: {err}"},
+    "run_bin_truncated": {"en": "WARNING: the dataflash log {name} looks truncated "
+                                "({detail}). The report still covers what was "
+                                "written, but the flight was not fully recorded.",
+                          "tr": "UYARI: {name} dataflash logu yarim gorunuyor "
+                                "({detail}). Rapor yazilabilmis kismi kapsiyor ama "
+                                "ucus tam olarak kaydedilmemis."},
+    "stop_noise":        {"en": "Two messages above are expected during shutdown and "
+                                "are harmless: Gazebo's 'gz' wrapper reports "
+                                "Errno::ESRCH because ArgazUI already stopped its "
+                                "children by process group, and MAVProxy's log_writer "
+                                "thread raises while closing its own telemetry log "
+                                "(mav.tlog). Neither writes the autopilot's dataflash "
+                                "log — that is written by SITL itself, and every run "
+                                "now records whether it closed complete.",
+                          "tr": "Yukaridaki iki mesaj kapanista beklenir ve zararsizdir: "
+                                "Gazebo'nun 'gz' sarmalayicisi Errno::ESRCH veriyor "
+                                "cunku ArgazUI cocuk surecleri zaten surec grubuyla "
+                                "kapatti; MAVProxy'nin log_writer thread'i ise kendi "
+                                "telemetri logunu (mav.tlog) kapatirken hata veriyor. "
+                                "Ikisi de otopilotun dataflash logunu yazmiyor — onu "
+                                "SITL'in kendisi yaziyor ve her kosu artik o logun "
+                                "eksiksiz kapanip kapanmadigini kaydediyor."},
 
     # -------------------------------------------------- misc
     "ui_connected":      {"en": "interface connected.",

@@ -395,3 +395,42 @@ pre.report {
   background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
   padding: 12px; margin: 0; max-height: 55vh; overflow-y: auto;
 }
+
+/* ------------------------------------------------------ failure visibility */
+/* A panel that could not load says so in its own place, and the rest of the
+   page keeps working. Silence was the v1.1 regression. */
+.panel-error {
+  margin: 8px 0 0; padding: 8px 10px; font-size: 12px;
+  color: #ffd9d4; background: #3a1a17; border: 1px solid #7a3129;
+  border-radius: 7px;
+}
+
+/* Connection state for the two terminals. */
+.wschip {
+  font-size: 11px; padding: 2px 8px; border-radius: 999px; margin-left: 8px;
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--muted);
+  white-space: nowrap;
+}
+.wschip.open { color: var(--ok); border-color: #24603f; }
+.wschip.connecting { color: var(--warn); border-color: #6d5220; }
+.wschip.closed { color: var(--danger); border-color: #7a3129; }
+
+/* The status pill has three degrees of "not up", not just on/off. */
+.pill.bad { color: var(--danger); border-color: #7a3129; }
+
+/* --------------------------------------------------- build mismatch banner */
+/* Deliberately loud and deliberately not dismissible: while the page and the
+   server are different builds, nothing else on the page can be trusted. */
+.build-warning {
+  margin: 10px 18px 0; padding: 12px 14px; border-radius: 8px;
+  background: #4a2c10; border: 1px solid var(--warn); color: #ffe6c2;
+  font-size: 13px; line-height: 1.5;
+}
+.build-warning b { display: block; margin-bottom: 4px; color: var(--warn); }
+.build-warning .build-fix {
+  margin: 8px 0 0; padding: 8px 10px; white-space: pre;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+  color: var(--text); overflow-x: auto;
+}
+.build-warning .build-how { margin-top: 6px; }

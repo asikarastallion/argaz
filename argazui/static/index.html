@@ -35,6 +35,11 @@
   </nav>
 </header>
 
+<!-- Persistent and unmissable: the page and the server are different builds.
+     Placed above everything because every other reading on the page becomes
+     untrustworthy once this is true. -->
+<div class="build-warning" id="build-warning" hidden></div>
+
 <main>
   <!-- ---------------------------------------------------------- model picker -->
   <section class="panel models">
@@ -58,6 +63,7 @@
         <button class="btn link" id="btn-rescan" data-i18n="btn_rescan">⟳ rescan models</button>
       </div>
     </div>
+    <p class="panel-error" id="err-models" hidden></p>
   </section>
 
   <!-- --------------------------------------------------------- quick commands -->
@@ -65,6 +71,7 @@
     <h2><span data-i18n="quick_commands">Quick Commands</span>
         <small id="cmd-context"></small></h2>
     <div id="buttons" class="buttons"></div>
+    <p class="panel-error" id="err-buttons" hidden></p>
     <p class="hint" id="cmd-hint"></p>
   </section>
 
@@ -88,6 +95,7 @@
         <small id="runs-root"></small>
         <button class="btn link" id="btn-runs-refresh" data-i18n="btn_refresh">⟳ refresh</button></h2>
     <div class="runs-wrap"><table class="runs" id="runs-table"><tbody></tbody></table></div>
+    <p class="panel-error" id="err-runs" hidden></p>
     <p class="hint" id="runs-hint"></p>
   </section>
 
@@ -100,6 +108,7 @@
       <button class="btn" id="btn-script" data-i18n="btn_run_script">▶ RUN SCRIPT</button>
       <button class="btn link" id="btn-script-refresh" data-i18n="btn_refresh">⟳ refresh</button>
     </div>
+    <p class="panel-error" id="err-scripts" hidden></p>
     <p class="hint" id="script-hint"></p>
   </section>
 
@@ -110,6 +119,7 @@
     <div class="tabs">
       <button class="tab active" data-stream="sim" data-i18n="tab_sim">SIMULATION</button>
       <button class="tab" data-stream="shell" data-i18n="tab_shell">COMMAND / SCRIPT</button>
+      <span class="wschip connecting" id="ws-state">…</span>
       <span class="tabhint" id="tabhint"></span>
     </div>
     <div class="termwrap">

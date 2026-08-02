@@ -110,9 +110,11 @@ auto-detection from this checkout. For example:
 
 ```bash
 python3 -m argazui doctor --json
-python3 -m argazui --argaz-root /path/to/simulation-root doctor
 python3 -m argazui --mavlink-port 14600
 ```
+
+`--argaz-root` points the whole configuration at a simulation tree somewhere
+else; pass it the absolute path to that directory.
 
 See [`argaz.toml.example`](argaz.toml.example) for every setting. `doctor`
 checks SITL binaries by running `--version`, the model/ROS/Gazebo installation,
@@ -201,7 +203,7 @@ the shell:
 
 ```bash
 python3 -m argazui runs                    # list recorded runs
-python3 -m argazui report runs/<run_id>    # rebuild that run's report
+python3 -m argazui report                  # rebuild the newest run's report
 python3 -m argazui report some/other.BIN   # analyse any dataflash log
 ```
 

@@ -8,11 +8,13 @@ import asyncio
 import base64
 import json
 import threading
+from html import escape as html_escape
 from pathlib import Path
 from typing import Callable, Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
+                               PlainTextResponse)
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -23,6 +25,7 @@ from .i18n import t, set_language, get_language, LANGUAGES
 from .mavlink_link import MavlinkLink, substitute
 from .procrunner import ProcedureRunner, probe_capabilities
 from .runs import RunRecorder
+from .versions import argazui_build, pin_static_digest
 from .session import TerminalSession, build_launch_commands
 
 app = FastAPI(title="ArgazUI")
@@ -250,9 +253,16 @@ class Manager:
         if self.runner:
             self.runner.cancel()
         self.caps = None            # yetenekler araca ait; arac gidince gecersiz
+        had_sim = self.sim.is_alive() and self.active_model is not None
         self.mav.stop()
         if self.sim.is_alive():
             self.sim.stop_children(log=hub.push_log)
+        if had_sim:
+            # Gazebo ve MAVProxy kapanirken iki tanidik hata basiyor. Ikisi de
+            # zararsiz; ama terminal gercek bir bash oturumu oldugu icin
+            # ciktilarini filtrelemiyoruz — bunun yerine ne olduklarini
+            # soyluyoruz. Ayrintili gerekce icin i18n "stop_noise".
+            hub.push_log(t("stop_noise"))
         # Arac kapaninca ona baglanan gorev scriptlerini de birakmayalim
         if self.shell.is_alive():
             self.shell.stop_children(
@@ -436,6 +446,10 @@ class Manager:
             "vehicle_class": self.active_model["vehicle_class"] if self.active_model else None,
             "has_ros2": bool(self.active_model.get("has_ros2")) if self.active_model else False,
             "vehicle": self.mav.state.as_dict(),
+            # Whether the MAVLink worker exists at all, as opposed to existing
+            # but hearing nothing. The interface distinguishes the two so a
+            # blank status bar always has a stated reason.
+            "link_running": self.mav.is_running(),
             "procedure_running": bool(self.proc_thread and self.proc_thread.is_alive()),
             "script_port": paths.SCRIPT_MAVLINK_PORT,
             "ui_port": paths.UI_MAVLINK_PORT,
@@ -651,6 +665,11 @@ async def _status_pump():
 
 @app.on_event("startup")
 async def _startup():
+    # Pin the interface-file digest NOW. Computing it lazily on the first
+    # /api/version call was wrong: by then a file may already have been
+    # edited, so boot and current would agree and the drift check would be
+    # silent in exactly the case it exists for.
+    pin_static_digest()
     hub.bind_loop(asyncio.get_running_loop())
     mgr.ensure_terminal()
     asyncio.create_task(_status_pump())
@@ -668,9 +687,28 @@ async def _shutdown():
 
 
 # --------------------------------------------------------------------------- statik
+@app.get("/api/version")
+def api_version():
+    """Which ArgazUI is answering, and since when. See versions.argazui_build."""
+    return argazui_build()
+
+
 @app.get("/")
 def index():
-    return FileResponse(paths.STATIC_DIR / "index.html")
+    """Serves the page with THIS server's build identity stamped into it.
+
+    The static files come off disk, so a server left running from an older
+    checkout would otherwise hand the browser a newer interface with no way to
+    notice. The stamp is what lets the page compare what it was served with
+    against what /api/version reports and tell the user plainly.
+    """
+    html = (paths.STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    build = argazui_build()
+    stamp = (f'<meta name="argazui-build" content="{html_escape(build["build_id"])}">\n'
+             f'<meta name="argazui-served-by" '
+             f'content="{html_escape(build["started_utc"])}">\n')
+    html = html.replace("</head>", stamp + "</head>", 1)
+    return HTMLResponse(html)
 
 
 app.mount("/static", StaticFiles(directory=str(paths.STATIC_DIR)), name="static")

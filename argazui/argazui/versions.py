@@ -28,6 +28,7 @@ import re
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -166,3 +167,151 @@ def environment(firmware: str = "") -> dict[str, str]:
 def _platform() -> str:
     import platform
     return f"{platform.system()} {platform.release()} ({platform.machine()})"
+
+
+# --------------------------------------------------------------------------- build id
+# Fixed for the life of the process: the moment this module is imported is the
+# moment the server started, and the interface uses it to say how long an old
+# server has been running.
+_STARTED = datetime.now(timezone.utc)
+
+
+# The four things the server reads off disk, and what a change to each means
+# while it is running. Only the first two can go stale — that distinction is
+# the whole value of reporting them separately, because "restart now" and
+# "already live" are opposite instructions.
+#
+#   code        argazui/**/*.py       imported once  -> STALE until restart
+#   ui          static/**             served per request, but built against
+#                                     whatever API the running code has
+#   procedures  procedures/*.yaml     re-read on mtime change (procedures.py
+#                                     `_dir_stamp`) -> already live
+#   config      config/*.json         re-read on every request (app.registry,
+#                                     app.buttons) -> already live
+STALE_ON_CHANGE = ("code", "ui")
+
+
+def _digest_of(root: Path, patterns: tuple[str, ...]) -> str:
+    import hashlib
+
+    if not root.is_dir():
+        return "absent"
+    digest = hashlib.sha256()
+    seen: list[Path] = []
+    for pattern in patterns:
+        seen.extend(p for p in root.glob(pattern) if p.is_file())
+    for path in sorted(set(seen)):
+        digest.update(str(path.relative_to(root)).encode())
+        try:
+            digest.update(path.read_bytes())
+        except OSError:
+            digest.update(b"<unreadable>")
+    return digest.hexdigest()[:12]
+
+
+def source_digests() -> dict[str, str]:
+    """Content hashes of everything the server reads off disk, per layer.
+
+    WHY CONTENT HASHES AND NOT JUST THE GIT SHA
+    -------------------------------------------
+    The commit-based build id only moves at a commit boundary, but the thing
+    that goes wrong all day is smaller: you edit a file, the server keeps
+    running with its old Python loaded, and both sides still report the same
+    commit and the same `dirty` flag.
+
+    The first version of this hashed only `static/`, which left the original
+    failure invisible inside a commit — the user's stale backend was caught
+    only because it was old enough to lack `/api/version` at all. Server code
+    is the layer that actually breaks the API contract, so it is hashed too.
+    """
+    from . import paths
+
+    package = Path(__file__).resolve().parent
+    return {
+        "code": _digest_of(package, ("*.py", "**/*.py")),
+        "ui": _digest_of(paths.STATIC_DIR, ("**/*",)),
+        "procedures": _digest_of(paths.PROCEDURES_DIR, ("*.yaml",)),
+        "config": _digest_of(paths.CONFIG_DIR, ("*.json",)),
+    }
+
+
+def static_digest() -> str:
+    """Back-compatible single value: the interface-file layer."""
+    return source_digests()["ui"]
+
+
+# What the server had on disk when it started.
+_AT_BOOT: dict[str, str] = {}
+
+
+def pin_static_digest() -> dict[str, str]:
+    """Records the on-disk state right now, once.
+
+    Called from the FastAPI startup event so the values are fixed before any
+    request can arrive. Computing them lazily on first use was a real defect:
+    the first use IS a request, by which time a file may already have changed,
+    so boot and current would agree and the drift check would stay silent in
+    precisely the situation it was written for.
+    """
+    global _AT_BOOT
+    if not _AT_BOOT:
+        _AT_BOOT = source_digests()
+    return _AT_BOOT
+
+
+def _boot_digests() -> dict[str, str]:
+    # Outside a server (the CLI, the tests) there is no boot moment; fall back
+    # to the current state rather than inventing a mismatch.
+    return _AT_BOOT or source_digests()
+
+
+def argazui_build() -> dict:
+    """Which ArgazUI is answering, and since when.
+
+    WHY THE INTERFACE NEEDS THIS
+    ----------------------------
+    `index.html` and `app.js` are served from disk, so a server left running
+    from an earlier checkout hands the browser TODAY's interface while
+    answering with YESTERDAY's API. That is exactly how the v1.1 regression
+    reached a user: the page loaded fine, called an endpoint the old server had
+    never heard of, and the failure looked like a bug in the page. The browser
+    compares this identity against the one embedded in the HTML it was served
+    and says so when they differ.
+    """
+    from . import __version__
+
+    root = Path(__file__).resolve().parent.parent.parent
+    sha = _git(root, "rev-parse", "HEAD") if (root / ".git").exists() else ""
+    dirty = bool(_git(root, "status", "--porcelain")) if sha else False
+    boot = _boot_digests()
+    now = source_digests()
+    # Only the layers that actually go stale belong in the identity. Including
+    # the hot-reloaded ones would fire a "restart the server" warning every
+    # time someone edited a procedure that took effect immediately — a false
+    # alarm, and false alarms are how a warning stops being read.
+    stale = sorted(layer for layer in STALE_ON_CHANGE if boot.get(layer) != now.get(layer))
+    argazui_dir = Path(__file__).resolve().parent.parent
+    return {
+        "version": __version__,
+        "sha": sha or UNKNOWN,
+        "short_sha": (sha[:12] if sha else UNKNOWN),
+        "dirty": dirty,
+        "started_utc": _STARTED.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        # The identity the browser compares: the commit, uncommitted changes
+        # anywhere in the tree, and the two layers that cannot hot-reload.
+        "build_id": (f"{__version__}+{(sha[:12] if sha else 'nogit')}"
+                     f"{'+dirty' if dirty else ''}"
+                     f"+code{boot.get('code', '?')}+ui{boot.get('ui', '?')}"),
+        "digests_boot": boot,
+        "digests_now": now,
+        "stale_layers": stale,
+        "changed_layers": sorted(k for k in now if boot.get(k) != now.get(k)),
+        # Kept for readers of the earlier shape.
+        "static_digest_boot": boot.get("ui", ""),
+        "static_digest_now": now.get("ui", ""),
+        "static_changed_since_boot": "ui" in stale,
+        # Where this server lives, so the browser can print a command that
+        # runs verbatim instead of one containing a placeholder.
+        "argazui_dir": str(argazui_dir),
+        "restart_command": f"{argazui_dir / 'start.sh'} --replace",
+    }

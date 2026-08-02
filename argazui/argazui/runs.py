@@ -40,7 +40,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from . import paths
-from .flightlog import analyse, newest_log
+from .flightlog import analyse, newest_log, verify_dataflash
 from .i18n import t
 from .versions import environment
 
@@ -127,6 +127,8 @@ class RunRecorder:
         self._procedures: list[dict] = []
         self._scenarios: list[str] = []
         self._flaky: list[dict] = []
+        self._dataflash_check: Optional[dict] = None
+        self._dataflash_absent: str = ""
         self._finished = False
         self._last_state: Optional[tuple] = None
 
@@ -287,14 +289,60 @@ class RunRecorder:
         """
         source = newest_log(self.work_dir, newer_than=self.started_monotonic - 5)
         if source is None:
+            self._dataflash_absent = self._why_no_dataflash()
             return None
         target = self.dir / source.name
         try:
             shutil.copy2(source, target)
         except OSError as exc:
-            self.on_log(f"run {self.run_id}: could not copy {source}: {exc}")
+            self._dataflash_absent = f"could not copy {source}: {exc}"
+            self.on_log(t("run_bin_copy_failed", path=str(source), err=exc))
             return None
+        self._dataflash_check = verify_dataflash(target)
+        if not self._dataflash_check["complete"]:
+            self.on_log(t("run_bin_truncated", name=target.name,
+                          detail=self._dataflash_check["error"] or "no timestamped tail"))
         return target
+
+    def _why_no_dataflash(self) -> str:
+        """States the reason, because "missing" alone reads like a defect.
+
+        The usual reason is not a fault at all: ArduPilot ships LOG_DISARMED=0,
+        so a session where the vehicle never armed produces no log file. That
+        is different from a log that was expected and lost, and the run record
+        has to distinguish them.
+        """
+        if not self._ever_armed():
+            return ("the vehicle never armed, and ArduPilot's default "
+                    "LOG_DISARMED=0 means it writes no dataflash log until it "
+                    "does — nothing was lost")
+        return (f"the vehicle armed but no .BIN newer than the run start was "
+                f"found under {self.work_dir}")
+
+    def _ever_armed(self) -> bool:
+        """Did the vehicle arm at any point in this run?
+
+        Every line is parsed and its `kind` field examined. A substring search
+        would be cheaper and wrong: a STATUSTEXT carrying the autopilot's own
+        refusal — `{"kind": "statustext", "text": "Arm: not armed"}` — contains
+        the word, and would make this claim the opposite of the truth. The
+        answer feeds the explanation for a missing dataflash log, so it is part
+        of the accuracy chain rather than a cosmetic detail.
+        """
+        path = self.dir / "mavlink_events.jsonl"
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return False
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                if json.loads(line).get("kind") == "armed":
+                    return True
+            except json.JSONDecodeError:
+                continue
+        return False
 
     def _result(self, finished: datetime, dataflash: Optional[Path]) -> dict:
         """The run's own record.
@@ -332,6 +380,9 @@ class RunRecorder:
                 "scenario": "scenario.yaml",
                 "versions": "versions.txt",
                 "dataflash": dataflash.name if dataflash else None,
+                # Proof that the log is whole, or a stated reason there is none.
+                "dataflash_check": self._dataflash_check,
+                "dataflash_absent_reason": self._dataflash_absent or None,
             },
         }
 

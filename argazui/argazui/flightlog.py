@@ -739,6 +739,61 @@ def _write_atomic(path: Path, text: str) -> None:
     os.replace(tmp, path)
 
 
+def verify_dataflash(path: Path) -> dict:
+    """Is this `.BIN` complete, or was it cut off when the simulator died?
+
+    WHY THIS IS CHECKED EVERY RUN
+    -----------------------------
+    The dataflash log is the evidence the whole report is built from, and it is
+    written by a process ArgazUI terminates. STOP sends SIGINT first precisely
+    so the autopilot can close its log, but if it ever needed longer than that
+    window it would be SIGKILLed mid-write and the report would quietly cover
+    a partial flight. "Quietly" is the part that matters, so the file is
+    checked rather than assumed:
+
+      * it parses from start to end without the reader raising, and
+      * the last record carries a timestamp, i.e. the tail is a whole record
+        rather than a half-written one.
+
+    A truncated log is still kept and still analysed — it is better than
+    nothing — but it is reported as truncated.
+    """
+    path = Path(path)
+    out: dict = {"file": path.name, "size_bytes": 0, "records": 0,
+                 "last_record": None, "last_time_s": None,
+                 "complete": False, "error": None}
+    try:
+        out["size_bytes"] = path.stat().st_size
+    except OSError as exc:
+        out["error"] = f"cannot stat: {exc}"
+        return out
+    if out["size_bytes"] == 0:
+        out["error"] = "the file is empty"
+        return out
+
+    last = None
+    try:
+        reader = DFReader_binary(str(path))
+        while True:
+            message = reader.recv_msg()
+            if message is None:
+                break
+            out["records"] += 1
+            last = message
+    except Exception as exc:
+        # The reader stopping early IS the truncation signal; record it rather
+        # than letting it bubble up and lose the rest of the run's artefacts.
+        out["error"] = f"{type(exc).__name__}: {exc}"
+
+    if last is not None:
+        out["last_record"] = last.get_type()
+        micros = getattr(last, "TimeUS", None)
+        out["last_time_s"] = round(micros / 1e6, 2) if micros is not None else None
+    out["complete"] = bool(out["error"] is None and out["records"] > 0
+                           and out["last_time_s"] is not None)
+    return out
+
+
 def newest_log(directory: Path, newer_than: Optional[float] = None) -> Optional[Path]:
     """The most recently modified `.BIN` under `directory`, optionally time-filtered.
 

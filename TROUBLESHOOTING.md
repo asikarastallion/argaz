@@ -177,11 +177,21 @@ komutu içeren kendi kabuğunu da eşleştirip yanlış süreci kapatabilir
 `argazui/USAGE.md`, bölüm 10). Bunun yerine portu tutan süreci bul ve
 PID ile kapat:
 
+Hangi süreçlerin tuttuğunu görmek için:
+
 ```bash
-ss -lunp | grep -E '14550|14551'    # MAVLink portları
-ss -ltnp | grep 5760                 # SITL'in kendi TCP portu
-kill -TERM <pid>                     # yanıt vermezse: kill -KILL <pid>
+ss -lunp | grep -E '14550|14551'
+ss -ltnp | grep 5760
 ```
+
+Portu tutan ArgazUI'yi durdurmak için — satırın tamamını kopyala, düzenlemeye
+gerek yok:
+
+```bash
+pid=$(ss -ltnpH 'sport = :8770' | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | head -1) && kill -TERM "${pid:?nothing is listening on port 8770}"
+```
+
+(Yanıt vermezse aynı satırda `-TERM` yerine `-KILL` yazabilirsin.)
 Sonra tekrar dene. ArgazUI kullanıyorsan zaten **■ DURDUR** bu temizliği
 doğru şekilde yapıyor.
 

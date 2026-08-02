@@ -124,8 +124,18 @@ def _make_report(target: str, as_json: bool) -> int:
     without inventing a run directory for it.
     """
     if not target:
-        print("ERROR: 'report' needs a run directory or a .BIN log.", file=sys.stderr)
-        return 2
+        # Default to the newest run. Without this the documented example had
+        # to carry a `<run_id>` placeholder, and a command that cannot be
+        # pasted is not a command — a user hit exactly that and got a bash
+        # syntax error.
+        from .runs import list_runs
+        recent = list_runs(limit=1)
+        if not recent:
+            print(f"ERROR: no runs recorded yet under {paths.RUNS_DIR}, and no "
+                  f"run directory or .BIN log was given.", file=sys.stderr)
+            return 2
+        target = recent[0]["dir"]
+        print(f"No target given; using the most recent run: {recent[0]['run_id']}")
     path = Path(target).expanduser()
     if not path.exists():
         print(f"ERROR: {path} does not exist.", file=sys.stderr)

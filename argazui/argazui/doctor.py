@@ -155,8 +155,22 @@ def _port(port: int, label: str, kind: int = socket.SOCK_STREAM) -> Check:
         sock.bind(("127.0.0.1", port))
         return Check(f"port_{label}", True, True, f"127.0.0.1:{port} is available")
     except OSError as exc:
-        return Check(f"port_{label}", False, True, f"127.0.0.1:{port} is unavailable: {exc}",
-                     "Stop the process using this port or choose a different configured port.")
+        fix = "Stop the process using this port or choose a different configured port."
+        if label == "http":
+            # This exact situation cost a user a debugging session: an ArgazUI
+            # left running from a previous day still held 8770, start.sh
+            # refused to launch a replacement, and the browser kept talking to
+            # the OLD backend while loading the NEW static files from disk.
+            # Say so, rather than leaving them to work it out.
+            # Every command here must run verbatim when pasted — no <pid>.
+            script = Path(__file__).resolve().parent.parent / "start.sh"
+            fix = ("Something is already listening on this port — very likely an older "
+                   "ArgazUI. Your browser would load the current interface files but "
+                   "talk to that older server, which is worse than no server at all. "
+                   f"Take it over with:  {script} --replace   "
+                   f"or leave it alone and use:  {script} --port {port + 1}")
+        return Check(f"port_{label}", False, True,
+                     f"127.0.0.1:{port} is unavailable: {exc}", fix)
     finally:
         sock.close()
 

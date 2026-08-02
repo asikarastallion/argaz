@@ -309,7 +309,7 @@ From the shell:
 
 ```bash
 python3 -m argazui runs                    # list every recorded run
-python3 -m argazui report runs/<run_id>    # rebuild that run's report
+python3 -m argazui report                  # rebuild the newest run's report
 python3 -m argazui report some/other.BIN   # analyse any dataflash log
 ```
 
@@ -479,12 +479,15 @@ ArgazUI therefore never matches on names:
 - Matching uses the SID/PGID reported by the kernel, so killing the wrong
   process is impossible.
 
-If you need to stop it by hand, find it by port:
+If you need to stop it by hand, this one line finds it by port and stops it —
+copy the whole line, it needs no editing:
 
 ```bash
-ss -lptn 'sport = :8770'
-kill -TERM <pid>
+pid=$(ss -ltnpH 'sport = :8770' | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | head -1) && kill -TERM "${pid:?nothing is listening on port 8770}"
 ```
+
+Easier still, `./start.sh --replace` does the same thing and then starts a
+current server in its place.
 
 ### MAVLink never connects ("MAVLink: —" stays)
 

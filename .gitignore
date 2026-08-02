@@ -40,3 +40,7 @@ __pycache__/
 
 # SITL dataflash logs written into the argaz root by manual sessions
 /logs/
+
+# Virtual environment start.sh offers to create when no interpreter has the
+# required packages (see argazui/start.sh).
+/venv*/

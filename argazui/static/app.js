@@ -106,6 +106,75 @@
       st_no_procedure_title: "The model was started and stopped without running a " +
                              "procedure, so nothing was asserted.",
       runs_files: "Files in this run: {files}",
+
+      // Failure states. A blank readout with no explanation is not acceptable
+      // in a panel someone flies from.
+      panel_failed: "{panel} could not be loaded: {error}. The rest of the page " +
+                    "still works; see the browser console for the full error.",
+      panel_models: "The model list", panel_commands: "Quick Commands",
+      panel_scripts: "The mission script list", panel_runs: "Flight Runs",
+      link_ws_down: "MAVLink: interface offline",
+      link_ws_connecting: "The browser is still connecting to the ArgazUI server. " +
+                          "Nothing on this page is live yet.",
+      link_ws_closed: "The WebSocket to the ArgazUI server is closed (code {code}). " +
+                      "Reconnecting every 2 s. If this persists the server has " +
+                      "stopped — check the terminal it was started from.",
+      link_idle: "MAVLink: not started",
+      link_idle_detail: "No vehicle has been started, so there is no MAVLink link " +
+                        "to make. Pick a model and press START.",
+      link_waiting: "MAVLink: no heartbeat yet",
+      link_waiting_detail: "The vehicle was started but has never sent a heartbeat " +
+                           "on port {port}. Gazebo/SITL may still be booting; watch " +
+                           "the SIMULATION terminal for errors.",
+      link_stale: "MAVLink: silent {age}s",
+      link_stale_detail: "The last heartbeat on port {port} arrived {age} s ago. " +
+                         "The vehicle has stopped talking — check the SIMULATION " +
+                         "terminal.",
+      ws_open: "connected", ws_connecting: "connecting…",
+      ws_closed: "disconnected (code {code}) — retrying",
+      ws_title: "The WebSocket carrying both terminals and the status bar.",
+      why_disabled_no_vehicle: "No vehicle is running. Pick a model and press START.",
+      why_disabled_no_link: "The vehicle is running but ArgazUI has no MAVLink " +
+                            "connection to it yet.",
+      proc_lookup_failed: "The procedure list could not be read from the server " +
+                          "({error}), so this button cannot know what it would run.",
+      hint_buttons_disabled: "Buttons are disabled: {reason}",
+      build_mismatch_title: "⚠ This page and the server it is talking to are " +
+                            "different builds of ArgazUI.",
+      build_mismatch_body: "The server has been running since {since} and reports " +
+                           "build {server}. This page was served by it but was built " +
+                           "from {page}. The interface files are read from disk, so a " +
+                           "server started before your last change keeps answering " +
+                           "with its old API — anything on this page may be wrong " +
+                           "or missing. Restart the server:",
+      build_mismatch_old: "Page build: {page}. The server does not answer " +
+                          "/api/version ({error}), an endpoint that has existed " +
+                          "since ArgazUI 1.1 — so the server is older than the " +
+                          "interface files it just served you from disk, and parts " +
+                          "of this page are calling an API it does not have. " +
+                          "Restart the server:",
+      http_404_hint: "this endpoint does not exist on the server, which may be older " +
+                     "than the interface it served you",
+      build_fix_replace: "Run this — it stops that server and starts a current one. " +
+                         "Copy the whole line; it needs no editing:",
+      build_fix_kill: "This server is too old to tell us where it lives, so stop it " +
+                      "by the port it holds — copy the whole line, it needs no " +
+                      "editing — then start ArgazUI again the way you normally do:",
+      drift_code_title: "⚠ The server is running code that no longer exists on disk.",
+      drift_code_body: "Python is imported once, at startup. Whatever you changed " +
+                       "since then is NOT running, and the API this page is calling " +
+                       "is the old one.",
+      drift_ui_title: "⚠ The interface files have changed since this server started.",
+      drift_ui_body: "You are looking at the new interface files, but they are being " +
+                     "driven by the Python this server loaded at startup, so the page " +
+                     "may be calling an API it does not have.",
+      drift_detail: "Running since {since}; changed since then: {layers}. " +
+                    "Restart the server:",
+      layer_code: "server code", layer_ui: "interface files",
+      layer_procedures: "procedures", layer_config: "configuration",
+      build_unstamped: "(the server did not stamp this page)",
+      build_unstamped_reason: "the server served this page without a build stamp, " +
+                              "which only servers older than ArgazUI 1.1 do",
     },
     tr: {
       tagline: "ArduPilot SITL + Gazebo kontrol paneli",
@@ -205,6 +274,72 @@
       st_no_procedure_title: "Model başlatılıp durduruldu ama prosedür " +
                              "çalıştırılmadı; hiçbir şey iddia edilmedi.",
       runs_files: "Bu koşudaki dosyalar: {files}",
+
+      panel_failed: "{panel} yüklenemedi: {error}. Sayfanın geri kalanı çalışmaya " +
+                    "devam ediyor; tam hata için tarayıcı konsoluna bak.",
+      panel_models: "Model listesi", panel_commands: "Hızlı Komutlar",
+      panel_scripts: "Görev scripti listesi", panel_runs: "Uçuş Koşuları",
+      link_ws_down: "MAVLink: arayüz bağlı değil",
+      link_ws_connecting: "Tarayıcı hâlâ ArgazUI sunucusuna bağlanıyor. Bu sayfada " +
+                          "henüz hiçbir şey canlı değil.",
+      link_ws_closed: "ArgazUI sunucusuna giden WebSocket kapalı (kod {code}). Her " +
+                      "2 sn'de yeniden deneniyor. Sürüyorsa sunucu durmuştur — " +
+                      "onu başlattığın terminale bak.",
+      link_idle: "MAVLink: başlatılmadı",
+      link_idle_detail: "Çalışan bir araç yok, dolayısıyla kurulacak bir MAVLink " +
+                        "bağlantısı da yok. Bir model seç ve BAŞLAT'a bas.",
+      link_waiting: "MAVLink: henüz heartbeat yok",
+      link_waiting_detail: "Araç başlatıldı ama {port} portundan hiç heartbeat " +
+                           "göndermedi. Gazebo/SITL hâlâ açılıyor olabilir; " +
+                           "SİMÜLASYON terminalindeki hatalara bak.",
+      link_stale: "MAVLink: {age} sn sessiz",
+      link_stale_detail: "{port} portundaki son heartbeat {age} sn önce geldi. " +
+                         "Araç konuşmayı kesti — SİMÜLASYON terminaline bak.",
+      ws_open: "bağlı", ws_connecting: "bağlanıyor…",
+      ws_closed: "koptu (kod {code}) — yeniden deneniyor",
+      ws_title: "Her iki terminali ve durum çubuğunu taşıyan WebSocket.",
+      why_disabled_no_vehicle: "Çalışan araç yok. Bir model seç ve BAŞLAT'a bas.",
+      why_disabled_no_link: "Araç çalışıyor ama ArgazUI henüz ona MAVLink ile " +
+                            "bağlanamadı.",
+      proc_lookup_failed: "Prosedür listesi sunucudan okunamadı ({error}); bu buton " +
+                          "neyi çalıştıracağını bilemiyor.",
+      hint_buttons_disabled: "Butonlar devre dışı: {reason}",
+      build_mismatch_title: "⚠ Bu sayfa ile konuştuğu sunucu, ArgazUI'nin farklı " +
+                            "derlemeleri.",
+      build_mismatch_body: "Sunucu {since} tarihinden beri çalışıyor ve {server} " +
+                           "derlemesini bildiriyor. Bu sayfayı o sunucu verdi ama " +
+                           "sayfa {page} derlemesinden geliyor. Arayüz dosyaları " +
+                           "diskten okunur; son değişikliğinden önce başlatılmış bir " +
+                           "sunucu eski API'siyle yanıt vermeye devam eder — bu " +
+                           "sayfadaki her şey yanlış ya da eksik olabilir. Sunucuyu " +
+                           "yeniden başlat:",
+      build_mismatch_old: "Sayfa derlemesi: {page}. Sunucu, ArgazUI 1.1'den beri " +
+                          "var olan /api/version'a yanıt vermiyor ({error}) — yani " +
+                          "sunucu, az önce diskten verdiği arayüz dosyalarından " +
+                          "eski ve bu sayfanın bazı bölümleri onda olmayan bir " +
+                          "API'yi çağırıyor. Sunucuyu yeniden başlat:",
+      http_404_hint: "bu uç nokta sunucuda yok — sunucu, sana verdiği arayüzden " +
+                     "eski olabilir",
+      build_fix_replace: "Şunu çalıştır — o sunucuyu durdurup güncelini başlatır. " +
+                         "Satırın tamamını kopyala; düzenlemeye gerek yok:",
+      build_fix_kill: "Bu sunucu nerede olduğunu söyleyemeyecek kadar eski; tuttuğu " +
+                      "porttan durdur — satırın tamamını kopyala, düzenlemeye gerek " +
+                      "yok — sonra ArgazUI'yi her zamanki gibi başlat:",
+      drift_code_title: "⚠ Sunucu, diskte artık bulunmayan bir kodu çalıştırıyor.",
+      drift_code_body: "Python yalnızca açılışta import edilir. O andan sonra " +
+                       "değiştirdiğin şey ÇALIŞMIYOR ve bu sayfanın çağırdığı API " +
+                       "eski olanı.",
+      drift_ui_title: "⚠ Sunucu başladığından beri arayüz dosyaları değişti.",
+      drift_ui_body: "Yeni arayüz dosyalarına bakıyorsun ama onları sunucunun " +
+                     "açılışta yüklediği Python sürüyor; sayfa, sunucuda olmayan " +
+                     "bir API'yi çağırıyor olabilir.",
+      drift_detail: "{since} tarihinden beri çalışıyor; o zamandan beri değişenler: " +
+                    "{layers}. Sunucuyu yeniden başlat:",
+      layer_code: "sunucu kodu", layer_ui: "arayüz dosyaları",
+      layer_procedures: "prosedürler", layer_config: "yapılandırma",
+      build_unstamped: "(sunucu bu sayfaya damga basmadı)",
+      build_unstamped_reason: "sunucu bu sayfayı derleme damgası olmadan verdi; " +
+                              "bunu yalnızca ArgazUI 1.1'den eski sunucular yapar",
     },
   };
 
@@ -314,32 +449,228 @@
   });
 
   let ws = null;
+  // Reported in the terminal header and used by the status bar to explain a
+  // blank reading. "connecting" / "open" / "closed".
+  let wsState = "connecting";
+  let wsCloseCode = null;
+  let statusSeen = false;
+
+  function setWsState(state, code) {
+    wsState = state;
+    wsCloseCode = code === undefined ? wsCloseCode : code;
+    renderLinkChip();
+    if (lastStatus) applyStatus(lastStatus);
+  }
 
   function connect() {
+    setWsState("connecting");
     ws = new WebSocket(`ws://${location.host}/ws`);
     ws.onopen = () => {
+      setWsState("open", null);
       for (const n of Object.keys(TABS)) sendResize(n);
       TABS.sim.term.write(`\r\n\x1b[36m[ArgazUI]\x1b[0m ${t("ui_connected")}\r\n`);
     };
     ws.onmessage = (ev) => {
-      const msg = JSON.parse(ev.data);
-      if (msg.type === "out") {
-        const cfg = TABS[msg.stream || "sim"];
-        if (!cfg) return;
-        const bin = atob(msg.data);
-        const buf = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-        cfg.term.write(buf);
-      } else if (msg.type === "status") {
-        applyStatus(msg.status);
-      } else if (msg.type === "procedure") {
-        applyProcedureEvent(msg);
+      // One malformed frame must not kill the socket's message handler and
+      // with it every future status update.
+      let msg;
+      try {
+        msg = JSON.parse(ev.data);
+      } catch (e) {
+        console.error("ArgazUI: unparseable WebSocket frame", e);
+        return;
+      }
+      try {
+        if (msg.type === "out") {
+          const cfg = TABS[msg.stream || "sim"];
+          if (!cfg) return;
+          const bin = atob(msg.data);
+          const buf = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+          cfg.term.write(buf);
+        } else if (msg.type === "status") {
+          statusSeen = true;
+          applyStatus(msg.status);
+        } else if (msg.type === "procedure") {
+          applyProcedureEvent(msg);
+        }
+      } catch (e) {
+        console.error("ArgazUI: failed to handle a WebSocket message", msg && msg.type, e);
       }
     };
-    ws.onclose = () => {
+    ws.onclose = (ev) => {
+      setWsState("closed", ev && ev.code);
       TABS[activeTab].term.write(`\r\n\x1b[31m[ArgazUI]\x1b[0m ${t("ui_lost")}\r\n`);
       setTimeout(connect, 2000);
     };
+    ws.onerror = () => { /* onclose always follows; the code is reported there */ };
+  }
+
+  // ------------------------------------------------------- build identity
+  // WHY THIS CHECK EXISTS
+  // index.html and app.js are read from disk, so a server left running from an
+  // older checkout serves TODAY's interface while answering with YESTERDAY's
+  // API. That is precisely how the v1.1 regression reached a user: the page
+  // called an endpoint the running server had never heard of, and the failure
+  // read as a bug in the page. The server stamps its identity into the HTML it
+  // serves; here we compare that against what it reports live.
+  async function checkBuild() {
+    // Opened as a local file rather than served: there is no server to compare
+    // against, and nothing to warn about.
+    if (!location.protocol.startsWith("http")) return;
+
+    const served = document.querySelector('meta[name="argazui-build"]');
+    let live = null;
+    let error = "";
+    try {
+      live = await getJSON("/api/version", (b) => b && b.build_id);
+    } catch (e) {
+      error = String(e.message || e);
+    }
+
+    // A MISSING stamp is itself a mismatch, and it is the case that matters
+    // most. The stamp is injected by the server when it serves this page, so a
+    // server old enough to predate the stamping code hands over an unstamped
+    // document — which is exactly the stale-server situation this check was
+    // written for. Treating "no stamp" as "nothing to check" would have made
+    // the whole mechanism blind to its own motivating bug.
+    if (!served) {
+      showBuildMismatch(t("build_unstamped"), live, error ||
+                        t("build_unstamped_reason"));
+      return;
+    }
+    if (!live) {
+      showBuildMismatch(served.content, null, error);
+      return;
+    }
+    if (live.build_id !== served.content) {
+      showBuildMismatch(served.content, live, "");
+      return;
+    }
+    // Same build id, but the files on disk have moved on since this server
+    // booted. This is the everyday case: edit app.js, forget to restart. The
+    // commit-based id cannot see it, the content digest can.
+    if ((live.stale_layers || []).length) {
+      showStaticDrift(live);
+    }
+  }
+
+  // Which layer moved decides what the user is actually looking at, so the
+  // warning names it. Server code going stale means the fix you just made is
+  // not running at all; interface files going stale means the page in front
+  // of you is newer than the API answering it. Procedures and config are
+  // deliberately absent: both are re-read on demand, so a change there is
+  // already live and telling someone to restart would be false.
+  function showStaticDrift(live) {
+    const bar = $("build-warning");
+    if (!bar) return;
+    const layers = live.stale_layers || [];
+    const codeStale = layers.includes("code");
+    bar.innerHTML = "";
+    const title = document.createElement("b");
+    title.textContent = codeStale ? t("drift_code_title") : t("drift_ui_title");
+    const body = document.createElement("div");
+    body.textContent = (codeStale ? t("drift_code_body") : t("drift_ui_body")) + " " +
+      t("drift_detail", {
+        since: live.started_utc,
+        layers: layers.map((l) => t("layer_" + l) || l).join(", "),
+      });
+    bar.append(title, body, restartBlock(live));
+    bar.hidden = false;
+  }
+
+  // A copy-paste block must run verbatim. No <pid>, no <path>: a user pasted
+  // an earlier version of this and got "syntax error near unexpected token
+  // 'newline'", because bash read the placeholder as a redirection.
+  function restartBlock(live) {
+    const pre = document.createElement("pre");
+    pre.className = "build-fix";
+    if (live && live.restart_command) {
+      pre.textContent = live.restart_command;
+    } else {
+      // No /api/version, so the server's directory is unknown. This one-liner
+      // needs nothing from us and no editing from the user.
+      // Identical to the form in USAGE.md and TROUBLESHOOTING.md, and the
+      // one tests/e2e asserts on: one tested command, not three variants.
+      // It also reports cleanly when nothing is listening, instead of
+      // producing a bash error about an empty pid.
+      const port = location.port || "8770";
+      pre.textContent =
+        `pid=$(ss -ltnpH 'sport = :${port}' ` +
+        `| sed -n 's/.*pid=\\([0-9]*\\).*/\\1/p' | head -1) ` +
+        `&& kill -TERM "\${pid:?nothing is listening on port ${port}}"`;
+    }
+    return pre;
+  }
+
+  function showBuildMismatch(servedId, live, err) {
+    const bar = $("build-warning");
+    if (!bar) return;
+    bar.innerHTML = "";
+    const title = document.createElement("b");
+    title.textContent = t("build_mismatch_title");
+    const body = document.createElement("div");
+    body.textContent = live
+      ? t("build_mismatch_body", {
+          server: live.build_id,
+          since: live.started_utc,
+          page: servedId,
+        })
+      : t("build_mismatch_old", { page: servedId, error: err });
+    const how = document.createElement("div");
+    how.className = "build-how";
+    how.textContent = live ? t("build_fix_replace") : t("build_fix_kill");
+    bar.append(title, body, how, restartBlock(live));
+    bar.hidden = false;
+  }
+
+  // -------------------------------------------------------- safe API access
+  // WHY THIS EXISTS
+  // A 404 does not make `fetch` reject. Before this helper, `loadRuns()`
+  // wrapped only the fetch in a try/catch, so an older backend answering
+  // `{"detail":"Not Found"}` sailed straight through, and the render step
+  // then threw on `RUNS.runs.length`. That exception propagated out of the
+  // startup chain and `connect()` — three lines further down — never ran, so
+  // both terminals, the whole status bar and every button died with it.
+  async function getJSON(url, shape) {
+    const res = await fetch(url);
+    if (!res.ok) {
+      // A 404 on our own API almost always means the running server predates
+      // the interface it just served, so say that rather than a bare number.
+      const hint = res.status === 404 ? ` — ${t("http_404_hint")}` : "";
+      throw new Error(`${url} returned HTTP ${res.status}${hint}`);
+    }
+    const body = await res.json();
+    if (shape && !shape(body)) {
+      throw new Error(`${url} returned an unexpected shape: ${JSON.stringify(body).slice(0, 120)}`);
+    }
+    return body;
+  }
+
+  // Each panel starts independently. One broken panel shows a banner in its
+  // own place; it does not take the rest of the page with it.
+  async function initPanel(bannerId, label, fn) {
+    try {
+      await fn();
+      clearPanelError(bannerId);
+      return true;
+    } catch (e) {
+      console.error(`ArgazUI: ${label} panel failed to load`, e);
+      showPanelError(bannerId, label, e);
+      return false;
+    }
+  }
+
+  function showPanelError(bannerId, label, err) {
+    const el = $(bannerId);
+    if (!el) return;
+    el.textContent = t("panel_failed", { panel: label, error: String(err && err.message || err) });
+    el.hidden = false;
+  }
+
+  function clearPanelError(bannerId) {
+    const el = $(bannerId);
+    if (el) el.hidden = true;
   }
 
   function sendResize(name) {
@@ -356,6 +687,41 @@
   });
 
   // ----------------------------------------------------------------- status
+  // Why is the link not up? Answered from facts the server sends, in the order
+  // a user would check them: is the interface even talking to the server, has
+  // a vehicle been started, and has that vehicle ever been heard from.
+  function linkReason(s) {
+    if (wsState !== "open") {
+      return {
+        short: t("link_ws_down"), cls: "bad",
+        detail: wsState === "connecting"
+          ? t("link_ws_connecting")
+          : t("link_ws_closed", { code: wsCloseCode === null ? "?" : wsCloseCode }),
+      };
+    }
+    if (!s || !s.link_running) {
+      return { short: t("link_idle"), cls: "off", detail: t("link_idle_detail") };
+    }
+    const age = s.vehicle ? s.vehicle.heartbeat_age : null;
+    if (age === null || age === undefined) {
+      return { short: t("link_waiting"), cls: "warn",
+               detail: t("link_waiting_detail", { port: s.ui_port }) };
+    }
+    return { short: t("link_stale", { age: Math.round(age) }), cls: "warn",
+             detail: t("link_stale_detail", { age: Math.round(age), port: s.ui_port }) };
+  }
+
+  function renderLinkChip() {
+    const chip = $("ws-state");
+    if (!chip) return;
+    const key = { open: "ws_open", connecting: "ws_connecting", closed: "ws_closed" }[wsState];
+    chip.textContent = wsState === "closed"
+      ? t("ws_closed", { code: wsCloseCode === null ? "?" : wsCloseCode })
+      : t(key);
+    chip.className = "wschip " + wsState;
+    chip.title = t("ws_title");
+  }
+
   function applyStatus(s) {
     const wasLinked = linked;
     const wasActive = active;
@@ -379,9 +745,19 @@
     model.textContent = `${t("vehicle")}: ` + (s.active_model_name || "—");
     model.className = "pill wide " + (active ? "on" : "off");
 
+    // A bare dash is not acceptable in an industrial panel: whenever the link
+    // is not up, the chip states which of the three possible reasons applies.
     const link = $("pill-link");
-    link.textContent = linked ? t("link_connected", { sysid: v.sysid }) : t("link_none");
-    link.className = "pill " + (linked ? "on" : "off");
+    if (linked) {
+      link.textContent = t("link_connected", { sysid: v.sysid });
+      link.className = "pill on";
+      link.title = t("t_link");
+    } else {
+      const reason = linkReason(s);
+      link.textContent = reason.short;
+      link.className = "pill " + reason.cls;
+      link.title = reason.detail;
+    }
 
     // Pre-arm state, so you can see in advance why ARM would be rejected.
     const ready = $("pill-ready");
@@ -416,8 +792,8 @@
 
   // ----------------------------------------------------------------- models
   async function loadModels() {
-    const reg = await (await fetch("/api/models")).json();
-    MODELS = reg.models || [];
+    const reg = await getJSON("/api/models", (b) => Array.isArray(b && b.models));
+    MODELS = reg.models;
     renderModelLists();
   }
 
@@ -507,7 +883,7 @@
 
   // ---------------------------------------------------------------- buttons
   async function loadButtons() {
-    BUTTONS = await (await fetch("/api/buttons")).json();
+    BUTTONS = await getJSON("/api/buttons", (b) => b && typeof b === "object");
   }
 
   function renderButtons(cls, enabled) {
@@ -529,7 +905,10 @@
       $("cmd-hint").textContent = t("hint_pick");
       return;
     }
-    $("cmd-hint").textContent = t("hint_buttons");
+    $("cmd-hint").textContent = (!enabled || !linked)
+      ? t("hint_buttons_disabled", { reason: !enabled ? t("why_disabled_no_vehicle")
+                                                      : t("why_disabled_no_link") })
+      : t("hint_buttons");
 
     for (const b of set) {
       const g = document.createElement("div");
@@ -549,10 +928,18 @@
       const inputs = isProc ? ((proc && proc.inputs) || []) : (b.inputs || []);
       if (isProc && !proc) {
         btn.disabled = true;
-        btn.title = t("proc_no_match");
+        btn.title = procsError
+          ? t("proc_lookup_failed", { error: procsError })
+          : t("proc_no_match");
       } else if (isProc) {
         btn.title = [desc, `${t("proc_source")}: ${proc.id}.yaml`, proc.description]
           .filter(Boolean).join("\n\n");
+      }
+      // A greyed-out button with no explanation is a dead end. Say which
+      // precondition is missing, in the order the user has to satisfy them.
+      if (btn.disabled && !(isProc && !proc)) {
+        btn.title = !enabled ? t("why_disabled_no_vehicle")
+                             : (!linked ? t("why_disabled_no_link") : btn.title);
       }
 
       const fields = {};
@@ -614,12 +1001,18 @@
   // The steps, the inputs and the acceptance criteria all come from the YAML
   // in argazui/procedures/ — the same file the regression tests run.
   let PROCS = { capabilities: null, roles: {} };
+  let procsError = "";
 
   async function loadProcedures() {
+    // Called on every link/model change, so a transient failure degrades the
+    // buttons to "no procedure matches" rather than breaking the page.
     try {
-      PROCS = await (await fetch("/api/procedures")).json();
+      PROCS = await getJSON("/api/procedures", (b) => b && typeof b.roles === "object");
+      procsError = "";
     } catch (e) {
+      console.error("ArgazUI: /api/procedures failed", e);
       PROCS = { capabilities: null, roles: {} };
+      procsError = String(e.message || e);
     }
     $("buttons").dataset.key = "";     // force a re-render with the new inputs
     if (lastStatus) applyStatus(lastStatus);
@@ -722,11 +1115,9 @@
   };
 
   async function loadRuns() {
-    try {
-      RUNS = await (await fetch("/api/runs")).json();
-    } catch (e) {
-      RUNS = { runs: [], root: "", active: null };
-    }
+    // A failure here must reach initPanel so the banner appears — it must not
+    // be swallowed, and it must not escape into the startup chain either.
+    RUNS = await getJSON("/api/runs", (b) => Array.isArray(b && b.runs));
     renderRuns();
   }
 
@@ -743,14 +1134,15 @@
     $("runs-root").textContent = RUNS.root || "";
     $("runs-hint").textContent = t("runs_hint", { root: RUNS.root || "runs/" });
 
-    if (!RUNS.runs.length) {
+    const rows = RUNS.runs || [];
+    if (!rows.length) {
       const tr = document.createElement("tr");
       tr.innerHTML = `<td colspan="5" class="runs-empty">${esc(t("runs_none"))}</td>`;
       body.append(tr);
       return;
     }
 
-    for (const run of RUNS.runs) {
+    for (const run of rows) {
       const tr = document.createElement("tr");
       const recording = run.run_id === RUNS.active;
       const status = recording ? "recording" : run.status;
@@ -888,7 +1280,7 @@
   let SCRIPTS = { scripts: [], dir: "" };
 
   async function loadScripts() {
-    SCRIPTS = await (await fetch("/api/scripts")).json();
+    SCRIPTS = await getJSON("/api/scripts", (b) => Array.isArray(b && b.scripts));
     renderScripts();
   }
 
@@ -987,15 +1379,47 @@
   }
 
   // ------------------------------------------------------------------ start
+  // WHY THE ORDER IS WHAT IT IS
+  // The terminals and the status bar are the parts a user cannot work without,
+  // so the WebSocket opens FIRST and depends on nothing. Every panel then
+  // loads independently: a panel that throws paints its own banner and the
+  // rest of the page carries on. The previous version awaited the panels in
+  // one chain with `connect()` at the end, so a single failing fetch silently
+  // took out both terminals, the whole status bar and every button.
   (async () => {
-    await loadButtons();
-    await loadModels();
-    await loadScripts();
-    await loadRuns();
-    await applyLang(LANG);
     switchTab("sim");
     connect();
-    openRunFromHash();
+    renderLinkChip();
+    // Before anything else is interpreted: is the page even talking to the
+    // server it came from?
+    try {
+      await checkBuild();
+    } catch (e) {
+      console.error("ArgazUI: the build identity check failed", e);
+    }
+
+    const panels = await Promise.all([
+      initPanel("err-buttons", t("panel_commands"), loadButtons),
+      initPanel("err-models", t("panel_models"), loadModels),
+      initPanel("err-scripts", t("panel_scripts"), loadScripts),
+      initPanel("err-runs", t("panel_runs"), loadRuns),
+    ]);
+    if (!panels.every(Boolean)) {
+      console.warn("ArgazUI: some panels failed to load; the rest of the page is live");
+    }
+
+    // Language application touches every panel, so it runs after them and is
+    // itself isolated — a rendering bug in one panel must not blank the page.
+    try {
+      await applyLang(LANG);
+    } catch (e) {
+      console.error("ArgazUI: applying the language failed", e);
+    }
+    try {
+      openRunFromHash();
+    } catch (e) {
+      console.error("ArgazUI: could not open the run named in the URL", e);
+    }
     setTimeout(() => { TABS[activeTab].fit.fit(); sendResize(activeTab); }, 200);
   })();
 })();
