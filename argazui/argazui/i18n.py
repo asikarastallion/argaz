@@ -237,6 +237,27 @@ CATALOG: dict[str, dict[str, str]] = {
     "proc_params_restored": {"en": "run-scoped parameters restored: {names}",
                              "tr": "kosuya ozel parametreler geri alindi: {names}"},
 
+    # -------------------------------------------------- run artefacts
+    "run_started":       {"en": "Recording this session as run '{id}' "
+                                "(console, MAVLink events, parameters, dataflash).",
+                          "tr": "Bu oturum '{id}' kosusu olarak kaydediliyor "
+                                "(konsol, MAVLink olaylari, parametreler, dataflash)."},
+    "run_failed":        {"en": "Could not open a run directory, so this session will "
+                                "not be archived: {err}",
+                          "tr": "Kosu dizini acilamadi, bu oturum arsivlenmeyecek: {err}"},
+    "run_saved":         {"en": "Run '{id}' saved ({status}) -> {path}",
+                          "tr": "Kosu '{id}' kaydedildi ({status}) -> {path}"},
+    "run_report_ready":  {"en": "Flight report ready for run '{id}'",
+                          "tr": "'{id}' kosusunun ucus raporu hazir"},
+    "run_unknown":       {"en": "there is no run named '{id}'",
+                          "tr": "'{id}' adinda bir kosu yok"},
+    "run_no_report":     {"en": "run '{id}' has no flight report — it may still be "
+                                "generating, or the session left no dataflash log",
+                          "tr": "'{id}' kosusunun ucus raporu yok — hala uretiliyor "
+                                "olabilir ya da oturum dataflash logu birakmamis"},
+    "run_no_file":       {"en": "no such file in this run: {name}",
+                          "tr": "bu kosuda boyle bir dosya yok: {name}"},
+
     # -------------------------------------------------- misc
     "ui_connected":      {"en": "interface connected.",
                           "tr": "arayuz baglandi."},

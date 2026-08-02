@@ -99,6 +99,13 @@ RC_KEEPALIVE_INTERVAL = 0.5
 # eksikligi ancak orada ortaya cikti.
 GCS_HEARTBEAT_INTERVAL = 1.0
 
+# Kosu kaydina (runs.py) yazilan periyodik durum ornegi. Mod/arm/ACK gibi
+# olaylar zaten degistiklerinde kaydediliyor; bu ornek irtifa ve hiz gibi
+# SUREKLI degisen buyukluklerin zaman serisini birakiyor. 1 Hz bilincli bir
+# secim: dataflash log zaten tam hizda kayit tutuyor, buradaki dosya insan
+# tarafindan okunabilir kalmali.
+EVENT_STATE_INTERVAL = 1.0
+
 
 @dataclass
 class _Job:
@@ -132,7 +139,8 @@ class MavlinkLink:
     """
 
     def __init__(self, port: int = 14550, on_log: Optional[Callable[[str], None]] = None,
-                 connection: Optional[str] = None):
+                 connection: Optional[str] = None,
+                 on_event: Optional[Callable[[dict], None]] = None):
         self.port = port
         # Varsayilan: MAVProxy'nin 14550'ye verdigi UDP cikisi (UI yolu).
         # Testler MAVProxy'siz kosarken SITL'in kendi TCP portuna baglanabilsin
@@ -140,6 +148,9 @@ class MavlinkLink:
         # prosedurler ve motor iki durumda da ayni.
         self.connection = connection or f"udpin:127.0.0.1:{port}"
         self.on_log = on_log or (lambda s: None)
+        # Kosu kaydinin olay akisi. Varsayilan bos: MAVLink katmani bir kosu
+        # kaydi olup olmadigini bilmez, sadece "sunlar oldu" der.
+        self.on_event = on_event or (lambda e: None)
         # Aktif modelin otopilot tipi ("ArduCopter" / "ArduPlane").
         # Mod tablosunu MAV_TYPE'dan tahmin etmek yerine buradan seciyoruz —
         # bkz. _mode_table(): BiCopter gibi modeller yanlis MAV_TYPE bildiriyor.
@@ -157,7 +168,15 @@ class MavlinkLink:
         self._rc_overrides: dict[int, int] = {}
         self._rc_last_sent: float = 0.0
         self._hb_last_sent: float = 0.0
+        self._state_sampled: float = 0.0
         self._streams_requested: bool = False
+
+    def emit(self, kind: str, **payload) -> None:
+        """Bir olayi kosu kaydina bildirir; hicbir zaman cagirana hata dondurmez."""
+        try:
+            self.on_event({"kind": kind, **payload})
+        except Exception:
+            pass
 
     # ---------------------------------------------------------------- mod tablosu
     def _mode_table(self) -> dict:
@@ -216,6 +235,7 @@ class MavlinkLink:
             self._conn = None
         self._rc_overrides.clear()
         self._streams_requested = False
+        self._state_sampled = 0.0
         self.state = VehicleState()
 
     def _run(self) -> None:
@@ -277,6 +297,9 @@ class MavlinkLink:
             self._hb_last_sent = now
         if self._rc_overrides and now - self._rc_last_sent >= RC_KEEPALIVE_INTERVAL:
             self._rc_send_current()
+        if self.state.connected and now - self._state_sampled >= EVENT_STATE_INTERVAL:
+            self._state_sampled = now
+            self.emit("state", **self.state.as_dict())
 
     def _request_streams(self) -> None:
         """Telemetri akislarini ister (ilk heartbeat'ten sonra, bir kez).
@@ -312,12 +335,25 @@ class MavlinkLink:
             if (msg.get_srcComponent() == mavutil.mavlink.MAV_COMP_ID_MISSIONPLANNER
                     or msg.type == mavutil.mavlink.MAV_TYPE_GCS):
                 return
+            was_connected, was_mode = self.state.connected, self.state.mode
+            was_armed = self.state.armed
             self.state.connected = True
             self.state.last_heartbeat = time.time()
             self._request_streams()
             self.state.sysid = msg.get_srcSystem()
             self.state.mode = self._mode_name(msg.custom_mode, msg)
             self.state.armed = bool(msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
+            # Degisimleri kosu kaydina yaz. Otopilotun KENDI degistirdigi mod
+            # (failsafe, gorev sonu) da boylece kayda giriyor — sadece bizim
+            # gonderdiklerimiz degil.
+            if not was_connected:
+                self.emit("connected", sysid=self.state.sysid, mode=self.state.mode)
+            if self.state.mode != was_mode:
+                self.emit("mode", mode=self.state.mode, previous=was_mode,
+                          alt=round(self.state.alt, 1))
+            if self.state.armed != was_armed:
+                self.emit("armed" if self.state.armed else "disarmed",
+                          mode=self.state.mode, alt=round(self.state.alt, 1))
         elif t == "GLOBAL_POSITION_INT":
             self.state.alt = msg.relative_alt / 1000.0
         elif t == "VFR_HUD":
@@ -333,6 +369,8 @@ class MavlinkLink:
             if text:
                 self._recent_status.append((time.time(), text))
                 self.on_log(f"[SITL] {text}")
+                self.emit("statustext", severity=int(getattr(msg, "severity", 6)),
+                          text=text)
 
     def _recent_reasons(self, since: float) -> list[str]:
         """Komut reddine gerekce olabilecek son otopilot mesajlari."""
@@ -624,6 +662,9 @@ class MavlinkLink:
             )
             if msg is None:
                 return {"ok": False, "text": t("param_no_ack", name=name)}
+            # Kosuya ozel her parametre yazimi kayda gecer; boylece run
+            # dizinindeki olay akisi hangi degerin ne zaman degistigini soyler.
+            self.emit("param_set", name=name, value=msg.param_value)
             return {"ok": True, "text": t("param_ok", name=name, value=f"{msg.param_value:g}")}
         if len(args) >= 2 and args[0].lower() in ("fetch", "show", "get"):
             name = args[1].upper()
@@ -746,11 +787,15 @@ class MavlinkLink:
             timeout=10.0,
         )
         if ack is None:
+            self.emit("command_ack", command=label, result="NO_ACK", accepted=False)
             return {"ok": False, "text": t("ack_missing", label=label)}
         if ack.result in accept:
+            self.emit("command_ack", command=label, accepted=True,
+                      result=mavutil.mavlink.enums["MAV_RESULT"][ack.result].name)
             return {"ok": True, "text": t("ack_accepted", label=label)}
 
         result_name = mavutil.mavlink.enums["MAV_RESULT"][ack.result].name
+        self.emit("command_ack", command=label, result=result_name, accepted=False)
         # Gerekce STATUSTEXT'i cogu zaman ACK'ten hemen SONRA gelir; bekleyelim.
         self._recv_until(lambda m: False, timeout=1.5)
         reasons = self._recent_reasons(sent_at)

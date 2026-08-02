@@ -11,6 +11,12 @@
 # Per-model SITL working directories (eeprom, logs, terrain, generated params)
 /argazui/run/
 
+# Flight run archives: runs/<UTC-time>_<model_id>/. These are the OUTPUT of
+# using ArgazUI (dataflash logs, parameter dumps, reports) — they belong to
+# the flight, not to the source tree. CI uploads them as build artefacts
+# instead of committing them.
+/runs/
+
 # SITL leftovers in the argaz root from manual sessions
 /eeprom.bin
 /mav.parm

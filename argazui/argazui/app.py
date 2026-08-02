@@ -9,18 +9,20 @@ import base64
 import json
 import threading
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import paths
 from . import procedures as procs
+from . import runs as runlib
 from .i18n import t, set_language, get_language, LANGUAGES
 from .mavlink_link import MavlinkLink, substitute
 from .procrunner import ProcedureRunner, probe_capabilities
+from .runs import RunRecorder
 from .session import TerminalSession, build_launch_commands
 
 app = FastAPI(title="ArgazUI")
@@ -45,12 +47,20 @@ class Hub:
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.backlog: dict[str, list[bytes]] = {SIM: [], SHELL: []}
         self.backlog_bytes: dict[str, int] = {SIM: 0, SHELL: 0}
+        # Kosu kaydi varken terminal ciktisi ayni anda console.log'a da akar.
+        # Backlog gecicidir (256 KB'lik halka tampon); kosu dosyasi degil.
+        self.console_sink: Optional[Callable[[str, bytes], None]] = None
 
     def bind_loop(self, loop: asyncio.AbstractEventLoop) -> None:
         self.loop = loop
 
     # -- thread'lerden cagrilir --
     def push_output(self, stream: str, data: bytes) -> None:
+        if self.console_sink is not None:
+            try:
+                self.console_sink(stream, data)
+            except Exception:
+                pass
         buf = self.backlog[stream]
         buf.append(data)
         self.backlog_bytes[stream] += len(data)
@@ -108,7 +118,8 @@ class Manager:
     def __init__(self) -> None:
         self.sim = TerminalSession(on_output=hub.writer(SIM))
         self.shell = TerminalSession(on_output=hub.writer(SHELL))
-        self.mav = MavlinkLink(port=paths.UI_MAVLINK_PORT, on_log=hub.push_log)
+        self.mav = MavlinkLink(port=paths.UI_MAVLINK_PORT, on_log=hub.push_log,
+                               on_event=self._record_event)
         self.active_model: Optional[dict] = None
         self.lock = threading.Lock()
         # Prosedur motoru durumu. Yetenekler araçtan OKUNUR (models.json'dan
@@ -117,9 +128,28 @@ class Manager:
         self.runner: Optional[ProcedureRunner] = None
         self.proc_thread: Optional[threading.Thread] = None
         self.last_result: Optional[dict] = None
+        # Aktif kosu kaydi (runs.py). START ile acilir, STOP ile kapanir.
+        self.run: Optional[RunRecorder] = None
+        hub.console_sink = self._record_console
 
     def session(self, stream: str) -> TerminalSession:
         return self.sim if stream == SIM else self.shell
+
+    # -- kosu kaydi --
+    def _record_console(self, stream: str, data: bytes) -> None:
+        """Terminal ciktisini kosunun console.log'una tee eder.
+
+        Yalnizca SIMULASYON akisi kaydedilir. Komut kabugu kullanicinin kendi
+        calisma alani; oraya yazdiklari ucusun kaydina ait degil.
+        """
+        run = self.run
+        if run is not None and stream == SIM:
+            run.console(data)
+
+    def _record_event(self, event: dict) -> None:
+        run = self.run
+        if run is not None:
+            run.event(event)
 
     # -- kayit defteri --
     def registry(self) -> dict:
@@ -174,12 +204,33 @@ class Manager:
                 return {"ok": False, "text": t("not_in_registry", id=model_id)}
 
             self.ensure_terminal()
-            if self.active_model is not None:
-                hub.push_log(t("closing_previous", id=self.active_model["id"]))
+            # `self.run` is also checked: a launch that failed before the
+            # vehicle appeared still left a recorder open, and it has to be
+            # closed rather than dropped — otherwise its directory stays
+            # "incomplete" forever and its files are never flushed.
+            if self.active_model is not None or self.run is not None:
+                if self.active_model is not None:
+                    hub.push_log(t("closing_previous", id=self.active_model["id"]))
                 self._stop_locked()
 
             hub.push_log(t("starting", name=model["name"], method=model["method"]))
-            for line in build_launch_commands(model):
+            commands = build_launch_commands(model)
+
+            # Kayit, ilk komut yazilmadan ONCE acilir: acilis ciktisi da
+            # (Gazebo/SITL hatalari dahil) console.log'a girsin.
+            try:
+                self.run = RunRecorder(model=model, root=paths.RUNS_DIR,
+                                       launch_commands=commands,
+                                       work_dir=paths.RUN_DIR / model["id"],
+                                       on_log=hub.push_log)
+                hub.push_log(t("run_started", id=self.run.run_id))
+            except OSError as exc:
+                # Artefakt toplayamamak ucusu engellememeli; ama sessiz de
+                # kalmamali, yoksa kullanici run dizinini bosuna arar.
+                self.run = None
+                hub.push_log(t("run_failed", err=exc))
+
+            for line in commands:
                 self.sim.run_line(line)
 
             self.active_model = model
@@ -207,6 +258,14 @@ class Manager:
             self.shell.stop_children(
                 log=lambda s: hub.push_log(t("shell_prefix", msg=s), stream=SHELL))
         self.active_model = None
+
+        # Artefaktlar SITL oldukten SONRA toplanir: dataflash log ancak surec
+        # kapaninca kapatilir, once kopyalanirsa yarim kalir.
+        run, self.run = self.run, None
+        if run is not None:
+            result = run.finish()
+            hub.push_log(t("run_saved", id=run.run_id, status=result.get("status"),
+                           path=str(run.dir)))
         return {"ok": True, "text": t("stopped")}
 
     def stop(self) -> dict:
@@ -313,6 +372,11 @@ class Manager:
             hub.push_log(t("proc_running", name=proc.label(lang)))
             result = self.runner.run(proc, values or {})
             self.last_result = result
+            # Ayni YAML hem butonu hem testi suruyor; kosu dizinine giren de
+            # bu dosyanin kendisi oluyor (bkz. runs.RunRecorder.add_procedure).
+            run = self.run
+            if run is not None:
+                run.add_procedure(proc, result, values=values or {})
             hub.push_log(result["text"])
 
         self.proc_thread = threading.Thread(target=_go, name="procedure", daemon=True)
@@ -465,6 +529,63 @@ def api_procedure_cancel():
     return JSONResponse(mgr.cancel_procedure())
 
 
+# --------------------------------------------------------------------------- runs
+# Every START..STOP leaves a directory under `runs/`. These endpoints only
+# read it — a run is written by the Manager and by runs.py, never by a browser.
+@app.get("/api/runs")
+def api_runs():
+    # Read the recorder once: STOP may clear it on another thread between a
+    # truth test and an attribute access.
+    active = mgr.run
+    return {"runs": runlib.list_runs(), "root": str(paths.RUNS_DIR),
+            "active": active.run_id if active is not None else None}
+
+
+@app.get("/api/runs/{run_id}")
+def api_run(run_id: str):
+    directory = runlib.run_dir(run_id)
+    if directory is None:
+        return JSONResponse({"ok": False, "text": t("run_unknown", id=run_id)},
+                            status_code=404)
+    detail = runlib.describe_run(directory)
+    report = directory / "report.json"
+    if report.is_file():
+        try:
+            detail["report"] = json.loads(report.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            detail["report"] = None
+    detail["files"] = sorted(
+        str(p.relative_to(directory)) for p in directory.rglob("*") if p.is_file())
+    return detail
+
+
+@app.get("/api/runs/{run_id}/report")
+def api_run_report(run_id: str):
+    path = runlib.run_file(run_id, "report.md")
+    if path is None:
+        return PlainTextResponse(t("run_no_report", id=run_id), status_code=404)
+    return PlainTextResponse(path.read_text(encoding="utf-8"))
+
+
+@app.post("/api/runs/{run_id}/report")
+def api_run_report_rebuild(run_id: str):
+    return JSONResponse(runlib.regenerate_report(run_id))
+
+
+@app.get("/api/runs/{run_id}/file/{relative:path}")
+def api_run_file(run_id: str, relative: str):
+    path = runlib.run_file(run_id, relative)
+    if path is None:
+        return JSONResponse({"ok": False, "text": t("run_no_file", name=relative)},
+                            status_code=404)
+    # The dataflash log is the one file people actually save; everything else
+    # is small enough that the browser can decide what to do with it.
+    disposition = "attachment" if path.suffix.upper() == ".BIN" else "inline"
+    return FileResponse(path, filename=path.name,
+                        headers={"Content-Disposition":
+                                 f'{disposition}; filename="{path.name}"'})
+
+
 @app.post("/api/rescan")
 def api_rescan():
     from .scan_models import build_registry, merge_registry
@@ -526,6 +647,10 @@ async def _startup():
 
 @app.on_event("shutdown")
 async def _shutdown():
+    # Ctrl+C ile kapatilan bir sunucu da kosusunu tamamlamali; aksi halde
+    # gercek bir ucusun artefaktlari yarim kalirdi.
+    if mgr.active_model is not None or mgr.run is not None:
+        mgr.stop()
     mgr.mav.stop()
     mgr.sim.close()
     mgr.shell.close()

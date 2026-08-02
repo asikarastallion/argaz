@@ -3,6 +3,11 @@
 ardupilot_root = "ardupilot"
 sitl_models_root = "SITL_Models"
 ardu_ws_root = "ardu_ws"
+
+# Where finished flights are archived: runs/<UTC-time>_<model_id>/.
+# SITL keeps using argazui/run/<model_id>/ as its working directory;
+# artefacts are copied out of it into here when a session stops.
+runs_root = "runs"
 env_script = "env.sh"
 quadplane_env_script = "quadplane_env.sh"
 

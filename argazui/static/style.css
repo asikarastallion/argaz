@@ -340,3 +340,55 @@ select {
   color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
 }
+
+/* -------------------------------------------------------------------- runs */
+/* The run list is a reader for runs/ — one row per START..STOP session. */
+.runs-wrap { overflow-x: auto; }
+.runs { width: 100%; border-collapse: collapse; font-size: 13px; }
+.runs td {
+  padding: 7px 10px 7px 0; border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.runs tr:last-child td { border-bottom: 0; }
+.runs-empty { color: var(--muted); padding: 14px 0; }
+.runs-when b { display: block; font-weight: 600; white-space: nowrap; }
+.runs-id {
+  display: block; font-size: 11px; color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.runs-proc {
+  color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+.runs-dur { color: var(--muted); font-size: 11px; margin-left: 8px; }
+.runs-actions { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.runs-warn { font-size: 11px; color: var(--muted); }
+.runs-warn.on { color: var(--warn); }
+.btn.small { padding: 4px 9px; font-size: 12px; }
+a.btn.small { text-decoration: none; display: inline-block; }
+
+.runbadge {
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; letter-spacing: .03em;
+  border: 1px solid var(--line); color: var(--muted); background: var(--panel-2);
+}
+.runbadge.passed { color: var(--ok); border-color: #24603f; }
+.runbadge.failed { color: var(--danger); border-color: #7a3129; }
+.runbadge.recording { color: var(--accent); border-color: #2f5f8f; }
+.runbadge.incomplete { color: var(--warn); border-color: #6d5220; }
+
+/* ------------------------------------------------------------- run report */
+.run-actions { align-items: center; gap: 8px; flex-wrap: wrap; }
+.run-actions .hint { margin: 0; }
+.run-plots { display: grid; gap: 10px; margin: 12px 0; }
+.run-plots img {
+  width: 100%; border: 1px solid var(--line); border-radius: 8px;
+  background: #fff;
+}
+pre.report {
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px; line-height: 1.5; color: var(--text);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+  padding: 12px; margin: 0; max-height: 55vh; overflow-y: auto;
+}

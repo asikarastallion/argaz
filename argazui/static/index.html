@@ -80,6 +80,17 @@
     <p class="hint" id="proc-hint"></p>
   </section>
 
+  <!-- -------------------------------------------------------------- run list -->
+  <!-- Every START..STOP leaves a directory under runs/. This panel is a
+       reader for those directories: nothing here changes a run. -->
+  <section class="panel">
+    <h2><span data-i18n="runs_title">Flight Runs</span>
+        <small id="runs-root"></small>
+        <button class="btn link" id="btn-runs-refresh" data-i18n="btn_refresh">⟳ refresh</button></h2>
+    <div class="runs-wrap"><table class="runs" id="runs-table"><tbody></tbody></table></div>
+    <p class="hint" id="runs-hint"></p>
+  </section>
+
   <!-- --------------------------------------------------------- mission script -->
   <section class="panel">
     <h2><span data-i18n="mission_script">Mission Script</span>
@@ -132,6 +143,11 @@
         <li><b>Run a mission script</b> (optional). Python files in <code>scripts/</code>
             are listed here and run in the COMMAND tab.</li>
         <li><b>■ STOP.</b> Gazebo, SITL, MAVProxy and RViz are shut down cleanly.</li>
+        <li><b>Read the run.</b> The session is archived under
+            <code>runs/&lt;UTC-time&gt;_&lt;model&gt;/</code> and appears in
+            <b>FLIGHT RUNS</b>: the console log, the MAVLink events, every
+            parameter, the autopilot's dataflash log, and a report built from
+            it (mode timeline, altitude and attitude plots, vibration, EKF).</li>
       </ol>
 
       <h3>The two terminal tabs</h3>
@@ -192,6 +208,12 @@
         <li><b>Görev scripti çalıştır</b> (isteğe bağlı). <code>scripts/</code>
             klasöründeki Python dosyaları listelenir, KOMUT sekmesinde çalışırlar.</li>
         <li><b>■ DURDUR.</b> Gazebo, SITL, MAVProxy ve RViz temizce kapatılır.</li>
+        <li><b>Koşuyu oku.</b> Oturum
+            <code>runs/&lt;UTC-zaman&gt;_&lt;model&gt;/</code> altına arşivlenir ve
+            <b>UÇUŞ KOŞULARI</b> panelinde görünür: konsol kaydı, MAVLink
+            olayları, tüm parametreler, otopilotun dataflash logu ve ondan
+            üretilen rapor (mod zaman çizelgesi, irtifa ve tutum grafikleri,
+            titreşim, EKF).</li>
       </ol>
 
       <h3>Terminalin iki sekmesi</h3>
@@ -332,6 +354,27 @@
       <p class="note">ArgazUI mevcut <code>argaz</code> kurulumunu değiştirmez;
         <code>env.sh</code>, <code>ardupilot/</code> ve <code>ardu_ws/</code>
         yalnızca okunur ve çalıştırılır.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================= run report -->
+<div class="sheet-backdrop" id="sheet-run" hidden>
+  <div class="sheet">
+    <header>
+      <h2 id="run-title">Run</h2>
+      <button class="sheet-close" data-close>✕</button>
+    </header>
+    <div class="sheet-body">
+      <div class="row run-actions">
+        <button class="btn" id="btn-run-bin" data-i18n="runs_download">↓ dataflash .BIN</button>
+        <button class="btn" id="btn-run-mavex" data-i18n="runs_copy_mavexplorer">⧉ copy MAVExplorer command</button>
+        <button class="btn link" id="btn-run-rebuild" data-i18n="runs_rebuild">⟳ rebuild report</button>
+        <span class="hint" id="run-action-hint"></span>
+      </div>
+      <div id="run-plots" class="run-plots"></div>
+      <pre class="report" id="run-report"></pre>
+      <p class="hint" id="run-files"></p>
     </div>
   </div>
 </div>

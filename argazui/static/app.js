@@ -75,6 +75,27 @@
                 "sim_vehicle.py you can type MAVProxy commands directly.",
       hint_shell: "Plain bash shell — mission scripts run here, and you can type " +
                   "any command.",
+      runs_title: "Flight Runs",
+      runs_none: "No runs yet. Every START…STOP writes one here: the console log, " +
+                 "the MAVLink events, the parameters, the dataflash log and a report.",
+      runs_hint: "One directory per session under {root}. A run is archived when you " +
+                 "press STOP; the report is generated from the autopilot's own " +
+                 "dataflash log a few seconds later.",
+      runs_recording: "recording…",
+      runs_open: "report",
+      runs_download: "↓ dataflash .BIN",
+      runs_copy_mavexplorer: "⧉ copy MAVExplorer command",
+      runs_copied: "copied to the clipboard",
+      runs_copy_failed: "could not copy — the command is: {cmd}",
+      runs_rebuild: "⟳ rebuild report",
+      runs_rebuilding: "rebuilding the report…",
+      runs_no_report: "No report for this run yet.",
+      runs_no_bin: "this run has no dataflash log",
+      runs_warnings: "{n} flagged",
+      runs_clean: "nothing flagged",
+      st_passed: "PASSED", st_failed: "FAILED",
+      st_no_procedure: "no procedure", st_incomplete: "incomplete",
+      runs_files: "Files in this run: {files}",
     },
     tr: {
       tagline: "ArduPilot SITL + Gazebo kontrol paneli",
@@ -143,6 +164,27 @@
                 "modellerde MAVProxy komutlarını buraya yazabilirsin.",
       hint_shell: "Boş bash kabuğu — görev scriptleri burada çalışır, elle komut da " +
                   "yazabilirsin.",
+      runs_title: "Uçuş Koşuları",
+      runs_none: "Henüz koşu yok. Her BAŞLAT…DURDUR buraya bir tane yazar: konsol " +
+                 "kaydı, MAVLink olayları, parametreler, dataflash log ve rapor.",
+      runs_hint: "{root} altında oturum başına bir dizin. Koşu, DURDUR'a bastığında " +
+                 "arşivlenir; rapor birkaç saniye sonra otopilotun kendi dataflash " +
+                 "logundan üretilir.",
+      runs_recording: "kaydediliyor…",
+      runs_open: "rapor",
+      runs_download: "↓ dataflash .BIN",
+      runs_copy_mavexplorer: "⧉ MAVExplorer komutunu kopyala",
+      runs_copied: "panoya kopyalandı",
+      runs_copy_failed: "kopyalanamadı — komut: {cmd}",
+      runs_rebuild: "⟳ raporu yeniden üret",
+      runs_rebuilding: "rapor yeniden üretiliyor…",
+      runs_no_report: "Bu koşunun henüz raporu yok.",
+      runs_no_bin: "bu koşuda dataflash log yok",
+      runs_warnings: "{n} uyarı",
+      runs_clean: "uyarı yok",
+      st_passed: "GEÇTİ", st_failed: "BAŞARISIZ",
+      st_no_procedure: "prosedür yok", st_incomplete: "yarım",
+      runs_files: "Bu koşudaki dosyalar: {files}",
     },
   };
 
@@ -193,6 +235,7 @@
     selectModel(selected ? selected.id : null);
     renderModelLists();
     renderScripts();
+    renderRuns();
     if (lastStatus) { $("buttons").dataset.key = ""; applyStatus(lastStatus); }
 
     // Keep backend terminal messages in the same language.
@@ -304,6 +347,13 @@
     // The vehicle's capabilities can only be read once it is talking, and they
     // belong to that vehicle — so re-probe whenever the link or model changes.
     if ((linked && !wasLinked) || active !== wasActive) loadProcedures();
+    if (active !== wasActive) {
+      // A run appears when a model starts and gains its report a few seconds
+      // after it stops — the report is parsed from the dataflash log on a
+      // background thread, so look again once it has had time to finish.
+      loadRuns();
+      if (!active) { setTimeout(loadRuns, 6000); setTimeout(loadRuns, 20000); }
+    }
 
     const model = $("pill-model");
     model.textContent = `${t("vehicle")}: ` + (s.active_model_name || "—");
@@ -635,6 +685,169 @@
 
   $("btn-proc-cancel").onclick = () => fetch("/api/procedure/cancel", { method: "POST" });
 
+  // -------------------------------------------------------------------- runs
+  // A reader for the runs/ directory. Nothing here starts or changes a flight;
+  // the one write it can make is asking the server to rebuild a report from a
+  // dataflash log that is already on disk.
+  let RUNS = { runs: [], root: "", active: null };
+  let openRun = null;
+
+  const RUN_STATUS = {
+    passed: "st_passed", failed: "st_failed",
+    "no-procedure": "st_no_procedure", incomplete: "st_incomplete",
+  };
+
+  async function loadRuns() {
+    try {
+      RUNS = await (await fetch("/api/runs")).json();
+    } catch (e) {
+      RUNS = { runs: [], root: "", active: null };
+    }
+    renderRuns();
+  }
+
+  function shortTime(iso) {
+    if (!iso) return "—";
+    // "2026-08-02T10:20:10Z" -> "2026-08-02 10:20 UTC"; the run id is UTC by
+    // definition, so the label says so rather than silently localising it.
+    return `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
+  }
+
+  function renderRuns() {
+    const body = $("runs-table").querySelector("tbody");
+    body.innerHTML = "";
+    $("runs-root").textContent = RUNS.root || "";
+    $("runs-hint").textContent = t("runs_hint", { root: RUNS.root || "runs/" });
+
+    if (!RUNS.runs.length) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="5" class="runs-empty">${esc(t("runs_none"))}</td>`;
+      body.append(tr);
+      return;
+    }
+
+    for (const run of RUNS.runs) {
+      const tr = document.createElement("tr");
+      const recording = run.run_id === RUNS.active;
+      const status = recording ? "recording" : run.status;
+      const label = recording ? t("runs_recording") : t(RUN_STATUS[run.status] || "st_incomplete");
+      const procedures = run.procedures.map((p) => p.id).join(", ") || "—";
+      const seconds = run.seconds ? `${Math.round(run.seconds)}s` : "—";
+
+      const when = document.createElement("td");
+      when.className = "runs-when";
+      when.innerHTML = `<b>${esc(shortTime(run.started_utc) )}</b>`
+        + `<span class="runs-id">${esc(run.run_id)}</span>`;
+
+      const model = document.createElement("td");
+      model.textContent = (run.model && (run.model.name || run.model.id)) || "—";
+
+      const proc = document.createElement("td");
+      proc.className = "runs-proc";
+      proc.textContent = procedures;
+
+      const badge = document.createElement("td");
+      badge.innerHTML = `<span class="runbadge ${esc(status)}">${esc(label)}</span>`
+        + `<span class="runs-dur">${esc(seconds)}</span>`;
+
+      const actions = document.createElement("td");
+      actions.className = "runs-actions";
+      const open = document.createElement("button");
+      open.className = "btn small";
+      open.textContent = t("runs_open");
+      open.disabled = !run.has_report;
+      open.onclick = () => showRun(run.run_id);
+      actions.append(open);
+
+      if (run.dataflash) {
+        const dl = document.createElement("a");
+        dl.className = "btn small link";
+        dl.textContent = "↓ .BIN";
+        dl.href = `/api/runs/${encodeURIComponent(run.run_id)}/file/`
+          + encodeURIComponent(run.dataflash);
+        actions.append(dl);
+      }
+      if (run.report_warnings !== null && run.report_warnings !== undefined) {
+        const flag = document.createElement("span");
+        flag.className = "runs-warn" + (run.report_warnings ? " on" : "");
+        flag.textContent = run.report_warnings
+          ? t("runs_warnings", { n: run.report_warnings })
+          : t("runs_clean");
+        actions.append(flag);
+      }
+
+      tr.append(when, model, proc, badge, actions);
+      body.append(tr);
+    }
+  }
+
+  async function showRun(runId) {
+    openRun = null;
+    $("run-title").textContent = runId;
+    $("run-report").textContent = "";
+    $("run-plots").innerHTML = "";
+    $("run-files").textContent = "";
+    $("run-action-hint").textContent = "";
+    $("sheet-run").hidden = false;
+
+    const detail = await (await fetch(`/api/runs/${encodeURIComponent(runId)}`)).json();
+    openRun = detail;
+    $("btn-run-bin").disabled = !detail.dataflash;
+
+    const text = await fetch(`/api/runs/${encodeURIComponent(runId)}/report`);
+    $("run-report").textContent = text.ok ? await text.text() : t("runs_no_report");
+
+    // The report links its plots relatively; in the browser they are served
+    // through the run's file endpoint.
+    for (const plot of (detail.report && detail.report.plots) || []) {
+      const img = document.createElement("img");
+      img.src = `/api/runs/${encodeURIComponent(runId)}/file/${plot}`;
+      img.alt = plot;
+      img.loading = "lazy";
+      $("run-plots").append(img);
+    }
+    $("run-files").textContent = t("runs_files", { files: (detail.files || []).join(", ") });
+  }
+
+  $("btn-run-bin").onclick = () => {
+    if (!openRun || !openRun.dataflash) return;
+    window.location.href = `/api/runs/${encodeURIComponent(openRun.run_id)}/file/`
+      + encodeURIComponent(openRun.dataflash);
+  };
+
+  $("btn-run-mavex").onclick = async () => {
+    if (!openRun) return;
+    const cmd = openRun.mavexplorer;
+    if (!cmd) { $("run-action-hint").textContent = t("runs_no_bin"); return; }
+    try {
+      await navigator.clipboard.writeText(cmd);
+      $("run-action-hint").textContent = t("runs_copied");
+    } catch (e) {
+      // Clipboard access needs a secure context; ArgazUI is plain http on
+      // localhost, which some browsers refuse. Show the command instead of
+      // pretending it was copied.
+      $("run-action-hint").textContent = t("runs_copy_failed", { cmd });
+    }
+  };
+
+  $("btn-run-rebuild").onclick = async () => {
+    if (!openRun) return;
+    $("run-action-hint").textContent = t("runs_rebuilding");
+    await fetch(`/api/runs/${encodeURIComponent(openRun.run_id)}/report`, { method: "POST" });
+    await showRun(openRun.run_id);
+    await loadRuns();
+  };
+
+  $("btn-runs-refresh").onclick = loadRuns;
+
+  // #run=<run_id> opens that report straight away, so a run can be linked to
+  // (and so the panel can be checked without clicking through the page).
+  function openRunFromHash() {
+    const match = /^#run=(.+)$/.exec(location.hash || "");
+    if (match) showRun(decodeURIComponent(match[1]));
+  }
+  window.addEventListener("hashchange", openRunFromHash);
+
   // ---------------------------------------------------------------- scripts
   let SCRIPTS = { scripts: [], dir: "" };
 
@@ -742,9 +955,11 @@
     await loadButtons();
     await loadModels();
     await loadScripts();
+    await loadRuns();
     await applyLang(LANG);
     switchTab("sim");
     connect();
+    openRunFromHash();
     setTimeout(() => { TABS[activeTab].fit.fit(); sendResize(activeTab); }, 200);
   })();
 })();

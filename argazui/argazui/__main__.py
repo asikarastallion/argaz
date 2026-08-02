@@ -1,18 +1,25 @@
-"""Start the ArgazUI server.
+"""Start the ArgazUI server, or work with an installation from the shell.
 
-    ./start.sh                    # http://127.0.0.1:8770
+    ./start.sh                              # http://127.0.0.1:8770
     ./start.sh --port 9000
+    python3 -m argazui doctor --json
+    python3 -m argazui runs
+    python3 -m argazui report runs/20260802T120000Z_skywalker_x8
 """
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from . import paths
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="ArgazUI — ArduPilot SITL + Gazebo control panel")
-    ap.add_argument("command", nargs="?", choices=("serve", "doctor"), default="serve")
+    ap.add_argument("command", nargs="?",
+                    choices=("serve", "doctor", "runs", "report"), default="serve")
+    ap.add_argument("target", nargs="?",
+                    help="report: a run directory or a .BIN dataflash log")
     ap.add_argument("--argaz-root", help="simulation root (overrides ARGAZ_ROOT / argaz.toml)")
     ap.add_argument("--ardupilot-root", help="ArduPilot root")
     ap.add_argument("--sitl-models-root", help="SITL_Models root")
@@ -37,6 +44,12 @@ def main(argv=None) -> int:
         report = run(args.tier)
         print(json.dumps(report, indent=2) if args.as_json else format_human(report))
         return 0 if report["ok"] else 1
+
+    if args.command == "runs":
+        return _list_runs(args.as_json)
+
+    if args.command == "report":
+        return _make_report(args.target, args.as_json)
 
     # A normal start uses the full profile, but only prints critical failures so
     # a user gets an actionable error before a browser and two terminal PTYs
@@ -76,6 +89,81 @@ def main(argv=None) -> int:
     # uvicorn's sans-io implementation, so we pick wsproto and leave it alone.
     uvicorn.run("argazui.app:app", host="127.0.0.1", port=paths.HTTP_PORT,
                 reload=args.reload, log_level="warning", ws="wsproto")
+    return 0
+
+
+def _list_runs(as_json: bool) -> int:
+    """`argazui runs` — the same listing the browser panel shows."""
+    from .runs import list_runs
+    found = list_runs()
+    if as_json:
+        print(json.dumps({"root": str(paths.RUNS_DIR), "runs": found}, indent=2))
+        return 0
+    if not found:
+        print(f"No runs recorded yet under {paths.RUNS_DIR}.")
+        return 0
+    print(f"{'run':38s} {'status':12s} {'dur':>7s}  procedures")
+    for entry in found:
+        procedures = ", ".join(
+            f"{p['id']}{'' if p['ok'] else ' (failed)'}" for p in entry["procedures"])
+        seconds = f"{entry['seconds']:.0f}s" if entry.get("seconds") else "-"
+        print(f"{entry['run_id']:38s} {entry['status']:12s} {seconds:>7s}  "
+              f"{procedures or '-'}")
+    print(f"\n{len(found)} run(s) under {paths.RUNS_DIR}")
+    return 0
+
+
+def _make_report(target: str, as_json: bool) -> int:
+    """`argazui report <run-dir|log.BIN>` — regenerate a post-flight report.
+
+    Accepting a bare `.BIN` matters: a log recovered from a real flight
+    controller, or one from a session that predates v1.1, can be analysed
+    without inventing a run directory for it.
+    """
+    if not target:
+        print("ERROR: 'report' needs a run directory or a .BIN log.", file=sys.stderr)
+        return 2
+    path = Path(target).expanduser()
+    if not path.exists():
+        print(f"ERROR: {path} does not exist.", file=sys.stderr)
+        return 2
+
+    from .flightlog import analyse
+    from .runs import describe_run, regenerate_report, run_dir
+
+    if path.is_dir():
+        # A directory inside the configured runs root keeps its run metadata;
+        # any other directory is treated as "the log lives in here".
+        if run_dir(path.name) is not None:
+            result = regenerate_report(path.name)
+            if not result["ok"]:
+                print(f"ERROR: {result['text']}", file=sys.stderr)
+                return 1
+            report = json.loads((path / "report.json").read_text(encoding="utf-8"))
+        else:
+            logs = sorted(path.glob("*.BIN")) or sorted(path.rglob("*.BIN"))
+            if not logs:
+                print(f"ERROR: no .BIN log found under {path}.", file=sys.stderr)
+                return 1
+            report = analyse(logs[0], path)
+    else:
+        report = analyse(path, path.parent)
+
+    if as_json:
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+        return 0
+    out = Path(report["log"]["path"]).parent if path.is_file() else path
+    print(f"Wrote {out / 'report.md'}")
+    print(f"      {out / 'report.json'}")
+    print(f"      {out / 'params_full.txt'}  ({report['params']['total']} parameters)")
+    print(f"      {out / 'params_diff.txt'}  "
+          f"({report['params']['non_default']} differ from default)")
+    for warning in report["warnings"]:
+        print(f"  ! {warning['what']}: {warning['detail']}")
+    if not report["warnings"]:
+        print("  no measurement crossed a review threshold")
+    if path.is_dir() and run_dir(path.name) is not None:
+        print(f"  status: {describe_run(path)['status']}")
     return 0
 
 

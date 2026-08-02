@@ -43,6 +43,9 @@ nothing is hidden from you.
   interactive), one free for mission scripts and shell commands.
 - **Mission script runner** for your own `pymavlink` scripts, on a dedicated
   MAVLink port so they never clash with the UI.
+- **Every flight leaves a run directory** — console log, MAVLink event stream,
+  full parameter set, the autopilot's dataflash log, and a generated
+  post-flight report with altitude and attitude plots.
 - **English / Turkish** interface; the language switch also changes the
   backend's terminal messages.
 - **Localhost only**, no authentication, no telemetry, no CDN — `xterm.js` is
@@ -170,6 +173,42 @@ Each model also runs in its own working directory (`argazui/run/<model_id>/`)
 so SITL's `eeprom.bin` and logs never touch the ArduPilot tree, and models
 cannot corrupt each other's stored parameters.
 
+## Every flight leaves evidence
+
+One directory per START…STOP, under `runs/<UTC-time>_<model_id>/`:
+
+| File | What it is |
+|---|---|
+| `scenario.yaml` | the procedures that ran, byte-for-byte the files the buttons executed |
+| `result.json` | step-by-step pass/fail plus every acceptance criterion |
+| `console.log` | what the simulation terminal showed |
+| `mavlink_events.jsonl` | mode changes, arm/disarm, ACKs, autopilot messages, 1 Hz state |
+| `<NNNNNNNN>.BIN` | the autopilot's own dataflash log |
+| `params_full.txt` / `params_diff.txt` | every parameter, and the ones that differ from the firmware default |
+| `report.md` / `report.json` / `plots/` | the post-flight report |
+| `versions.txt` | ArduPilot git SHA, Gazebo version, ArgazUI version, interpreter |
+
+The report is built from the dataflash log rather than from telemetry: mode
+timeline, arm/disarm intervals, altitude profile, demanded-vs-achieved roll and
+pitch error, EKF innovation test ratios, vibration and clipping, battery — with
+every warning threshold named and sourced. `params_diff.txt` compares against
+the firmware default the autopilot itself records next to each value, so it is
+the vehicle's own statement rather than a diff against a `.param` file.
+
+The **Flight Runs** panel lists them in the browser, with the report and its
+plots in-app, a `.BIN` download and a copyable `MAVExplorer.py` command. From
+the shell:
+
+```bash
+python3 -m argazui runs                    # list recorded runs
+python3 -m argazui report runs/<run_id>    # rebuild that run's report
+python3 -m argazui report some/other.BIN   # analyse any dataflash log
+```
+
+`runs/` is gitignored — it is the output of flying, not source. Set
+`runs_root` in `argaz.toml` to put it somewhere else. matplotlib is optional:
+without it you get the whole report minus the two PNGs, and the report says so.
+
 ## Supported models
 
 Every model below was tested by actually flying it: ARM → takeoff → mode
@@ -216,7 +255,7 @@ No path is hard-coded to a user directory.
 
 | File | Purpose |
 |---|---|
-| `argaz.toml` | `ardupilot_root`, `sitl_models_root`, `ardu_ws_root`, `env_script`, ports; copy from `argaz.toml.example` on another machine |
+| `argaz.toml` | `ardupilot_root`, `sitl_models_root`, `ardu_ws_root`, `env_script`, `runs_root`, ports; copy from `argaz.toml.example` on another machine |
 | `argazui/config/models.json` | Model registry — regenerate with `python3 -m argazui.scan_models --force`; entries marked `_manually_added` survive a rescan |
 | `argazui/config/buttons.json` | Quick command buttons per vehicle class, with optional Turkish labels |
 

@@ -101,6 +101,9 @@ def configure(**overrides: Any) -> None:
         "SCRIPT_MAVLINK_PORT": int(_value("script_mavlink_port", "ARGAZ_SCRIPT_MAVLINK_PORT", toml, DEFAULT_SCRIPT_MAVLINK_PORT)),
         "HTTP_PORT": int(_value("port", "ARGAZ_PORT", toml, DEFAULT_HTTP_PORT)),
         "SCRIPTS_DIR": configured_path("scripts_root", "ARGAZ_SCRIPTS_ROOT", root / "scripts"),
+        # Where finished flights are archived. Separate from RUN_DIR, which is
+        # SITL's reusable working directory — see runs.py for why they differ.
+        "RUNS_DIR": configured_path("runs_root", "ARGAZ_RUNS_ROOT", root / "runs"),
     })
     globals().update({
         "SITL_MODELS_DOCS": SITL_MODELS / "Gazebo" / "docs",
@@ -118,6 +121,7 @@ def source_summary() -> dict[str, str]:
         "ardupilot_root": str(ARDUPILOT),
         "sitl_models_root": str(SITL_MODELS),
         "ardu_ws_root": str(ARDU_WS),
+        "runs_root": str(RUNS_DIR),
         "env_script": str(ENV_SH),
         "port": str(HTTP_PORT),
         "mavlink_port": str(UI_MAVLINK_PORT),

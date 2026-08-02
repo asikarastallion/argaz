@@ -113,6 +113,25 @@ def _configured_ros_distro() -> Check:
                  "Source ROS 2 Jazzy from the configured environment script." if distro != "jazzy" else "")
 
 
+def _writable(name: str, path: Path, description: str) -> Check:
+    """Can ArgazUI create this directory and write into it?
+
+    Not critical: a machine that cannot write run artefacts can still fly.
+    But finding out at STOP — after the flight — is the wrong moment, so the
+    doctor says it in advance.
+    """
+    probe = path / ".argazui-write-test"
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+        return Check(name, True, False, f"{description}: {path}")
+    except OSError as exc:
+        return Check(name, False, False, f"{description} is not writable ({path}): {exc}",
+                     "Point 'runs_root' at a writable directory in argaz.toml, or fix the "
+                     "permissions on this one.")
+
+
 def _package(name: str) -> Check:
     try:
         mod = importlib.import_module(name)
@@ -157,6 +176,7 @@ def run(tier: str = "full") -> dict:
         _path_check("quadplane_env_script", paths.QUADPLANE_ENV_SH, critical=True,
                     description="quadplane environment script"),
         *[_package(name) for name in ("fastapi", "uvicorn", "pymavlink", "yaml")],
+        _writable("runs_root", paths.RUNS_DIR, "run artefact directory"),
         _port(paths.HTTP_PORT, "http"),
         _port(paths.UI_MAVLINK_PORT, "mavlink", socket.SOCK_DGRAM),
         _port(paths.SCRIPT_MAVLINK_PORT, "script_mavlink", socket.SOCK_DGRAM),

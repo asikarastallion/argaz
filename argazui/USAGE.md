@@ -262,9 +262,66 @@ A model can pin its own choice in `models.json`:
 
 ---
 
+## 5c. Flight runs and the post-flight report
+
+Every **START … STOP** writes one directory under `runs/`:
+
+```
+runs/20260802T103545Z_skywalker_x8/
+├── scenario.yaml          the procedures that ran, verbatim
+├── result.json            step-by-step pass/fail and the acceptance criteria
+├── console.log            what the SIMULATION terminal showed
+├── mavlink_events.jsonl   mode/arm/ACK/statustext + a 1 Hz state sample
+├── 00000003.BIN           the autopilot's own dataflash log
+├── params_full.txt        every parameter, read out of that log
+├── params_diff.txt        the ones that differ from the firmware default
+├── report.md / report.json  the post-flight report
+├── plots/                 altitude and attitude PNGs (if matplotlib is installed)
+└── versions.txt           ArduPilot SHA, Gazebo, ArgazUI, interpreter
+```
+
+`runs_root` in `argaz.toml` says where they go. The directory is gitignored:
+it is the output of flying, not source.
+
+**This is not `argazui/run/<model_id>/`.** That is still SITL's working
+directory and it is *reused* by the next launch of the same model, so nothing
+in it survives. Artefacts are copied out of it when the session stops.
+
+**`params_diff.txt` really means "differs from default".** The autopilot logs
+each parameter's firmware default next to its value (`PARM.Default`), so the
+diff is the vehicle's own statement, not a comparison against whichever
+`.param` file happened to be loaded. Parameters that are calibrated at boot
+(`BARO*_GND_PRESS`) have no default and are listed separately.
+
+**The report is generated after STOP**, on a background thread, from the
+dataflash log. It gives the mode timeline, arm/disarm intervals, the altitude
+profile, the demanded-vs-achieved roll and pitch error, EKF innovation test
+ratios, vibration and clipping, and the battery — with every warning threshold
+named and sourced. Nothing in it is measured over telemetry; the log is the
+autopilot's full-rate record of itself.
+
+In the interface the **Flight Runs** panel lists them: a result badge, the
+report in-app with its plots, a `.BIN` download, and a button that copies the
+`MAVExplorer.py <path>` command to the clipboard. `#run=<run_id>` in the URL
+opens one directly.
+
+From the shell:
+
+```bash
+python3 -m argazui runs                    # list every recorded run
+python3 -m argazui report runs/<run_id>    # rebuild that run's report
+python3 -m argazui report some/other.BIN   # analyse any dataflash log
+```
+
+The last form works on a log from a real flight controller too — it does not
+need a run directory.
+
+---
+
 ## 6. Adding a mission script
 
-1. Drop your `.py` file into `~/Documents/argaz/scripts/`.
+1. Drop your `.py` file into the `scripts/` folder of your argaz root
+   (`scripts_root` in `argaz.toml`).
    (Files starting with an underscore — `_helpers.py` — are hidden from the list.)
 2. The first comment line is shown as the description in the interface.
 3. Connect to port **14551**:
