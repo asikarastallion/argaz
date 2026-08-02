@@ -6,14 +6,11 @@ of the suite was green.
 """
 from __future__ import annotations
 
-import json
 import subprocess
 
 import pytest
 
-from conftest import ARGAZUI, assert_no_console_errors, open_page
-
-ARGAZUI_PACKAGE = ARGAZUI / "argazui"
+from conftest import assert_no_console_errors, drift, open_page, start_server
 
 pytestmark = [pytest.mark.e2e, pytest.mark.tier1]
 
@@ -187,14 +184,10 @@ def test_editing_server_code_raises_the_version_warning(browser_page, tmp_path):
     case — edit a file, forget to restart — and the layer that actually breaks
     the API contract.
     """
-    from conftest import start_server
-
     running = start_server(tmp_path)
-    target = ARGAZUI_PACKAGE / "i18n.py"
-    original = target.read_bytes()
     try:
         assert running.api("/api/version")["stale_layers"] == []
-        target.write_bytes(original + b"\n# e2e: server-code drift probe\n")
+        drift(running, "argazui/i18n.py", "# e2e: server-code drift probe")
 
         body = running.api("/api/version")
         assert "code" in body["stale_layers"], (
@@ -206,23 +199,19 @@ def test_editing_server_code_raises_the_version_warning(browser_page, tmp_path):
         text = page.inner_text("#build-warning")
         assert "server code" in text, f"the warning does not name the layer: {text!r}"
     finally:
-        target.write_bytes(original)
         running.stop()
 
 
-def test_editing_interface_files_names_that_layer_instead(browser_page, tmp_path,
-                                                          edited_static_file):
+def test_editing_interface_files_names_that_layer_instead(browser_page, tmp_path):
     """And an interface-file change is reported as a different problem.
 
     "your fix is not running" and "this page is newer than the API answering
     it" need different reactions, so the warning must not blur them.
     """
-    from conftest import start_server
-
     running = start_server(tmp_path)
     try:
         assert running.api("/api/version")["stale_layers"] == []
-        edited_static_file("/* e2e: interface drift probe */")
+        drift(running, "static/style.css", "/* e2e: interface drift probe */")
 
         body = running.api("/api/version")
         assert body["stale_layers"] == ["ui"], body["stale_layers"]
@@ -243,17 +232,12 @@ def test_hot_reloaded_layers_do_not_demand_a_restart(tmp_path):
     per request. Telling someone to restart for those would be a false alarm,
     and false alarms are how a warning stops being read.
     """
-    from conftest import start_server
-
     running = start_server(tmp_path)
-    target = ARGAZUI / "procedures" / "copter_takeoff.yaml"
-    original = target.read_bytes()
     try:
-        target.write_bytes(original + b"\n# e2e: hot layer probe\n")
+        drift(running, "procedures/copter_takeoff.yaml", "# e2e: hot layer probe")
         body = running.api("/api/version")
         assert "procedures" in body["changed_layers"], body
         assert "procedures" not in body["stale_layers"], (
             "a hot-reloaded layer was reported as requiring a restart")
     finally:
-        target.write_bytes(original)
         running.stop()

@@ -56,12 +56,101 @@ import sitl as sitl_mod                                      # noqa: E402
 # format is identical and `argazui report` reads either.
 TEST_RUNS_ROOT = Path(os.environ.get("ARGAZ_TEST_RUNS", ROOT / "runs" / "tests"))
 
+# Machine-readable outcome of one suite run. `docs/status.md` is generated from
+# this and nothing else, so a test that did not execute here cannot appear
+# there as a pass.
+SUITE_REPORT = Path(os.environ.get("ARGAZ_TEST_REPORT", TEST_RUNS_ROOT / "suite.json"))
+
 
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers", "tier1: real SITL, no Gazebo — verifies procedure logic only")
     config.addinivalue_line(
         "markers", "tier2: real SITL + Gazebo — the only tier that verifies a model")
+    config.addinivalue_line(
+        "markers", "container_only: can only be exercised inside the tier image; "
+                   "skipped elsewhere and reported as unverified, never as passed")
+
+
+# --------------------------------------------------------------- suite record
+_RESULTS: dict[str, dict] = {}
+
+
+def _environment_label() -> str:
+    """Where this suite ran, in the terms the status table uses."""
+    if os.environ.get("ARGAZ_TEST_ENV"):
+        return os.environ["ARGAZ_TEST_ENV"]
+    if Path("/.dockerenv").exists():
+        return "container"
+    return "host"
+
+
+def pytest_runtest_logreport(report: pytest.TestReport) -> None:
+    """Record every phase, because a skip in setup is still a non-result.
+
+    Collapsing to `report.passed` would count a test skipped during setup —
+    which is what an unavailable SITL binary produces — as nothing at all, and
+    "nothing at all" is exactly the gap a status table fills in with a guess.
+    """
+    entry = _RESULTS.setdefault(report.nodeid, {
+        "nodeid": report.nodeid, "outcome": "passed", "reason": "",
+        "duration": 0.0, "markers": []})
+    entry["duration"] += report.duration
+    entry["markers"] = sorted(
+        name for name in ("tier1", "tier2", "e2e", "container_only")
+        if name in report.keywords)
+
+    if report.failed:
+        entry["outcome"] = "error" if report.when == "setup" else "failed"
+        entry["reason"] = str(report.longrepr)[-2000:] if report.longrepr else ""
+    elif report.skipped and entry["outcome"] == "passed":
+        entry["outcome"] = "skipped"
+        # ("path", lineno, "Skipped: reason") for a skip, a string for an xfail.
+        reason = report.longrepr
+        entry["reason"] = reason[2] if isinstance(reason, tuple) else str(reason)
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    from datetime import datetime, timezone
+
+    tests = sorted(_RESULTS.values(), key=lambda item: item["nodeid"])
+    counts: dict[str, int] = {}
+    for test in tests:
+        counts[test["outcome"]] = counts.get(test["outcome"], 0) + 1
+    document = {
+        "schema": 1,
+        "generated_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "environment": _environment_label(),
+        "exit_status": int(exitstatus),
+        "counts": counts,
+        "tests": tests,
+    }
+    try:
+        SUITE_REPORT.parent.mkdir(parents=True, exist_ok=True)
+        SUITE_REPORT.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    except OSError as exc:
+        # Never fail a suite over its own bookkeeping, but never hide it either.
+        print(f"\nCould not write the suite record to {SUITE_REPORT}: {exc}")
+
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config) -> None:
+    """Name what this environment did NOT verify, before anyone reads a total.
+
+    A green summary line is read as "everything works". Tests that can only run
+    inside the tier image are skipped on a developer machine, and saying so
+    here is the difference between an honest total and a misleading one.
+    """
+    unverified = [t for t in _RESULTS.values()
+                  if "container_only" in t["markers"] and t["outcome"] == "skipped"]
+    terminalreporter.write_line("")
+    terminalreporter.write_line(
+        f"suite record: {SUITE_REPORT} (environment: {_environment_label()})")
+    if unverified:
+        terminalreporter.write_line(
+            f"NOT verified in this environment — only in the tier image "
+            f"({len(unverified)}):", yellow=True)
+        for test in unverified:
+            terminalreporter.write_line(f"  - {test['nodeid']}")
 
 
 @pytest.fixture(scope="session")

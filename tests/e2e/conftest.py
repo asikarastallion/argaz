@@ -48,15 +48,46 @@ def _free_port(start: int = 8820) -> int:
     raise RuntimeError("no free HTTP port for the e2e server")
 
 
+# Copied per server; `run/` is SITL's working tree and can be gigabytes.
+_SANDBOX_IGNORE = shutil.ignore_patterns("run", "__pycache__", "*.py[co]")
+
+
+def sandbox_tree(tmp_path: Path) -> Path:
+    """A throwaway copy of `argazui/` for one server to run from.
+
+    WHY NOT JUST EDIT THE REAL TREE AND PUT IT BACK
+    -----------------------------------------------
+    Several tests here need genuine drift: an extra entry in models.json, an
+    edited .py, a touched procedure. The earlier versions wrote that into the
+    checkout and restored it in `finally` — which works right up until the
+    process does not reach its `finally`. A SIGKILL, a runner timeout or a
+    failing assertion inside the teardown itself all leave a modified working
+    tree behind, and on CI that silently becomes part of whatever runs next.
+
+    Copying first removes the failure mode rather than narrowing its window,
+    and it also means no test needs a restore step at all.
+
+    The copy is only the application: `ARGAZ_ROOT` still points at the real
+    installation, so ArduPilot, env.sh and scripts/ are the genuine ones.
+    """
+    tree = tmp_path / "argazui"
+    if not tree.exists():
+        shutil.copytree(ARGAZUI, tree, ignore=_SANDBOX_IGNORE, symlinks=True)
+    return tree
+
+
 class Server:
     """One ArgazUI process, started the way a user starts it."""
 
     def __init__(self, port: int, process: subprocess.Popen, log: Path,
-                 static_root: Path) -> None:
+                 tree: Path) -> None:
         self.port = port
         self.process = process
         self.log = log
-        self.static_root = static_root
+        # The application tree this server is actually running: a sandbox copy,
+        # so tests edit files here and never in the checkout.
+        self.tree = tree
+        self.static_root = tree / "static"
 
     @property
     def url(self) -> str:
@@ -99,22 +130,30 @@ class Server:
 
 
 def start_server(tmp_path: Path, port: Optional[int] = None,
-                 static_root: Optional[Path] = None,
+                 tree: Optional[Path] = None,
                  env_extra: Optional[dict] = None) -> Server:
-    """Launches `python -m argazui` and waits until it answers."""
+    """Launches `python -m argazui` from a sandbox tree and waits for it."""
     port = port or _free_port()
+    tree = tree or sandbox_tree(tmp_path)
     log = tmp_path / f"server-{port}.log"
+
     env = os.environ.copy()
     env["ARGAZ_RUNS_ROOT"] = str(tmp_path / "runs")
+    # The application is a copy; the installation around it is not. Without
+    # this the sandbox's parent would be auto-detected as ARGAZ and the server
+    # would look for ArduPilot in an empty temporary directory.
+    env["ARGAZ_ROOT"] = str(ROOT)
+    if (ROOT / "argaz.toml").is_file():
+        env["ARGAZ_CONFIG"] = str(ROOT / "argaz.toml")
     env.update(env_extra or {})
 
     handle = log.open("wb")
     process = subprocess.Popen(
         [sys.executable, "-m", "argazui", "--port", str(port)],
-        cwd=str(ARGAZUI), stdout=handle, stderr=subprocess.STDOUT,
+        cwd=str(tree), stdout=handle, stderr=subprocess.STDOUT,
         stdin=subprocess.DEVNULL, start_new_session=True, env=env)
 
-    server = Server(port, process, log, static_root or (ARGAZUI / "static"))
+    server = Server(port, process, log, tree)
     deadline = time.time() + 60
     while time.time() < deadline:
         if process.poll() is not None:
@@ -160,7 +199,7 @@ def stale_server(tmp_path_factory) -> Server:
         [sys.executable, "-m", "http.server", str(port), "--bind", "127.0.0.1"],
         cwd=str(root), stdout=handle, stderr=subprocess.STDOUT,
         stdin=subprocess.DEVNULL, start_new_session=True)
-    server = Server(port, process, log, root / "static")
+    server = Server(port, process, log, root)
 
     deadline = time.time() + 30
     while time.time() < deadline:
@@ -176,21 +215,15 @@ def stale_server(tmp_path_factory) -> Server:
     server.stop()
 
 
-@pytest.fixture
-def edited_static_file():
-    """Appends a harmless line to a served file, then restores it byte for byte.
+def drift(server: Server, relative: str, marker: str) -> Path:
+    """Append a harmless line to a file the given server is serving.
 
-    Used to create genuine drift against a running server rather than faking
-    the condition.
+    Genuine drift, created inside that server's sandbox tree. Nothing is
+    restored afterwards because nothing shared was touched.
     """
-    target = ARGAZUI / "static" / "style.css"
-    original = target.read_bytes()
-
-    def _edit(marker: str = "/* e2e drift probe */") -> None:
-        target.write_bytes(original + f"\n{marker}\n".encode())
-
-    yield _edit
-    target.write_bytes(original)
+    target = server.tree / relative
+    target.write_bytes(target.read_bytes() + f"\n{marker}\n".encode())
+    return target
 
 
 @pytest.fixture

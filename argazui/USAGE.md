@@ -141,10 +141,59 @@ Both are **real bash sessions**; `Ctrl+C` sends a real SIGINT.
 | `ros2_launch` | `env.sh` + `ros2 launch ardupilot_gz_bringup iris_runway.launch.py console:=True map:=True rviz:=True` | Iris |
 | `gz_plus_sitl_paramfile` | `quadplane_env.sh` + `gz sim -v4 -r <world>.sdf &` + `sim_vehicle.py ... --add-param-file=<param>` | SITL_Models models |
 | `gz_plus_sitl_frame` | Same, but with `-f <frame>` instead of a param file | Zephyr |
+| `sitl_only` | `env.sh` + `sim_vehicle.py -v <vehicle> -f <frame>` and nothing else | none by default; add your own |
 
 **RViz and the ROS 2/DDS bridge exist only for models launched via
 `ros2_launch` (currently Iris only).** The panel reports "RViz/DDS: no" for the
 rest.
+
+### `sitl_only`: no Gazebo, no display
+
+`sitl_only` runs the vehicle on **SITL's own built-in physics**. No Gazebo
+process is started, no world is loaded, and MAVProxy runs without `--console`
+and `--map` — so the whole thing works over SSH, in a container, or on a
+machine with no graphics stack at all. Everything else is unchanged: the same
+MAVLink ports, the same quick command buttons, the same procedures, the same
+`runs/` artefacts.
+
+Use it when:
+
+* you are working on ArgazUI, a procedure or a mission script and the airframe
+  is not the thing under test;
+* the machine has no display (a remote box, CI);
+* you want a vehicle in a few seconds rather than waiting for Gazebo.
+
+Do **not** use it to conclude anything about a Gazebo model. The flight
+dynamics are SITL's generic ones, not the model's; that is why the status
+table's tier column exists.
+
+One important detail, recorded because getting it wrong costs an hour of
+confusion: this method must **not** pass `--model JSON` to `sim_vehicle.py`.
+That flag tells SITL to take its physics from an external backend, so a vehicle
+launched with it and no Gazebo waits forever and never sends a heartbeat — the
+UI simply shows a model that never comes up.
+
+Add one to `argazui/config/models.json` like this:
+
+```json
+{
+  "id": "sitl_plane",
+  "name": "SITL plane (no Gazebo)",
+  "vehicle_class": "Plane",
+  "method": "sitl_only",
+  "env": "env.sh",
+  "vehicle": "ArduPlane",
+  "frame": "plane",
+  "world": null,
+  "param_file": null,
+  "extra_sitl_args": [],
+  "has_ros2": false
+}
+```
+
+`frame` is any frame `sim_vehicle.py -f` accepts (`plane`, `quad`,
+`quadplane`, `plane-tailsitter`, …). `param_file` and `extra_sitl_args` work
+exactly as they do for the Gazebo methods.
 
 ### Working directories
 

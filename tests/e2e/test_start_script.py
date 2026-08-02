@@ -64,12 +64,24 @@ def test_finds_a_working_interpreter_in_a_clean_shell(tmp_path):
         running.stop()
 
 
+@pytest.mark.container_only
 def test_never_tries_to_install_into_a_managed_interpreter(tmp_path):
     """PEP 668 must be detected before an install is attempted, not after.
 
     The user's console showed `error: externally-managed-environment` — the
     script had already tried. With no usable interpreter anywhere, the output
     must explain and offer a runnable fix instead.
+
+    WHERE THIS ACTUALLY RUNS
+    ------------------------
+    It needs a machine whose bare `PATH` interpreter cannot import the
+    requirements — otherwise `start.sh` rightly succeeds and there is no
+    rejection to inspect. A developer machine set up to run ArgazUI usually
+    fails that condition, so this is verified in the tier-1 image, where the
+    system Python is PEP 668-managed and the requirements live in a venv.
+
+    Marked `container_only`: when it skips, the run summary and
+    `docs/status.md` say so. A skip here is never counted as a pass.
     """
     fake_home = tmp_path / "home"
     fake_home.mkdir()
@@ -77,7 +89,8 @@ def test_never_tries_to_install_into_a_managed_interpreter(tmp_path):
 
     # A venv the script might otherwise find must not exist for this scenario.
     if (ROOT / "venv-argazui").exists():
-        pytest.skip("a venv-argazui already exists in the checkout")
+        pytest.skip("a venv-argazui already exists in the checkout; the "
+                    "no-interpreter path cannot be exercised here")
 
     result = run_start(["--port", str(_free_port(8960))], env)
     if "using interpreter" in result.stderr:

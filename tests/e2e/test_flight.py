@@ -7,7 +7,6 @@ belongs to tier 2 and nowhere else.
 from __future__ import annotations
 
 import json
-import time
 
 import pytest
 
@@ -42,25 +41,30 @@ E2E_MODEL = {
 
 @pytest.fixture(scope="module")
 def flight_server(tmp_path_factory):
-    """A server whose registry contains one Gazebo-free model."""
-    from conftest import ARGAZUI
+    """A server whose registry contains one Gazebo-free model.
 
-    registry_path = ARGAZUI / "config" / "models.json"
-    original = registry_path.read_bytes()
-    registry = json.loads(original)
+    The entry is written into a sandbox copy of the application, not into the
+    checkout. An earlier version edited `argazui/config/models.json` in place
+    and restored it in `finally`; a run that ends in SIGKILL never gets there,
+    and leaves a test fixture committed into someone's registry.
+    """
+    from conftest import sandbox_tree
+
+    tmp = tmp_path_factory.mktemp("e2e-flight")
+    tree = sandbox_tree(tmp)
+    registry_path = tree / "config" / "models.json"
+    registry = json.loads(registry_path.read_bytes())
     registry["models"] = [E2E_MODEL] + [
         m for m in registry["models"] if m["id"] != E2E_MODEL["id"]]
     registry_path.write_bytes(
         json.dumps(registry, indent=2, ensure_ascii=False).encode() + b"\n")
 
-    tmp = tmp_path_factory.mktemp("e2e-flight")
-    running = start_server(tmp)
+    running = start_server(tmp, tree=tree)
     try:
         yield running
     finally:
         running.post("/api/stop")
         running.stop()
-        registry_path.write_bytes(original)
 
 
 def test_flying_from_the_browser(browser_page, flight_server):
