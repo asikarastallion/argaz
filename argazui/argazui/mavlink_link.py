@@ -219,6 +219,55 @@ class StabilityWatch:
 # packets cost nothing.
 RC_KEEPALIVE_INTERVAL = 0.25
 
+# ---------------------------------------------------------------- derived from
+# The value above is now only the fallback. The interval is DERIVED, because a
+# constant cannot be right on two machines at once:
+#
+#   * `RC_OVERRIDE_TIME` is a parameter. It ships at 3.0 s but a model's
+#     parameter file may set anything, and 0 disables overrides entirely while
+#     -1 makes them never expire. Guessing 3.0 is wrong for those aircraft.
+#   * The timeout is counted in VEHICLE seconds. Under SITL speedup the
+#     wall-clock budget shrinks by the same factor: at speedup 10 a 3-second
+#     timeout arrives after 0.3 s of real time, which a 0.25 s keepalive only
+#     just meets — a held VTOL throttle drops out mid-climb and reads as a
+#     procedure bug rather than a timing one.
+#
+# So the timeout is read from the vehicle, the speedup is measured from its own
+# clock, and the interval is whatever fits REFRESHES times into the resulting
+# wall-clock budget. Four rather than two: one lost packet must not be enough
+# to lose the stick.
+RC_OVERRIDE_TIME_PARAM = "RC_OVERRIDE_TIME"
+RC_OVERRIDE_TIME_DEFAULT = 3.0          # ArduPilot's own default, vehicle seconds
+RC_KEEPALIVE_REFRESHES = 4
+# Floor: below this the traffic costs more than the safety is worth. Ceiling:
+# above it a slow link would look idle to the autopilot for too long.
+RC_KEEPALIVE_MIN = 0.05
+RC_KEEPALIVE_MAX = 1.0
+
+
+def keepalive_interval(override_time: Optional[float], speedup: float) -> float:
+    """How often a held RC override must be resent, in wall-clock seconds.
+
+    `override_time` is the vehicle's `RC_OVERRIDE_TIME`; None means it has not
+    been read yet. Its two special values are honoured rather than treated as
+    numbers: -1 never expires, so refreshing is only politeness, and 0 disables
+    overrides altogether — in both cases the slowest sensible rate is right.
+    """
+    if override_time is None:
+        override_time = RC_OVERRIDE_TIME_DEFAULT
+    if override_time <= 0:
+        # 0 = overrides disabled, -1 = never expires. Nothing to outrun.
+        return RC_KEEPALIVE_MAX
+    speedup = speedup if speedup and speedup > 0 else 1.0
+    wall_budget = override_time / speedup
+    interval = max(RC_KEEPALIVE_MIN, wall_budget / RC_KEEPALIVE_REFRESHES)
+    # The floor exists to stop pointless traffic, not to override physics. A
+    # short RC_OVERRIDE_TIME at a high speedup can make the whole budget
+    # smaller than the floor, and honouring the floor there would send the
+    # refresh AFTER the stick had already been dropped — a keepalive that
+    # guarantees the thing it exists to prevent. The budget wins.
+    return min(interval, wall_budget, RC_KEEPALIVE_MAX)
+
 # ArgazUI konusan bir yer istasyonudur, o halde heartbeat de gondermelidir.
 # Gondermezse otopilot GCS'i kaybettigini dusunup failsafe'e giriyor — gercek
 # bir kosuda gorulmustu: QLAND sirasinda "GCS Failsafe On: switched to QLand".
@@ -294,6 +343,12 @@ class MavlinkLink:
         # ArduPilot 3 saniye sonra gercek kumandaya geri doner.
         self._rc_overrides: dict[int, int] = {}
         self._rc_last_sent: float = 0.0
+        # RC_OVERRIDE_TIME as the vehicle reports it, read once when the first
+        # override is sent; None until then. See keepalive_interval().
+        self._rc_override_time: Optional[float] = None
+        # How fast simulated time runs, measured from the vehicle's own clock.
+        self._clock_ref: Optional[tuple] = None
+        self._speedup: float = 1.0
         self._hb_last_sent: float = 0.0
         self._state_sampled: float = 0.0
         self._streams_requested: bool = False
@@ -426,7 +481,7 @@ class MavlinkLink:
             except Exception:
                 pass
             self._hb_last_sent = now
-        if self._rc_overrides and now - self._rc_last_sent >= RC_KEEPALIVE_INTERVAL:
+        if self._rc_overrides and now - self._rc_last_sent >= self.keepalive_interval():
             self._rc_send_current()
         if self.state.connected and now - self._state_sampled >= EVENT_STATE_INTERVAL:
             self._state_sampled = now
@@ -498,6 +553,7 @@ class MavlinkLink:
             self.state.pitch_rate = math.degrees(msg.pitchspeed)
             self.state.yaw_rate = math.degrees(msg.yawspeed)
             self.state.attitude_known = True
+            self._note_vehicle_clock(getattr(msg, "time_boot_ms", 0) / 1000.0)
             self.stability.add(getattr(msg, "time_boot_ms", 0) / 1000.0,
                                self.state.roll, self.state.pitch,
                                (self.state.roll_rate, self.state.pitch_rate,
@@ -519,6 +575,41 @@ class MavlinkLink:
                 self.on_log(f"[SITL] {text}")
                 self.emit("statustext", severity=int(getattr(msg, "severity", 6)),
                           text=text)
+
+    # ------------------------------------------------------------- vehicle clock
+    # How long a measurement window must be before it is believed. Short
+    # windows are dominated by the bursts telemetry arrives in.
+    SPEEDUP_WINDOW = 5.0
+
+    def _note_vehicle_clock(self, vehicle_s: float) -> None:
+        """Measure how fast simulated time runs, from the vehicle's own clock.
+
+        Nothing tells a ground station the SITL speedup — it is a command-line
+        argument to a process ArgazUI only sees the output of. But the vehicle
+        timestamps its own telemetry, so the ratio between that clock and ours
+        IS the speedup, and it is the number the RC keepalive needs.
+        """
+        if vehicle_s <= 0:
+            return
+        now = time.time()
+        if self._clock_ref is None:
+            self._clock_ref = (now, vehicle_s)
+            return
+        wall_before, vehicle_before = self._clock_ref
+        wall_delta = now - wall_before
+        vehicle_delta = vehicle_s - vehicle_before
+        if wall_delta >= self.SPEEDUP_WINDOW and vehicle_delta > 0:
+            self._speedup = vehicle_delta / wall_delta
+            self._clock_ref = (now, vehicle_s)      # slide, do not accumulate
+
+    @property
+    def speedup(self) -> float:
+        """Measured ratio of simulated time to wall-clock time (1.0 until known)."""
+        return self._speedup
+
+    def keepalive_interval(self) -> float:
+        """Wall-clock seconds between refreshes of a held RC override."""
+        return keepalive_interval(self._rc_override_time, self._speedup)
 
     def _recent_reasons(self, since: float) -> list[str]:
         """Komut reddine gerekce olabilecek son otopilot mesajlari."""
@@ -856,6 +947,12 @@ class MavlinkLink:
             if not 1 <= ch <= 18:
                 return {"ok": False, "text": t("rc_range")}
             self._rc_overrides[ch] = pwm
+        # Read once, here rather than at connect: this is the first moment the
+        # answer changes anything, and a model's parameter file may have moved
+        # it away from the 3.0 s default.
+        if self._rc_override_time is None:
+            self._rc_override_time = self._param_get(RC_OVERRIDE_TIME_PARAM,
+                                                     timeout=3.0)
         self._rc_send_current()
         shown = ", ".join(f"RC{c}={p}" for c, p in sorted(channels.items()))
         return {"ok": True, "text": t("rc_override_ok", channels=shown)}

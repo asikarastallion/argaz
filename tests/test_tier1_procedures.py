@@ -14,6 +14,8 @@ unearned tick this version was written to remove.
 """
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from argazui import procedures as procs
@@ -223,3 +225,35 @@ def _explain(result: dict, vehicle) -> str:
                      f"{expect['label']} — {expect['text']}")
     lines.append(vehicle.sitl.tail(15))
     return "\n".join(lines)
+
+
+def test_the_link_measures_the_simulators_speedup(request, runs_root):
+    """The RC keepalive is derived from this number, so it must be real.
+
+    Nothing tells a ground station the SITL speedup — it is an argument to a
+    process ArgazUI only sees the output of. The link derives it from the
+    vehicle's own timestamps, and the whole keepalive calculation rests on
+    that being right rather than plausible.
+    """
+    import sitl as sitl_mod
+    from argazui.mavlink_link import keepalive_interval
+
+    frame = FRAMES[0]
+    vehicle = boot(request, runs_root, frame, frame["frame"])
+
+    deadline = time.time() + 60
+    while time.time() < deadline and vehicle.link.speedup == 1.0:
+        time.sleep(1.0)
+
+    expected = sitl_mod.DEFAULT_SPEEDUP
+    assert vehicle.link.speedup == pytest.approx(expected, rel=0.35), (
+        f"SITL was started at speedup {expected} but the link measured "
+        f"{vehicle.link.speedup:.2f}")
+
+    # And the interval that follows from it is short enough to outrun the
+    # override timeout at that speedup.
+    interval = vehicle.link.keepalive_interval()
+    budget = 3.0 / vehicle.link.speedup
+    assert interval * 2 <= budget, (
+        f"a {interval:.3f}s keepalive does not fit twice into a {budget:.3f}s "
+        f"budget at speedup {vehicle.link.speedup:.1f}")
