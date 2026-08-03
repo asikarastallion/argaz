@@ -295,6 +295,13 @@ CATALOG: dict[str, dict[str, str]] = {
                                 "generating, or the session left no dataflash log",
                           "tr": "'{id}' kosusunun ucus raporu yok — hala uretiliyor "
                                 "olabilir ya da oturum dataflash logu birakmamis"},
+    "run_report_slow":   {"en": "run '{id}': the flight report was still being "
+                                "generated after {seconds}s and was not waited "
+                                "for any longer — the run directory may lack "
+                                "report.json",
+                          "tr": "'{id}' kosusu: ucus raporu {seconds} sn sonra hala "
+                                "uretiliyordu ve daha fazla beklenmedi — kosu "
+                                "klasorunde report.json eksik olabilir"},
     "run_no_file":       {"en": "no such file in this run: {name}",
                           "tr": "bu kosuda boyle bir dosya yok: {name}"},
     "run_bin_copy_failed": {"en": "the dataflash log at {path} could not be copied "

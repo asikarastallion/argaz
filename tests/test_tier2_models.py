@@ -120,7 +120,7 @@ def test_model_takes_off_changes_mode_and_lands(request, tier2_runs_root, model)
         recorder.finish(report=False)
         pytest.skip(str(exc))
 
-    request.addfinalizer(lambda: (sim.stop(), recorder.finish()))
+    request.addfinalizer(lambda: (sim.stop(), recorder.finish(wait=True)))
 
     assert sim.wait_prearm(), (
         f"{model['id']} never passed pre-arm checks\n{sim.tail()}")

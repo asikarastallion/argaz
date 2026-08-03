@@ -233,13 +233,18 @@ class RunRecorder:
         return out
 
     # ------------------------------------------------------------------ finish
-    def finish(self, report: bool = True) -> dict:
+    def finish(self, report: bool = True, wait: bool = False,
+               report_timeout: float = 120.0) -> dict:
         """Closes the capture files and writes the run's own records.
 
         Call this *after* the simulator has exited, so the dataflash log has
         been flushed and closed. The post-flight report is generated on a
         background thread because parsing a long log takes seconds and STOP
         should not wait for it.
+
+        `wait=True` blocks until that thread finishes. Anything that exits
+        right after calling this — a test session, a CLI — must pass it, or
+        the report is killed with the process before it is written.
         """
         if self._finished:
             return self.summary()
@@ -274,8 +279,22 @@ class RunRecorder:
             json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
         if report and dataflash:
-            threading.Thread(target=self._make_report, args=(dataflash, result),
-                             name=f"report-{self.run_id}", daemon=True).start()
+            thread = threading.Thread(target=self._make_report,
+                                      args=(dataflash, result),
+                                      name=f"report-{self.run_id}", daemon=True)
+            thread.start()
+            if wait:
+                # A daemon thread dies with the process. That is right for the
+                # server — STOP must not block while a long log is parsed —
+                # and wrong for anything that exits straight afterwards: the
+                # LAST run of a test session lost its report every time,
+                # leaving a run directory with a dataflash log but no
+                # report.json, and an empty firmware cell in docs/status.md.
+                # Callers that are about to exit ask to wait.
+                thread.join(timeout=report_timeout)
+                if thread.is_alive():
+                    self.on_log(t("run_report_slow", id=self.run_id,
+                                  seconds=f"{report_timeout:g}"))
         elif report:
             self.on_log(t("run_no_report", id=self.run_id))
         return result

@@ -108,7 +108,7 @@ def boot(request, runs_root: Path, model: dict, frame: str,
     def _teardown() -> None:
         link.stop()
         sitl.stop()
-        recorder.finish()
+        recorder.finish(wait=True)
 
     request.addfinalizer(_teardown)
 
