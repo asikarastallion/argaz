@@ -64,7 +64,9 @@ def main(argv=None) -> int:
         from .status import generate
         roots = [Path(r) for r in (args.runs or [paths.RUNS_DIR])]
         out = Path(args.out) if args.out else (paths.ARGAZ / "docs" / "status.md")
-        text = generate(roots, out, workflow=args.workflow, run_url=args.run_url)
+        readme = paths.ARGAZ / "README.md"
+        text = generate(roots, out, workflow=args.workflow, run_url=args.run_url,
+                        readme=readme if readme.is_file() else None)
         print(f"wrote {out} ({len(text.splitlines())} lines) from "
               + ", ".join(str(r) for r in roots), file=sys.stderr)
         return 0

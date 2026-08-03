@@ -155,3 +155,48 @@ def test_the_rendered_file_says_it_is_generated_and_never_invents_a_result(tmp_p
     cells = re.findall(r"\| \*{0,2}(\w[\w-]*)\*{0,2}(?:<br>)?", text)
     forbidden = {"ok", "supported", "working", "yes", "no", "broken", "error"}
     assert not (set(cells) & forbidden), sorted(set(cells) & forbidden)
+
+
+def test_the_readme_summary_is_generated_between_its_markers(tmp_path):
+    """README carries one machine-written sentence, and only one.
+
+    The rest of that file is prose a person maintains. Replacing the whole
+    README would put the generator in charge of text it has no business
+    writing; leaving the support claim by hand is what produced eleven
+    unearned ticks in v1.0.
+    """
+    write_suite(tmp_path, [
+        {"nodeid": node("flyer"), "outcome": "passed", "markers": ["tier2"]},
+        {"nodeid": node("grounded"), "outcome": "failed", "markers": ["tier2"]},
+    ])
+    write_run(tmp_path, "flyer")
+    write_run(tmp_path, "grounded", status_value="failed")
+
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        f"# Project\n\nprose above\n\n{status.SUMMARY_START}\nplaceholder\n"
+        f"{status.SUMMARY_END}\n\nprose below\n", encoding="utf-8")
+
+    data = status.collect([tmp_path], registry=REGISTRY)
+    assert status.update_readme(readme, data) is True
+
+    text = readme.read_text()
+    assert "prose above" in text and "prose below" in text, (
+        "the generator rewrote text it does not own")
+    assert "placeholder" not in text
+    assert "**1** passed" in text and "**1** failed" in text
+    assert "docs/status.md" in text
+
+    # Idempotent: a second run with the same data must not churn the file.
+    data2 = status.collect([tmp_path], registry=REGISTRY)
+    data2["generated_utc"] = data["generated_utc"]
+    assert status.update_readme(readme, data2) is False
+
+
+def test_a_readme_without_markers_is_left_alone(tmp_path):
+    write_suite(tmp_path, [])
+    readme = tmp_path / "README.md"
+    readme.write_text("# Project\n\nno markers here\n", encoding="utf-8")
+    data = status.collect([tmp_path], registry=REGISTRY)
+    assert status.update_readme(readme, data) is False
+    assert readme.read_text() == "# Project\n\nno markers here\n"
