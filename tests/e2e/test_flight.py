@@ -10,7 +10,7 @@ import json
 
 import pytest
 
-from conftest import assert_no_console_errors, open_page, start_server
+from harness import assert_no_console_errors, open_page, start_server
 
 pytestmark = [pytest.mark.e2e, pytest.mark.tier1]
 
@@ -48,7 +48,7 @@ def flight_server(tmp_path_factory):
     and restored it in `finally`; a run that ends in SIGKILL never gets there,
     and leaves a test fixture committed into someone's registry.
     """
-    from conftest import sandbox_tree
+    from harness import sandbox_tree
 
     tmp = tmp_path_factory.mktemp("e2e-flight")
     tree = sandbox_tree(tmp)

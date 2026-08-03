@@ -2,18 +2,76 @@
 FROM ubuntu:24.04
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG ARDUPILOT_REF=stable
+# The exact ArduPilot commit this project is verified against. NOT a branch:
+# `stable` was written here and does not exist upstream, so this image had
+# never been built at all — the first git clone fails with "Remote branch
+# stable not found in upstream origin".
+#
+# A moving ref would also defeat the point. `versions.py` compares the firmware
+# a run flew against the checkout it was built from and raises an advisory when
+# they differ; if the image tracked a branch, two builds of the same Dockerfile
+# would fly different autopilots and no two CI results could be compared.
+# Bump this deliberately, and let the images workflow rebuild on the change.
+ARG ARDUPILOT_REF=0b38722bd5a46099dbe7d50074624680f58ce584
 
+# iproute2/procps/curl are not decoration: start.sh resolves the holder of a
+# port with `ss`, reads its start time with `ps`, and identifies it with
+# `curl /api/version`. Without them the script degrades into exactly the
+# "something is on the port and I cannot tell you what" state that cost a user
+# a debugging session, and the tests that cover it cannot run at all.
+#
+# The rest is what ArduPilot's waf actually needs to build SITL: a compiler,
+# git, gawk and make. This image deliberately does NOT run
+# Tools/environment_install/install-prereqs-ubuntu.sh — see below.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential ccache git lsb-release python3 python3-dev python3-pip \
-    python3-venv sudo && \
+    build-essential ca-certificates ccache curl g++ gawk git iproute2 \
+    lsb-release make procps python3 python3-dev python3-venv && \
     rm -rf /var/lib/apt/lists/*
 
-RUN git clone --depth 1 --branch "${ARDUPILOT_REF}" \
-    https://github.com/ArduPilot/ardupilot.git /opt/argaz/ardupilot && \
-    cd /opt/argaz/ardupilot && git submodule update --init --recursive && \
-    Tools/environment_install/install-prereqs-ubuntu.sh -y && \
-    ./waf configure --board sitl && ./waf copter && ./waf plane
+# The build/runtime interpreter, created BEFORE ArduPilot so that waf runs
+# under it and finds empy there.
+#
+# A virtual environment, NOT --break-system-packages. The same rule applies
+# here as on a developer's machine: this project does not install into a
+# distribution-managed interpreter. `start.sh` refuses to, the suite has a test
+# proving it refuses to, and an image that did it anyway would make that test
+# meaningless — the system python3 would import fastapi, the script would
+# accept it, and the check would never execute.
+#
+# The venv deliberately lives OUTSIDE ARGAZ_ROOT, so start.sh's `$ARGAZ/venv*`
+# search does not find it either. PATH is what points everything at it.
+#
+# empy/pexpect/future are waf's build-time dependencies; MAVProxy is a runtime
+# one, because `sim_vehicle.py` starts it and ArgazUI listens to its 14550
+# fan-out. empy is pinned at 3.3.4 because ArduPilot's waf uses the 3.x API and
+# empy 4 renamed it.
+RUN python3 -m venv /opt/venv && \
+    /opt/venv/bin/python3 -m pip install --no-cache-dir --upgrade pip && \
+    /opt/venv/bin/python3 -m pip install --no-cache-dir \
+      "empy==3.3.4" pexpect future MAVProxy pymavlink
+ENV PATH=/opt/venv/bin:$PATH
+
+# WHY NOT install-prereqs-ubuntu.sh
+# --------------------------------
+# Two reasons, both found by running it rather than by reading it:
+#
+#   1. It refuses to run as root ("Please do not run this script as root;
+#      don't sudo it!") and exits 1, which is where this image died.
+#   2. It installs the STM32 ARM cross-compiler, valgrind, screen and astyle —
+#      about a gigabyte of things a SITL-only image never uses.
+#
+# SITL needs a C++ toolchain and empy. That is what is installed above, and
+# waf is left to say so if it ever needs more.
+#
+# Fetched by commit rather than cloned by branch, because a pinned SHA is not
+# a ref `git clone --branch` accepts. GitHub allows fetching a bare commit.
+RUN mkdir -p /opt/argaz/ardupilot && cd /opt/argaz/ardupilot && \
+    git init -q && git remote add origin https://github.com/ArduPilot/ardupilot.git && \
+    git fetch -q --depth 1 origin "${ARDUPILOT_REF}" && \
+    git checkout -q FETCH_HEAD && \
+    git submodule update --init --recursive --depth 1 && \
+    ./waf configure --board sitl && ./waf copter && ./waf plane && \
+    rm -rf /opt/argaz/ardupilot/build/sitl/**/*.o
 
 COPY argazui /opt/argaz/argazui
 COPY tests /opt/argaz/tests
@@ -22,16 +80,20 @@ COPY argaz.toml /opt/argaz/argaz.toml
 COPY docker/container-env.sh /opt/argaz/env.sh
 RUN cp /opt/argaz/env.sh /opt/argaz/quadplane_env.sh && \
     mkdir -p /opt/argaz/ardu_ws && chmod +x /opt/argaz/env.sh /opt/argaz/quadplane_env.sh
-RUN python3 -m pip install --break-system-packages --no-cache-dir \
-    -r /opt/argaz/argazui/requirements.txt \
-    -r /opt/argaz/argazui/requirements-test.txt
+
+RUN /opt/venv/bin/python3 -m pip install --no-cache-dir \
+      -r /opt/argaz/argazui/requirements.txt \
+      -r /opt/argaz/argazui/requirements-test.txt
 # The e2e layer needs a real browser. --with-deps pulls the shared libraries
 # headless Chromium needs on a bare Ubuntu image; without them the browser
 # launches and immediately dies, which reads as a test failure rather than a
 # missing dependency.
-RUN python3 -m playwright install --with-deps chromium
+RUN /opt/venv/bin/python3 -m playwright install --with-deps chromium
 
-ENV ARGAZ_ROOT=/opt/argaz \
+ENV PATH=/opt/venv/bin:/opt/argaz/ardupilot/Tools/autotest:$PATH \
+    ARGAZ_ROOT=/opt/argaz \
+    ARGAZ_TEST_ENV=tier1-image \
+    ARGAZ_HEADLESS=1 \
     PYTHONUNBUFFERED=1
 WORKDIR /opt/argaz/argazui
 ENTRYPOINT ["python3", "-m", "argazui"]

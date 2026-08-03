@@ -51,11 +51,23 @@ def main(argv=None) -> int:
     if args.command == "report":
         return _make_report(args.target, args.as_json)
 
-    # A normal start uses the full profile, but only prints critical failures so
-    # a user gets an actionable error before a browser and two terminal PTYs
-    # have appeared. `argazui doctor` remains the complete report.
+    # A normal start checks its prerequisites first, so a user gets an
+    # actionable error before a browser and two terminal PTYs have appeared.
+    #
+    # WHAT COUNTS AS FATAL, AND WHY IT IS NOT THE FULL PROFILE
+    # --------------------------------------------------------
+    # It used to be, and that made ArgazUI refuse to start on any machine
+    # without Gazebo and ROS 2 — including the tier-1 container image, where
+    # every e2e test died with "prerequisites are not ready" for assets none
+    # of them use. It is also simply wrong for a user: the `sitl_only` launch
+    # method needs no Gazebo at all, and a missing simulator is a reason some
+    # models cannot fly, not a reason the application cannot run.
+    #
+    # So the tier-1 set — ArduPilot, the SITL binaries, the Python packages,
+    # the ports — is fatal, and the Gazebo/ROS 2 findings are reported as
+    # warnings on the way up. `argazui doctor` remains the complete report.
     from .doctor import run
-    report = run("full")
+    report = run("tier1")
     if not report["ok"]:
         print("ERROR: ArgazUI prerequisites are not ready. Run 'argazui doctor' for details.",
               file=sys.stderr)
@@ -63,6 +75,15 @@ def main(argv=None) -> int:
             if check["critical"] and not check["ok"]:
                 print(f"  - {check['name']}: {check['detail']}", file=sys.stderr)
         return 1
+
+    full = run("full")
+    missing = [c for c in full["checks"] if c["critical"] and not c["ok"]]
+    if missing:
+        print("ArgazUI: starting without the full simulation stack. Models that "
+              "need it cannot be launched:", file=sys.stderr)
+        for check in missing:
+            print(f"  - {check['name']}: {check['detail']}", file=sys.stderr)
+        print("  Run 'argazui doctor' for the complete report.", file=sys.stderr)
 
     try:
         import uvicorn

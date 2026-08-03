@@ -251,7 +251,15 @@ fi
 
 # Fail before the web server and terminal sessions start. This checks the
 # configured installation; it does not assume env.sh is beside this script.
-if ! "$PY" -m argazui doctor "$@"; then
+#
+# The tier-1 profile, not the full one, for the same reason `argazui serve`
+# uses it: Gazebo and ROS 2 decide which MODELS can fly, not whether ArgazUI
+# can run. Checking the full set here refused to start the server on any
+# machine without a simulator — including the tier-1 container image, where
+# it made `--replace` fail with no explanation a reader could act on. The
+# server prints the Gazebo/ROS findings as warnings on its way up, and
+# `argazui doctor` remains the complete report.
+if ! "$PY" -m argazui doctor --tier tier1 "$@"; then
     echo "ArgazUI: prerequisites are incomplete; fix the items above and retry." >&2
     exit 1
 fi

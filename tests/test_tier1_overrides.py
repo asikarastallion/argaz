@@ -15,7 +15,7 @@ import pytest
 from argazui import procedures as procs
 from argazui.procrunner import ProcedureRunner
 
-from conftest import boot
+from support import boot
 
 pytestmark = pytest.mark.tier1
 

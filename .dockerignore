@@ -1,10 +1,38 @@
+# What is NOT sent to the Docker daemon as build context.
+#
+# The images clone ArduPilot, SITL_Models and ardupilot_gazebo themselves, at a
+# pinned ref, so shipping this machine's copies would be both enormous and
+# wrong — the image would silently inherit whatever the developer's checkout
+# happened to be at.
 .git
 .agents
 .codex
 ardupilot
 ardu_ws
 SITL_Models
+Micro-XRCE-DDS-Gen
+terrain
+
+# Runtime output, not source. `runs/` alone is 390 MB on a machine that has
+# flown a few times; `argazui/run/` is SITL's working tree. Without these the
+# build context was 4.4 GB, nearly all of it artefacts from past flights.
+runs
+logs
 argazui/run
+argazui/static/models
+
+# SITL leftovers from manual sessions in the argaz root
+eeprom.bin
+mav.parm
+mav.tlog*
+last_*.txt
+*_test*.txt
+
+# Local virtual environments — the images build their own
+venv*
+.venv*
+
 argazui/__pycache__
 **/__pycache__
 **/*.pyc
+.pytest_cache

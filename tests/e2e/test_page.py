@@ -10,7 +10,7 @@ import subprocess
 
 import pytest
 
-from conftest import assert_no_console_errors, drift, open_page, start_server
+from harness import assert_no_console_errors, drift, open_page, start_server
 
 pytestmark = [pytest.mark.e2e, pytest.mark.tier1]
 

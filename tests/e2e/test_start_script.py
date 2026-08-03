@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import ARGAZUI, ROOT, _free_port, start_server
+from harness import ARGAZUI, ROOT, _free_port, start_server
 
 pytestmark = [pytest.mark.e2e, pytest.mark.tier1]
 

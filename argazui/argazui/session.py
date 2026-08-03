@@ -80,6 +80,27 @@ def _pgid_alive(pgid: int) -> bool:
         return True
 
 
+def headless() -> bool:
+    """Is there a screen to draw on?
+
+    Gazebo's `gz sim -r` starts a GUI as well as a physics server, and
+    `sim_vehicle.py --console --map` opens two more windows. On a machine with
+    no display — a container, a CI runner, an SSH session — every one of those
+    fails, and the vehicle never comes up at all.
+
+    `ARGAZ_HEADLESS` wins when it is set to anything explicit, because a
+    developer may want to check the headless path on a desktop; otherwise the
+    presence of a display server is the answer. This is deliberately the ONLY
+    difference between how CI flies a model and how the button does: the same
+    `build_launch_commands` produces both, so a passing tier-2 test still means
+    a working button.
+    """
+    explicit = os.environ.get("ARGAZ_HEADLESS")
+    if explicit not in (None, ""):
+        return explicit.strip().lower() not in ("0", "false", "no")
+    return not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+
+
 # --------------------------------------------------------------------------- komutlar
 def build_launch_commands(model: dict) -> list[str]:
     """Bir model tanimindan, terminale yazilacak kabuk komutlarini uretir.
@@ -124,9 +145,15 @@ def build_launch_commands(model: dict) -> list[str]:
         lines.append(" ".join(parts))
         return lines
 
+    no_display = headless()
+
     world = model.get("world")
     if world:
-        lines.append(f"gz sim -v4 -r {world} &")
+        # -s is server-only: physics without the render window. Without it, a
+        # machine with no display starts Gazebo, the GUI process dies, and the
+        # vehicle waits forever for a physics backend that is not there.
+        server_only = " -s" if no_display else ""
+        lines.append(f"gz sim -v4 -r{server_only} {world} &")
         lines.append("sleep 6")
 
     vehicle = model.get("vehicle") or "ArduPlane"
@@ -173,7 +200,11 @@ def build_launch_commands(model: dict) -> list[str]:
         ovr_path.write_text("\n".join(body) + "\n")
         sitl.append(f"--add-param-file={ovr_path}")
     sitl += model.get("extra_sitl_args", [])
-    sitl += ["--console", "--map"]
+    # MAVProxy's console and map are X11 windows. On a headless host they abort
+    # MAVProxy's startup, which takes the 14550 fan-out with it and leaves
+    # ArgazUI with no link to a vehicle that is otherwise running perfectly.
+    if not no_display:
+        sitl += ["--console", "--map"]
     # 14550 sim_vehicle.py'nin varsayilan cikisi (ArgazUI kullanir),
     # 14551'i gorev scriptleri icin biz ekliyoruz.
     sitl += ["--out", f"127.0.0.1:{paths.SCRIPT_MAVLINK_PORT}"]

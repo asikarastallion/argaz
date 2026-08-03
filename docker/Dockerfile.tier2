@@ -1,9 +1,13 @@
 # Full integration image: real SITL + Gazebo Harmonic + ROS 2 Jazzy assets.
 # This is intentionally heavy and is used by scheduled headless integration CI.
+#
+# Structured to mirror Dockerfile.tier1 — same pinned ArduPilot commit, same
+# virtual environment, same reason for not running install-prereqs-ubuntu.sh.
+# Read that file first; only the Gazebo and ROS 2 layers are new here.
 FROM ubuntu:24.04
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG ARDUPILOT_REF=stable
+ARG ARDUPILOT_REF=0b38722bd5a46099dbe7d50074624680f58ce584
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl gnupg lsb-release software-properties-common && \
@@ -16,30 +20,61 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" \
       > /etc/apt/sources.list.d/ros2.list && \
     apt-get update && apt-get install -y --no-install-recommends \
-      build-essential ccache cmake git ninja-build pkg-config python3 python3-dev python3-pip python3-venv \
-      gz-harmonic ros-jazzy-ros-base && \
+      build-essential ccache cmake g++ gawk git iproute2 make ninja-build \
+      pkg-config procps python3 python3-dev python3-venv \
+      gz-harmonic libgz-sim8-dev rapidjson-dev \
+      libopencv-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+      gstreamer1.0-plugins-bad gstreamer1.0-libav gstreamer1.0-gl \
+      libzmq3-dev cppzmq-dev \
+      ros-jazzy-ros-base && \
     rm -rf /var/lib/apt/lists/*
 
-RUN git clone --depth 1 --branch "${ARDUPILOT_REF}" \
-      https://github.com/ArduPilot/ardupilot.git /opt/argaz/ardupilot && \
-    cd /opt/argaz/ardupilot && git submodule update --init --recursive && \
-    Tools/environment_install/install-prereqs-ubuntu.sh -y && \
-    ./waf configure --board sitl && ./waf copter && ./waf plane && \
-    git clone --depth 1 https://github.com/ArduPilot/SITL_Models.git /opt/argaz/SITL_Models && \
+RUN python3 -m venv /opt/venv && \
+    /opt/venv/bin/python3 -m pip install --no-cache-dir --upgrade pip && \
+    /opt/venv/bin/python3 -m pip install --no-cache-dir \
+      "empy==3.3.4" pexpect future MAVProxy pymavlink
+ENV PATH=/opt/venv/bin:$PATH
+
+RUN mkdir -p /opt/argaz/ardupilot && cd /opt/argaz/ardupilot && \
+    git init -q && git remote add origin https://github.com/ArduPilot/ardupilot.git && \
+    git fetch -q --depth 1 origin "${ARDUPILOT_REF}" && \
+    git checkout -q FETCH_HEAD && \
+    git submodule update --init --recursive --depth 1 && \
+    ./waf configure --board sitl && ./waf copter && ./waf plane
+
+# The Gazebo side: the airframe models, and the plugin that carries physics
+# between Gazebo and SITL. Without ardupilot_gazebo a model spawns and simply
+# never moves — `--model JSON` waits for a backend that is not answering.
+#
+# Its build dependencies are wider than `gz-harmonic` alone provides, and each
+# one was found by the build failing rather than by reading anything:
+#   OpenCV + GStreamer  CMakeLists.txt lines 86-88, for the camera plugin.
+#                       Both are in upstream's README; the meta package is not.
+#   cppzmq              gz-transport13's own CMake config declares a
+#                       CPPZMQ::CPPZMQ target that nothing installs for it.
+RUN git clone --depth 1 https://github.com/ArduPilot/SITL_Models.git /opt/argaz/SITL_Models && \
     git clone --depth 1 https://github.com/ArduPilot/ardupilot_gazebo.git /opt/argaz/ardupilot_gazebo && \
     cmake -S /opt/argaz/ardupilot_gazebo -B /opt/argaz/ardupilot_gazebo/build -G Ninja && \
     cmake --build /opt/argaz/ardupilot_gazebo/build
 
 COPY argazui /opt/argaz/argazui
+COPY tests /opt/argaz/tests
+COPY pytest.ini /opt/argaz/pytest.ini
 COPY argaz.toml /opt/argaz/argaz.toml
 COPY docker/container-env.sh /opt/argaz/env.sh
 RUN cp /opt/argaz/env.sh /opt/argaz/quadplane_env.sh && \
     mkdir -p /opt/argaz/ardu_ws && chmod +x /opt/argaz/env.sh /opt/argaz/quadplane_env.sh
-RUN python3 -m pip install --break-system-packages --no-cache-dir \
-    -r /opt/argaz/argazui/requirements.txt
 
-ENV ARGAZ_ROOT=/opt/argaz \
+RUN /opt/venv/bin/python3 -m pip install --no-cache-dir \
+      -r /opt/argaz/argazui/requirements.txt \
+      -r /opt/argaz/argazui/requirements-test.txt
+
+ENV PATH=/opt/venv/bin:/opt/argaz/ardupilot/Tools/autotest:$PATH \
+    ARGAZ_ROOT=/opt/argaz \
+    ARGAZ_TEST_ENV=tier2-image \
+    ARGAZ_HEADLESS=1 \
     ROS_DISTRO=jazzy \
+    GZ_VERSION=harmonic \
     PYTHONUNBUFFERED=1
 WORKDIR /opt/argaz/argazui
 ENTRYPOINT ["python3", "-m", "argazui"]

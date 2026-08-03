@@ -161,7 +161,28 @@ class Manager:
             reg, _ = build_registry()
             paths.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
             paths.MODELS_JSON.write_text(json.dumps(reg, indent=2, ensure_ascii=False) + "\n")
-        return json.loads(paths.MODELS_JSON.read_text())
+        registry = json.loads(paths.MODELS_JSON.read_text())
+        return {**registry, "models": [self._with_real_image(m)
+                                       for m in registry.get("models", [])]}
+
+    @staticmethod
+    def _with_real_image(model: dict) -> dict:
+        """Drop an `image` the interface would only fail to load.
+
+        `static/models/` is fetched with `python3 -m argazui.fetch_images` and
+        is gitignored, so a fresh clone has none of it while models.json still
+        names every file. The page then requested eleven pictures that were not
+        there and the browser logged eleven 404s — on a page whose first
+        promise is a clean console. The interface already has a "no image for
+        this model" state; this is how it gets used.
+        """
+        image = model.get("image")
+        if not image:
+            return model
+        name = str(image).split("/static/", 1)[-1]
+        if (paths.STATIC_DIR / name).is_file():
+            return model
+        return {**model, "image": None}
 
     def buttons(self) -> dict:
         return json.loads(paths.BUTTONS_JSON.read_text())

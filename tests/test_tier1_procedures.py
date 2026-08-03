@@ -20,7 +20,7 @@ from argazui import procedures as procs
 from argazui.flightlog import analyse
 from argazui.procrunner import ProcedureRunner
 
-from conftest import boot, read_result
+from support import boot, read_result
 
 pytestmark = pytest.mark.tier1
 
