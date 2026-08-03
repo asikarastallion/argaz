@@ -1,0 +1,89 @@
+# Tier 1 on every push and pull request.
+#
+# Real ArduPilot SITL, a real FastAPI server, a real browser — and no Gazebo.
+# It verifies that the procedure logic, the HTTP/WebSocket layer and the page
+# work. It verifies NOTHING about any Gazebo model; only tier 2 may do that,
+# and `docs/status.md` keeps the two apart.
+#
+# The image is pulled, never built: compiling ArduPilot on every push would
+# put this job an hour past its budget. The checkout is mounted over the copy
+# baked into the image so the code under test is this commit.
+name: tier1
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/argazui-tier1:latest
+
+jobs:
+  tier1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull the tier-1 image
+        run: |
+          start=$SECONDS
+          if ! docker pull "$IMAGE"; then
+            echo "::error::No tier-1 image at $IMAGE. Run the 'images' workflow"
+            echo "::error::(Actions -> images -> Run workflow) and retry this one."
+            exit 1
+          fi
+          echo "pull_seconds=$((SECONDS - start))" >> "$GITHUB_ENV"
+          docker image inspect "$IMAGE" --format 'image size: {{.Size}} bytes'
+
+      # The suite writes run artefacts; give it a directory it owns.
+      - name: Prepare the run directory
+        run: mkdir -p runs && chmod 777 runs
+
+      - name: Run the tier-1 suite
+        run: |
+          start=$SECONDS
+          set +e
+          docker run --rm \
+            -v "$PWD/argazui:/opt/argaz/argazui" \
+            -v "$PWD/tests:/opt/argaz/tests" \
+            -v "$PWD/pytest.ini:/opt/argaz/pytest.ini" \
+            -v "$PWD/runs:/opt/argaz/runs" \
+            -w /opt/argaz --entrypoint python3 "$IMAGE" \
+            -m pytest tests/ -m tier1 -q
+          status=$?
+          set -e
+          echo "suite_seconds=$((SECONDS - start))" >> "$GITHUB_ENV"
+          exit $status
+
+      - name: Report timings
+        if: always()
+        run: |
+          {
+            echo "### tier 1 timings"
+            echo ""
+            echo "| step | seconds |"
+            echo "|---|---|"
+            echo "| pull image | ${pull_seconds:-n/a} |"
+            echo "| run suite | ${suite_seconds:-n/a} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The suite record is what docs/status.md is generated from, so it is
+      # kept whether the run passed or failed — a failure is a result too.
+      - name: Upload the suite record and run artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tier1-runs
+          path: runs/
+          retention-days: 14
+          if-no-files-found: warn

@@ -1,0 +1,123 @@
+# Tier 2 — the real model set, in Gazebo, headless.
+#
+# THIS IS THE ONLY TIER THAT MAY VERIFY A MODEL
+# ---------------------------------------------
+# `docs/status.md` reads its model rows from this workflow's artefacts and from
+# nowhere else. Tier 1 flies SITL's generic frames; a model it never touched
+# stays `untested`, and blurring that would make the whole table a lie.
+#
+# WHAT IT COSTS, MEASURED
+# -----------------------
+# The tier-2 image is 10.3 GB (Gazebo Harmonic + ROS 2 Jazzy + ArduPilot +
+# SITL_Models + ardupilot_gazebo). A hosted runner has about 14 GB free before
+# the reclaim step, so pulling it is close to the limit and building it there
+# is closer still. That is why the image is built by `images.yml` and only
+# pulled here, and why this workflow is nightly rather than per-push.
+#
+# IF IT WILL NOT RUN ON A HOSTED RUNNER
+# -------------------------------------
+# Point it at your own machine instead — nothing else changes:
+#
+#     1. Settings -> Actions -> Runners -> New self-hosted runner
+#     2. Change `runs-on: ubuntu-latest` below to `runs-on: self-hosted`
+#     3. The machine needs Docker and ~30 GB free; no display is required,
+#        because ArgazUI launches Gazebo server-only when it finds none.
+#
+# A tier 2 that cannot run is reported as `untested` in the status table. A
+# tier 2 that reports green without flying anything would be worse than no
+# tier 2 at all.
+name: tier2
+
+on:
+  schedule:
+    # 03:00 UTC. Nightly rather than per-push: the models take about a minute
+    # and a half each to fly and there are eleven of them.
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      models:
+        description: 'pytest -k filter (blank = every model)'
+        type: string
+        default: ''
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/argazui-tier2:latest
+
+jobs:
+  tier2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reclaim disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" \
+                      /usr/share/swift /usr/local/.ghcup || true
+          df -h /
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull the tier-2 image
+        run: |
+          start=$SECONDS
+          if ! docker pull "$IMAGE"; then
+            echo "::error::No tier-2 image at $IMAGE. Run the 'images' workflow"
+            echo "::error::(Actions -> images -> Run workflow -> tier2) first."
+            exit 1
+          fi
+          echo "pull_seconds=$((SECONDS - start))" >> "$GITHUB_ENV"
+          df -h /
+
+      - name: Prepare the run directory
+        run: mkdir -p runs && chmod 777 runs
+
+      - name: Fly the models
+        run: |
+          start=$SECONDS
+          filter='${{ inputs.models }}'
+          set +e
+          docker run --rm --shm-size=1g \
+            -v "$PWD/argazui:/opt/argaz/argazui" \
+            -v "$PWD/tests:/opt/argaz/tests" \
+            -v "$PWD/pytest.ini:/opt/argaz/pytest.ini" \
+            -v "$PWD/runs:/opt/argaz/runs" \
+            -w /opt/argaz --entrypoint python3 "$IMAGE" \
+            -m pytest tests/ -m tier2 -q ${filter:+-k "$filter"}
+          status=$?
+          set -e
+          echo "suite_seconds=$((SECONDS - start))" >> "$GITHUB_ENV"
+          exit $status
+
+      - name: Report timings
+        if: always()
+        run: |
+          {
+            echo "### tier 2 timings"
+            echo ""
+            echo "| step | seconds |"
+            echo "|---|---|"
+            echo "| pull image | ${pull_seconds:-n/a} |"
+            echo "| fly the models | ${suite_seconds:-n/a} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Every flight leaves a run directory: dataflash log, parameter dump,
+      # post-flight report, and the suite record docs/status.md is built from.
+      # Uploaded whether or not the run passed, because a failure is a result.
+      - name: Upload run artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tier2-runs
+          path: runs/
+          retention-days: 30
+          if-no-files-found: warn
