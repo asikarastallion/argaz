@@ -17,7 +17,8 @@ from . import paths
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="ArgazUI — ArduPilot SITL + Gazebo control panel")
     ap.add_argument("command", nargs="?",
-                    choices=("serve", "doctor", "runs", "report"), default="serve")
+                    choices=("serve", "doctor", "runs", "report", "status"),
+                    default="serve")
     ap.add_argument("target", nargs="?",
                     help="report: a run directory or a .BIN dataflash log")
     ap.add_argument("--argaz-root", help="simulation root (overrides ARGAZ_ROOT / argaz.toml)")
@@ -32,6 +33,12 @@ def main(argv=None) -> int:
     ap.add_argument("--json", action="store_true", dest="as_json", help="machine-readable doctor output")
     ap.add_argument("--tier", choices=("full", "tier1"), default="full",
                     help="doctor profile (default: full)")
+    ap.add_argument("--runs", action="append", default=None,
+                    help="status: a directory holding suite.json and run "
+                         "directories; repeat for more than one")
+    ap.add_argument("--out", help="status: where to write the generated table")
+    ap.add_argument("--workflow", default="", help="status: which workflow produced this")
+    ap.add_argument("--run-url", default="", help="status: link to that workflow run")
     args = ap.parse_args(argv)
 
     paths.configure(argaz_root=args.argaz_root, ardupilot_root=args.ardupilot_root,
@@ -50,6 +57,17 @@ def main(argv=None) -> int:
 
     if args.command == "report":
         return _make_report(args.target, args.as_json)
+
+    if args.command == "status":
+        from pathlib import Path
+
+        from .status import generate
+        roots = [Path(r) for r in (args.runs or [paths.RUNS_DIR])]
+        out = Path(args.out) if args.out else (paths.ARGAZ / "docs" / "status.md")
+        text = generate(roots, out, workflow=args.workflow, run_url=args.run_url)
+        print(f"wrote {out} ({len(text.splitlines())} lines) from "
+              + ", ".join(str(r) for r in roots), file=sys.stderr)
+        return 0
 
     # A normal start checks its prerequisites first, so a user gets an
     # actionable error before a browser and two terminal PTYs have appeared.
