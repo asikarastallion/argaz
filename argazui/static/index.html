@@ -73,6 +73,26 @@
     <div id="buttons" class="buttons"></div>
     <p class="panel-error" id="err-buttons" hidden></p>
     <p class="hint" id="cmd-hint"></p>
+
+    <!-- Live telemetry mirror. Sits here rather than in its own panel because
+         it is a property of the running vehicle, like the buttons above it:
+         the port is open for exactly as long as there is a flight to plot. -->
+    <!-- Address and Port are shown as two separately labelled, separately
+         copyable values, and never as one "127.0.0.1:14552" token. That token
+         is what a user pastes into PlotJuggler's Address box, where a host:port
+         string parses as no address at all — see live_warn and USAGE.md 5d. -->
+    <div class="livestream" id="livestream" hidden>
+      <span class="ls-label" data-i18n="live_plot">LIVE PLOT</span>
+      <span class="ls-field"><em data-i18n="live_field_address">Address</em>
+        <code class="ls-addr" id="ls-addr">—</code>
+        <button class="btn link" id="btn-copy-host" data-i18n="live_copy_host">⧉</button></span>
+      <span class="ls-field"><em data-i18n="live_field_port">Port</em>
+        <code class="ls-addr" id="ls-port">—</code>
+        <button class="btn link" id="btn-copy-plot" data-i18n="live_copy">⧉</button></span>
+      <span class="ls-state" id="ls-state"></span>
+      <span class="hint" id="ls-hint"></span>
+      <span class="hint ls-warn" id="ls-warn"></span>
+    </div>
   </section>
 
   <!-- ------------------------------------------------------------- procedure -->
@@ -95,6 +115,9 @@
         <small id="runs-root"></small>
         <button class="btn link" id="btn-runs-refresh" data-i18n="btn_refresh">⟳ refresh</button></h2>
     <div class="runs-wrap"><table class="runs" id="runs-table"><tbody></tbody></table></div>
+    <!-- Real usage produces dozens of runs; the panel shows the newest few and
+         opens on demand. View only — nothing under runs/ changes. -->
+    <button class="btn link runs-more" id="btn-runs-more" hidden></button>
     <p class="panel-error" id="err-runs" hidden></p>
     <p class="hint" id="runs-hint"></p>
   </section>
@@ -180,6 +203,14 @@
         <tr><th>14550</th><td>ArgazUI — quick command buttons and the status chips</td></tr>
         <tr><th>14551</th><td>Your mission scripts. Two listeners cannot share one UDP
             port, which is why they are split — use <b>14551</b> in your scripts.</td></tr>
+        <tr><th>14552</th><td>Live plot. ArgazUI <i>sends</i> telemetry here while a
+            vehicle runs; point PlotJuggler at it (<b>Streaming → UDP Server</b>)
+            to watch the flight as a graph. Address <code>127.0.0.1</code>, Port
+            <code>14552</code>, Message Protocol <b>JSON</b>. Put only the bare
+            host in <b>Address</b>: a <code>host:port</code> string there makes
+            PlotJuggler show <i>"Couldn't bind to IPv4 UDP server"</i> even though
+            it is receiving fine — and pressing OK on that dialog is what stops
+            the stream. See the <b>LIVE PLOT</b> line under Quick Commands.</td></tr>
       </table>
 
       <h3>Common situations</h3>
@@ -246,6 +277,15 @@
         <tr><th>14550</th><td>ArgazUI — hızlı komut butonları ve üstteki göstergeler</td></tr>
         <tr><th>14551</th><td>Senin görev scriptlerin. Aynı porta iki dinleyici
             bağlanamadığı için ayrıldılar; scriptlerinde <b>14551</b> kullan.</td></tr>
+        <tr><th>14552</th><td>Canlı grafik. Araç çalışırken ArgazUI telemetriyi buraya
+            <i>gönderir</i>; PlotJuggler'ı bu porta yönlendirirsen
+            (<b>Streaming → UDP Server</b>) uçuşu anlık grafik olarak izlersin.
+            Address <code>127.0.0.1</code>, Port <code>14552</code>, Message
+            Protocol <b>JSON</b>. <b>Address</b> kutusuna yalnızca host yaz:
+            oraya <code>host:port</code> yazarsan PlotJuggler veriyi sorunsuz
+            aldığı halde <i>"Couldn't bind to IPv4 UDP server"</i> uyarısı verir
+            — ve akışı durduran şey o pencerede OK'a basmaktır. Hızlı
+            Komutlar'ın altındaki <b>CANLI GRAFİK</b> satırına bak.</td></tr>
       </table>
 
       <h3>Sık karşılaşılanlar</h3>

@@ -79,7 +79,8 @@ class Vehicle:
 
 
 def boot(request, runs_root: Path, model: dict, frame: str,
-         extra_params: Optional[list[Path]] = None) -> Vehicle:
+         extra_params: Optional[list[Path]] = None,
+         mirror_port: int = 0) -> Vehicle:
     """Starts SITL for `model`, connects, and registers teardown.
 
     Teardown order matters and mirrors the UI's STOP: the link is closed, then
@@ -100,7 +101,8 @@ def boot(request, runs_root: Path, model: dict, frame: str,
         pytest.skip(str(exc))
 
     link = MavlinkLink(connection=sitl.connection, on_event=recorder.event,
-                       on_log=lambda text: recorder.console(text.encode()))
+                       on_log=lambda text: recorder.console(text.encode()),
+                       mirror_port=mirror_port)
     link.start(vehicle=model["vehicle"])
 
     vehicle = Vehicle(sitl, link, recorder, model)

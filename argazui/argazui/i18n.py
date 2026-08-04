@@ -53,6 +53,12 @@ CATALOG: dict[str, dict[str, str]] = {
                                 "BASLAT dene."},
     "mavlink_open_fail": {"en": "Could not open the MAVLink connection (port {port}): {err}",
                           "tr": "MAVLink baglantisi acilamadi (port {port}): {err}"},
+    "mirror_open":       {"en": "Live telemetry is being mirrored to udp {host}:{port} "
+                                "— point PlotJuggler's UDP Server at that port "
+                                "(protocol: JSON) to plot this flight as it happens.",
+                          "tr": "Canli telemetri udp {host}:{port} adresine "
+                                "aynalaniyor — PlotJuggler'da UDP Server'i bu porta "
+                                "yonlendir (protokol: JSON) ve ucusu aninda cizdir."},
     "no_link":           {"en": "no MAVLink connection (press START first)",
                           "tr": "MAVLink baglantisi yok (once BASLAT)"},
     "no_link_vehicle":   {"en": "no MAVLink connection to the vehicle",

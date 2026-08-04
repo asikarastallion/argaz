@@ -26,6 +26,10 @@ PROCEDURES_DIR = ARGAZUI_DIR / "procedures"
 DEFAULT_HTTP_PORT = 8770
 DEFAULT_MAVLINK_PORT = 14550
 DEFAULT_SCRIPT_MAVLINK_PORT = 14551
+# Where the live telemetry mirror sends, for a plotting tool to listen on.
+# Next in the same block as the two above so the port discipline stays one
+# story: 14550 interface, 14551 mission scripts, 14552 live plot. 0 disables it.
+DEFAULT_PLOTJUGGLER_PORT = 14552
 
 _CLI: dict[str, Any] = {}
 _TOML_PATH: Optional[Path] = None
@@ -99,6 +103,7 @@ def configure(**overrides: Any) -> None:
         "QUADPLANE_ENV_SH": configured_path("quadplane_env_script", "ARGAZ_QUADPLANE_ENV_SCRIPT", root / "quadplane_env.sh"),
         "UI_MAVLINK_PORT": int(_value("mavlink_port", "ARGAZ_MAVLINK_PORT", toml, DEFAULT_MAVLINK_PORT)),
         "SCRIPT_MAVLINK_PORT": int(_value("script_mavlink_port", "ARGAZ_SCRIPT_MAVLINK_PORT", toml, DEFAULT_SCRIPT_MAVLINK_PORT)),
+        "PLOTJUGGLER_PORT": int(_value("plotjuggler_port", "ARGAZ_PLOTJUGGLER_PORT", toml, DEFAULT_PLOTJUGGLER_PORT)),
         "HTTP_PORT": int(_value("port", "ARGAZ_PORT", toml, DEFAULT_HTTP_PORT)),
         "SCRIPTS_DIR": configured_path("scripts_root", "ARGAZ_SCRIPTS_ROOT", root / "scripts"),
         # Where finished flights are archived. Separate from RUN_DIR, which is
@@ -126,6 +131,7 @@ def source_summary() -> dict[str, str]:
         "port": str(HTTP_PORT),
         "mavlink_port": str(UI_MAVLINK_PORT),
         "script_mavlink_port": str(SCRIPT_MAVLINK_PORT),
+        "plotjuggler_port": str(PLOTJUGGLER_PORT),
     }
 
 

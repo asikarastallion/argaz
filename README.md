@@ -76,6 +76,10 @@ recorded, and which firmware it was.
 - Two real interactive bash terminals — one running the simulation with
   MAVProxy still interactive, one free for mission scripts and shell work.
 - A READY indicator driven by the autopilot's pre-arm health bit.
+- **Live telemetry to PlotJuggler** while the flight is happening: a running
+  session mirrors every MAVLink message it receives to a loopback UDP port as
+  JSON, which PlotJuggler's UDP Server plots as one series per field. The port
+  opens on START and closes on STOP; `plotjuggler_port` configures it.
 - Headless operation: with no display, Gazebo runs server-only and MAVProxy
   opens no windows, so the same launch path works over SSH and in a container.
 
@@ -166,9 +170,9 @@ Tier 1 can prove the first. Only tier 2 can prove the second.
 | Runs | every push and pull request | nightly, plus manual dispatch |
 | Vehicle | ArduPilot SITL's own generic frames | the real `SITL_Models` set in Gazebo |
 | Gazebo | no | yes, headless |
-| Verifies | procedure logic, capability probing, acceptance evaluation, the HTTP/WebSocket API, the page in a real browser, `start.sh`, the status generator | that a specific airframe takes off, changes mode in flight and lands |
+| Verifies | procedure logic, capability probing, acceptance evaluation, the HTTP/WebSocket API, the page in a real browser, the live telemetry mirror, `start.sh`, the status generator | that a specific airframe takes off, changes mode in flight and lands |
 | Claims about a model | **none** | this is the only tier that may claim one |
-| Size | 63 tests | 11 models |
+| Size | 74 tests | 11 models |
 
 ### Tier 1
 
@@ -233,8 +237,9 @@ triggered them and never change a procedure's verdict. A noisy airframe must
 not mark a working takeoff as broken, and a real acceptance failure must not
 hide among health warnings.
 
-The **Flight Runs** panel lists runs in the browser with the report, its plots,
-a `.BIN` download and a copyable `MAVExplorer.py` command. From the shell:
+The **Flight Runs** panel lists the five most recent runs in the browser — with
+the report, its plots, a `.BIN` download and a copyable `MAVExplorer.py`
+command — and opens the rest on demand. From the shell:
 
 ```bash
 python3 -m argazui runs                    # list recorded runs
@@ -440,10 +445,11 @@ documented limitation, not a general capability.
 Drop a `pymavlink` script into `scripts/` and it appears in the dropdown. The
 two MAVLink ports are separated deliberately:
 
-| Port | Belongs to |
-|---|---|
-| **14550** | the ArgazUI interface — status chips and the command buttons |
-| **14551** | **your mission scripts** |
+| Port | Belongs to | Direction |
+|---|---|---|
+| **14550** | the ArgazUI interface — status chips and the command buttons | ArgazUI listens |
+| **14551** | **your mission scripts** | your script listens |
+| **14552** | the live telemetry mirror | ArgazUI **sends**; PlotJuggler listens |
 
 Two listeners cannot share one UDP port, and a script that took 14550 would
 silently disconnect the interface. ArgazUI exports
@@ -471,7 +477,7 @@ interface. No path is hard-coded to a user directory.
 
 | File | Purpose |
 |---|---|
-| `argaz.toml` | `ardupilot_root`, `sitl_models_root`, `ardu_ws_root`, `env_script`, `runs_root`, ports; copy from `argaz.toml.example` on another machine |
+| `argaz.toml` | `ardupilot_root`, `sitl_models_root`, `ardu_ws_root`, `env_script`, `runs_root`, ports (`port`, `mavlink_port`, `script_mavlink_port`, `plotjuggler_port`); copy from `argaz.toml.example` on another machine |
 | `argazui/config/models.json` | Model registry — regenerate with `python3 -m argazui.scan_models --force`; entries marked `_manually_added` survive a rescan |
 | `argazui/config/buttons.json` | Quick command buttons per vehicle class, with optional Turkish labels |
 | `argazui/procedures/*.yaml` | Takeoff and landing procedures; the schema is documented in [`SCHEMA.md`](argazui/procedures/SCHEMA.md) |
@@ -550,7 +556,8 @@ These are listed so they are not mistaken for features:
 - failure injection (wind, GPS loss, motor failure through `SIM_*`)
 - regression comparison between runs
 - authentication, remote access, graphical mission planning, telemetry
-  dashboards (MAVProxy's map and console cover part of the last two)
+  dashboards (MAVProxy's map and console cover part of the last two; ArgazUI
+  mirrors live telemetry for PlotJuggler rather than plotting it itself)
 
 ### Known limitations
 

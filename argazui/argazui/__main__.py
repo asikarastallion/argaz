@@ -29,6 +29,8 @@ def main(argv=None) -> int:
     ap.add_argument("--port", type=int, help="HTTP port")
     ap.add_argument("--mavlink-port", type=int, help="ArgazUI MAVLink port")
     ap.add_argument("--script-mavlink-port", type=int, help="mission script MAVLink port")
+    ap.add_argument("--plotjuggler-port", type=int,
+                    help="live telemetry mirror port (0 disables it)")
     ap.add_argument("--reload", action="store_true", help="Auto-reload for development")
     ap.add_argument("--json", action="store_true", dest="as_json", help="machine-readable doctor output")
     ap.add_argument("--tier", choices=("full", "tier1"), default="full",
@@ -44,7 +46,8 @@ def main(argv=None) -> int:
     paths.configure(argaz_root=args.argaz_root, ardupilot_root=args.ardupilot_root,
                     sitl_models_root=args.sitl_models_root, ardu_ws_root=args.ardu_ws_root,
                     env_script=args.env_script, port=args.port,
-                    mavlink_port=args.mavlink_port, script_mavlink_port=args.script_mavlink_port)
+                    mavlink_port=args.mavlink_port, script_mavlink_port=args.script_mavlink_port,
+                    plotjuggler_port=args.plotjuggler_port)
 
     if args.command == "doctor":
         from .doctor import format_human, run
@@ -119,6 +122,9 @@ def main(argv=None) -> int:
     print(f"  Mission scripts : {paths.SCRIPTS_DIR}")
     print(f"  MAVLink         : {paths.UI_MAVLINK_PORT} (interface) / "
           f"{paths.SCRIPT_MAVLINK_PORT} (scripts)")
+    if paths.PLOTJUGGLER_PORT:
+        print(f"  Live plot       : udp {paths.PLOTJUGGLER_PORT} "
+              f"(PlotJuggler UDP Server, protocol JSON)")
     print("  Press Ctrl+C to stop")
     print("=" * 62)
     # When output is redirected to a file, block buffering would hide this

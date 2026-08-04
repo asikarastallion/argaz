@@ -1,5 +1,123 @@
 # Changelog
 
+## Unreleased (v1.2 in progress)
+
+### Live telemetry to PlotJuggler
+
+Until now the only numbers you could see *during* a flight were MAVProxy's
+console text; everything graphical came after it, from the dataflash report. A
+running session now mirrors its telemetry to a loopback UDP port that
+PlotJuggler plots in real time. The port opens when you press START and closes
+when you press STOP, so the stream belongs to a session rather than to the
+server.
+
+- **Config key `plotjuggler_port`** (`argaz.toml`, `ARGAZ_PLOTJUGGLER_PORT`,
+  `--plotjuggler-port`), default **14552** — next in the same block as 14550
+  and 14551. `0` switches the mirror off.
+- **A LIVE PLOT line under Quick Commands** with the address, a copy button for
+  the port, and a running count of the messages that have actually left it —
+  the count rather than an "open" badge, because one is a measurement and the
+  other is a claim.
+- Nothing is launched or bundled: ArgazUI opens the port, you connect
+  PlotJuggler to it.
+
+**It sends JSON, not MAVLink, and that was not the original plan.** The plan
+was a raw MAVLink mirror for "PlotJuggler's MAVLink plugin". That plugin does
+not exist. Checked against the installed build (3.17.2): PlotJuggler's live
+data sources are UDP Server, WebSocket, ZMQ, MQTT, serial, ROS 2 and the
+Foxglove bridge, and its parsers are JSON/CBOR/BSON/MessagePack, Protobuf, ROS
+1/2, DataTamer and InfluxDB line protocol. ArduPilot's own PlotJuggler plugin
+(`plotjuggler-apbin-plugins`) is a dataflash `.BIN` loader — offline, and a
+different problem. A raw mirror would have had no reader, so the mirror emits
+one JSON object per MAVLink message instead, which PlotJuggler flattens into
+`ATTITUDE/roll`, `VFR_HUD/alt` and so on. Raw MAVLink to a third consumer
+already exists and needed nothing new: another `sim_vehicle.py --out`.
+
+No second MAVLink implementation was added. The mirror decodes nothing — it is
+fed from `MavlinkLink._absorb`, the one place every received message already
+passes through, and only serialises objects pymavlink has already parsed. It
+also sits *after* that method's ground-station heartbeat filter, so MAVProxy's
+own HEARTBEAT cannot overwrite the aircraft's mode in the plot.
+
+Two field types are dropped on the way out. Text, because nothing plots a
+string and it is already in `mavlink_events.jsonl`. And `NaN`/infinity, which
+ArduPilot really does send in unpopulated fields: `json.dumps` writes them as
+bare literals that are not JSON, and PlotJuggler answers a message it cannot
+parse by *stopping the stream* — so one of them would have ended the live plot
+rather than spoiled one point. There is a test for exactly that.
+
+### Verified
+
+- Tier 1 (`tests/test_telemetry_mirror.py`): a real SITL quad, a listener bound
+  to the mirror port, and an assertion that a `HEARTBEAT` arrives as valid JSON
+  with its fields intact — plus that *every* datagram parses, and that the port
+  goes silent when the session stops. Encoder tests pin the NaN and text rules
+  without needing a vehicle.
+- Measured, on that session: 34 message types, roughly 250 series, about 130
+  datagrams (26 KB) per second of flight.
+- **Not verified by anything: that PlotJuggler draws the graph.** No test in
+  this project can see a rendered window. It is a new ✗ row in
+  [docs/manual-checklist.md](docs/manual-checklist.md).
+
+`argazui doctor` deliberately does **not** check this port. It checks that
+14550 and 14551 are free to *bind*; 14552 is supposed to be held — by
+PlotJuggler — so a bind check would report FAIL exactly when the feature works.
+
+`docs/status.md` is unchanged: this is an application-level capability and
+makes no claim about any vehicle model.
+
+### Closeout — three things manual testing found
+
+**The Address box, and a warning dialog that lies.** Connecting PlotJuggler
+produced *"Couldn't bind to IPv4 UDP server at (127.0.0.1:14552, 14552)"* —
+while the data was arriving perfectly. Pressing OK on it stopped the stream;
+ignoring it did not. Root-caused against the real snap build (3.17.2) and
+upstream's `plotjuggler_plugins/DataStreamUDP/udp_server.cpp`:
+
+```cpp
+QHostAddress address(address_str);      // "127.0.0.1:14552" -> a NULL address
+bool success = true;
+success &= !address.isNull();           // false already, from the text box
+success &= _udp_socket->bind(address, port);   // but this SUCCEEDS: null means "any"
+connect(_udp_socket, &QUdpSocket::readyRead, this, &UDP_Server::processMessage);
+if (!success) { QMessageBox::warning(...); shutdown(); }
+```
+
+The flag comes from the text someone typed, not from the socket. `readyRead`
+is connected before it is consulted and a modal `QMessageBox` runs a nested
+event loop, so telemetry keeps arriving while the dialog sits there; OK returns
+into `shutdown()`, which destroys a socket that was working. Confirmed at the
+Qt API level (`bind()` returns true for both `127.0.0.1:14552` and an empty
+box) and by `ss` showing the complaining process holding `0.0.0.0:14552`.
+
+Nothing ArgazUI sends is involved — the bind happens before the first datagram
+is read. It is still our bug: the LIVE PLOT strip displayed `127.0.0.1:14552`
+as one selectable token, and **USAGE.md told the user to leave Address blank,
+which produces the same null address and the same dialog.** Fixed by never
+presenting a `host:port` token again — Address and Port are two separately
+labelled, separately copyable values — and by documenting the exact field
+values in both languages, in the app and in USAGE.md, including what to do if
+you have already hit the dialog (close it with ✕; do not press OK). An e2e test
+asserts the combined form appears nowhere in the strip except inside that
+warning.
+
+**The Flight Runs panel is capped at 5.** With real usage history it rendered
+every run and became an endless scroll. It now shows the five most recent with
+a control that reveals the rest and collapses again. Display only: `/api/runs`
+still returns every run and nothing under `runs/` changed. `#run=<id>` deep
+links keep working — the list expands automatically when the target is below
+the fold, because a panel that hides data is fine and a link that silently does
+nothing is not.
+
+**Removed the v1.1 handover note from `docs/`.** It listed what was still
+missing when v1.1 closed — chiefly that `docs/status.md` and this file did not
+yet exist. Both do, and the roles it filled are covered by
+[docs/status.md](docs/status.md),
+[docs/manual-checklist.md](docs/manual-checklist.md) and this changelog. It is
+in the git history if anyone wants it.
+
+---
+
 ## v1.1.0 — 2026-08-03
 
 v1.0 was a control panel. v1.1 is a control panel that can prove its own

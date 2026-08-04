@@ -56,6 +56,31 @@
       hint_scripts: "Scripts must connect to the MAVLink output on port {script} " +
                     "(the interface uses {ui}, so they do not clash).",
       no_scripts: "— scripts/ folder is empty —",
+      live_plot: "LIVE PLOT",
+      live_field_address: "Address", live_field_port: "Port",
+      live_copy: "⧉", live_copy_host: "⧉",
+      live_copy_t: "copy the port", live_copy_host_t: "copy the address",
+      live_copied: "{what} copied to the clipboard",
+      live_copy_failed: "could not copy — the value is {what}",
+      live_idle: "opens when a vehicle starts",
+      live_open: "streaming · {n} messages",
+      live_waiting: "open, nothing sent yet",
+      live_error: "not sending: {error}",
+      live_hint: "PlotJuggler → Streaming → UDP Server → Start. Put {host} in " +
+                 "Address and {port} in Port — two separate boxes — and set " +
+                 "Message Protocol to JSON. One JSON object per MAVLink " +
+                 "message, so every field becomes its own series " +
+                 "(ATTITUDE/roll, VFR_HUD/alt …). The port is open only while " +
+                 "a vehicle runs.",
+      live_warn: "⚠ Type only {host} in PlotJuggler's Address box — not " +
+                 "\"{host}:{port}\", and not blank. Either of those parses as " +
+                 "no address, and PlotJuggler then shows \"Couldn't bind to " +
+                 "IPv4 UDP server\" even though it is receiving fine. Pressing " +
+                 "OK on that dialog is what stops the stream: close it with " +
+                 "the window ✕, or Stop and reconnect with a bare address.",
+      live_title: "ArgazUI sends live telemetry to this loopback UDP port; " +
+                  "PlotJuggler listens on it. Nothing has to be listening — " +
+                  "the datagrams simply go nowhere.",
       confirm_cmds: "These commands will be sent:",
       confirm_stop: "The running Gazebo / SITL / MAVProxy processes will be shut down.",
       ui_connected: "interface connected.",
@@ -82,6 +107,8 @@
                  "press STOP; the report is generated from the autopilot's own " +
                  "dataflash log a few seconds later.",
       runs_recording: "recording…",
+      runs_show_more: "⌄ show {hidden} older run(s) — {total} in total",
+      runs_show_less: "⌃ show only the {shown} most recent",
       runs_open: "report",
       runs_download: "↓ dataflash .BIN",
       runs_copy_mavexplorer: "⧉ copy MAVExplorer command",
@@ -224,6 +251,31 @@
       hint_scripts: "Scriptler {script} portundaki MAVLink çıkışına bağlanmalı " +
                     "(arayüz {ui} portunu kullanıyor, çakışmasın).",
       no_scripts: "— scripts/ klasörü boş —",
+      live_plot: "CANLI GRAFİK",
+      live_field_address: "Adres", live_field_port: "Port",
+      live_copy: "⧉", live_copy_host: "⧉",
+      live_copy_t: "portu kopyala", live_copy_host_t: "adresi kopyala",
+      live_copied: "{what} panoya kopyalandı",
+      live_copy_failed: "kopyalanamadı — değer: {what}",
+      live_idle: "araç başlayınca açılır",
+      live_open: "akıyor · {n} mesaj",
+      live_waiting: "açık, henüz veri gönderilmedi",
+      live_error: "gönderilemiyor: {error}",
+      live_hint: "PlotJuggler → Streaming → UDP Server → Start. Address " +
+                 "kutusuna {host}, Port kutusuna {port} yaz — ikisi ayrı " +
+                 "kutudur — ve Message Protocol'ü JSON yap. Her MAVLink mesajı " +
+                 "bir JSON nesnesi olarak gider, böylece her alan kendi serisi " +
+                 "olur (ATTITUDE/roll, VFR_HUD/alt …). Port yalnızca bir araç " +
+                 "çalışırken açıktır.",
+      live_warn: "⚠ PlotJuggler'ın Address kutusuna yalnızca {host} yaz — " +
+                 "\"{host}:{port}\" değil, boş da değil. İkisi de geçersiz " +
+                 "adres sayılır ve PlotJuggler veriyi sorunsuz aldığı halde " +
+                 "\"Couldn't bind to IPv4 UDP server\" uyarısını gösterir. " +
+                 "Akışı durduran şey o pencerede OK'a basmaktır: pencereyi ✕ " +
+                 "ile kapat ya da Stop deyip düz adresle yeniden bağlan.",
+      live_title: "ArgazUI canlı telemetriyi bu yerel UDP portuna gönderir; " +
+                  "PlotJuggler bu portu dinler. Dinleyen olmak zorunda değil " +
+                  "— paketler o durumda hiçbir yere gitmez.",
       confirm_cmds: "Şu komutlar gönderilecek:",
       confirm_stop: "Çalışan Gazebo / SITL / MAVProxy süreçleri kapatılacak.",
       ui_connected: "arayüz bağlandı.",
@@ -250,6 +302,8 @@
                  "arşivlenir; rapor birkaç saniye sonra otopilotun kendi dataflash " +
                  "logundan üretilir.",
       runs_recording: "kaydediliyor…",
+      runs_show_more: "⌄ {hidden} eski koşuyu daha göster — toplam {total}",
+      runs_show_less: "⌃ yalnızca son {shown} koşuyu göster",
       runs_open: "rapor",
       runs_download: "↓ dataflash .BIN",
       runs_copy_mavexplorer: "⧉ MAVExplorer komutunu kopyala",
@@ -788,7 +842,67 @@
     renderButtons(cls, !!active);
     $("script-hint").textContent =
       t("hint_scripts", { script: s.script_port, ui: s.ui_port });
+    renderLiveStream(s.plotjuggler);
   }
+
+  // ------------------------------------------------- live telemetry mirror
+  // Shows where to point PlotJuggler, and whether anything is actually going
+  // out of that port. The message count is the point: "the mirror is open" is
+  // a claim, "4127 messages have left it" is a measurement, and this project
+  // shows the second wherever it can.
+  let PLOT = null;
+
+  function renderLiveStream(info) {
+    const box = $("livestream");
+    if (!box) return;
+    PLOT = info || null;
+    // Absent on a server too old to report it, and off when the configured
+    // port is 0. Neither is an error; the strip simply is not there.
+    if (!info || !info.enabled) { box.hidden = true; return; }
+    box.hidden = false;
+    box.title = t("live_title");
+    // Never rendered as one "host:port" string: that is the token a user
+    // pastes into PlotJuggler's Address box, and a host:port there parses as
+    // no address at all — the bind "fails", the warning dialog appears, and
+    // pressing OK on it tears down a socket that was receiving perfectly.
+    $("ls-addr").textContent = info.host;
+    $("ls-port").textContent = String(info.port);
+    $("btn-copy-host").title = t("live_copy_host_t");
+    $("btn-copy-plot").title = t("live_copy_t");
+    $("ls-hint").textContent = t("live_hint", { host: info.host, port: info.port });
+    $("ls-warn").textContent = t("live_warn", { host: info.host, port: info.port });
+
+    const state = $("ls-state");
+    if (info.error) {
+      state.textContent = t("live_error", { error: info.error });
+      state.className = "ls-state";
+    } else if (!info.running) {
+      state.textContent = t("live_idle");
+      state.className = "ls-state";
+    } else if (info.messages > 0) {
+      state.textContent = t("live_open", { n: info.messages });
+      state.className = "ls-state on";
+    } else {
+      state.textContent = t("live_waiting");
+      state.className = "ls-state";
+    }
+  }
+
+  // One button per field, each copying only its own value. A single button
+  // copying "host:port" is precisely the mistake this feature has to avoid.
+  async function copyPlotValue(what) {
+    try {
+      await navigator.clipboard.writeText(what);
+      $("ls-hint").textContent = t("live_copied", { what });
+    } catch (e) {
+      // Same reason as the MAVExplorer button: the clipboard needs a secure
+      // context, and ArgazUI is plain http on localhost.
+      $("ls-hint").textContent = t("live_copy_failed", { what });
+    }
+  }
+
+  $("btn-copy-host").onclick = () => PLOT && copyPlotValue(String(PLOT.host));
+  $("btn-copy-plot").onclick = () => PLOT && copyPlotValue(String(PLOT.port));
 
   // ----------------------------------------------------------------- models
   async function loadModels() {
@@ -1105,6 +1219,13 @@
   let RUNS = { runs: [], root: "", active: null };
   let openRun = null;
 
+  // How many runs the panel shows before you ask for the rest. A real
+  // installation accumulates dozens, and the panel was an endless scroll that
+  // pushed everything below it off the page. Display only: /api/runs still
+  // returns every run, newest first, and nothing under runs/ is touched.
+  const RUNS_COLLAPSED = 5;
+  let runsExpanded = false;
+
   // The acceptance verdict and the health advisories are two separate things
   // and are shown as two separate chips. A noisy airframe must not read as a
   // broken takeoff, and a genuine acceptance failure must not hide among
@@ -1134,12 +1255,23 @@
     $("runs-root").textContent = RUNS.root || "";
     $("runs-hint").textContent = t("runs_hint", { root: RUNS.root || "runs/" });
 
-    const rows = RUNS.runs || [];
-    if (!rows.length) {
+    const all = RUNS.runs || [];
+    const more = $("btn-runs-more");
+    if (!all.length) {
       const tr = document.createElement("tr");
       tr.innerHTML = `<td colspan="5" class="runs-empty">${esc(t("runs_none"))}</td>`;
       body.append(tr);
+      if (more) more.hidden = true;
       return;
+    }
+
+    const rows = runsExpanded ? all : all.slice(0, RUNS_COLLAPSED);
+    if (more) {
+      const hidden = all.length - RUNS_COLLAPSED;
+      more.hidden = hidden <= 0;
+      more.textContent = runsExpanded
+        ? t("runs_show_less", { shown: RUNS_COLLAPSED })
+        : t("runs_show_more", { hidden, total: all.length });
     }
 
     for (const run of rows) {
@@ -1209,7 +1341,27 @@
     }
   }
 
+  $("btn-runs-more").onclick = () => {
+    runsExpanded = !runsExpanded;
+    renderRuns();
+  };
+
+  // A collapsed list must never make a run unreachable. Anything that opens a
+  // run by id — the #run= deep link most of all — expands the list first if
+  // that run is below the fold, so the sheet and the table agree about what
+  // exists. Called before the fetch so the page is already right if the
+  // report itself is slow.
+  function revealRun(runId) {
+    const all = RUNS.runs || [];
+    const index = all.findIndex((r) => r.run_id === runId);
+    if (index >= RUNS_COLLAPSED && !runsExpanded) {
+      runsExpanded = true;
+      renderRuns();
+    }
+  }
+
   async function showRun(runId) {
+    revealRun(runId);
     openRun = null;
     $("run-title").textContent = runId;
     $("run-report").textContent = "";

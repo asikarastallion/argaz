@@ -213,12 +213,16 @@ To start a model from scratch, just delete its directory:
 
 ## 4. MAVLink ports
 
-| Port | Used by |
-|---|---|
-| **14550** | ArgazUI — quick command buttons and the status chips |
-| **14551** | **Your mission scripts** |
+| Port | Used by | Direction |
+|---|---|---|
+| **14550** | ArgazUI — quick command buttons and the status chips | ArgazUI listens |
+| **14551** | **Your mission scripts** | your script listens |
+| **14552** | Live telemetry mirror — see section 5d | ArgazUI **sends**, PlotJuggler listens |
 
-Two listeners cannot share one UDP port, which is why they are split.
+Two listeners cannot share one UDP port, which is why they are split. 14552 is
+the other way round: nothing in ArgazUI binds it, so whatever you point at it
+gets the stream. Set `plotjuggler_port` in `argaz.toml` to move it, or to `0`
+to switch the mirror off.
 
 ### Why buttons use MAVLink instead of writing to MAVProxy
 
@@ -364,6 +368,196 @@ python3 -m argazui report some/other.BIN   # analyse any dataflash log
 
 The last form works on a log from a real flight controller too — it does not
 need a run directory.
+
+---
+
+## 5d. Live telemetry in PlotJuggler
+
+The report in section 5c is what you read *after* a flight. This is how you
+watch one happen: while a vehicle is running, ArgazUI mirrors its telemetry to
+a loopback UDP port that [PlotJuggler](https://plotjuggler.io) can plot in real
+time. Nothing is bundled and nothing is launched for you — ArgazUI only opens
+the port.
+
+### Connecting
+
+1. Press **▶ START** and wait for the link. The **LIVE PLOT** line under Quick
+   Commands shows the address and port as two separate values, each with its
+   own **⧉** copy button, plus a running count of the messages that have left
+   the mirror.
+2. In PlotJuggler: **Streaming → UDP Server → Start**.
+3. In the dialog, three separate boxes:
+
+   | Box | Value |
+   |---|---|
+   | **Address** | `127.0.0.1` — **a bare host. Not `127.0.0.1:14552`, and not blank.** |
+   | **Port** | `14552` |
+   | **Message Protocol** | `JSON` |
+
+4. Drag any series from the left-hand tree onto a plot.
+
+### If you see "Couldn't bind to IPv4 UDP server"
+
+> ⚠ **Do not press OK on that dialog.** Close it with the window **✕**, or press
+> **Stop** and reconnect with `127.0.0.1` in the Address box.
+
+This is the one trap in the whole feature, and it is worth stating exactly
+because the symptom is the opposite of the cause. If **Address** contains
+anything that is not a bare IP — `127.0.0.1:14552`, or an empty box —
+PlotJuggler pops:
+
+```
+Couldn't bind to IPv4 UDP server at (127.0.0.1:14552, 14552)
+```
+
+**It is a false alarm.** The socket bound fine and is already receiving: the
+Timeseries List behind the dialog fills up and the values update while it sits
+there. Verified against PlotJuggler 3.17.2, and against its source
+(`plotjuggler_plugins/DataStreamUDP/udp_server.cpp`), the sequence is:
+
+```cpp
+QHostAddress address(address_str);      // "127.0.0.1:14552" -> a null address
+bool success = true;
+success &= !address.isNull();           // ...so success is already false here
+success &= _udp_socket->bind(address, port);   // but THIS succeeds: null means "any"
+connect(_udp_socket, &QUdpSocket::readyRead, this, &UDP_Server::processMessage);
+if (success) { /* "IPv4 UDP listening on ..." */ }
+else { QMessageBox::warning(... "Couldn't bind to IPv%4 UDP server ..."); shutdown(); }
+```
+
+`readyRead` is connected before `success` is ever consulted, and a modal
+`QMessageBox` runs a nested event loop — which is why the data keeps arriving
+while the dialog is open. **Pressing OK is what breaks it**: the message box
+returns, `shutdown()` runs, and the working socket is destroyed. The dialog is
+reporting the text you typed, not the state of the socket.
+
+Nothing on ArgazUI's side is involved — the bind and that flag both happen
+before the first datagram is read.
+
+The port is open only while a vehicle is running. It opens when you press START
+and closes when you press STOP, so a stale PlotJuggler session simply stops
+receiving rather than showing an old flight's numbers.
+
+### What arrives
+
+One JSON object per MAVLink message, exactly as the interface received it:
+
+```json
+{"t":1785836917.799614,"ATTITUDE":{"time_boot_ms":2494,"roll":0.000182,"pitch":0.000034,"yaw":0.0000005,"rollspeed":0.0000074,"pitchspeed":0.000083,"yawspeed":0.000025}}
+```
+
+PlotJuggler flattens that into one series per field, named after the message it
+came from — `ATTITUDE/roll`, `VFR_HUD/alt`, `SYS_STATUS/voltage_battery`,
+`VIBRATION/vibration_x`, and so on. A measured ArduCopter session produced 34
+message types and roughly 250 series, at about 130 datagrams (26 KB) per second
+of flight.
+
+`t` is the wall-clock time ArgazUI received the message, which is also what
+PlotJuggler uses for the X axis by default, so no options need setting. Vehicle
+timestamps (`time_boot_ms`, `time_usec`) are still there as ordinary fields.
+
+Two kinds of field are deliberately not sent: text (`STATUSTEXT.text`,
+`PARAM_VALUE.param_id` — nothing plots a string, and they are already in
+`mavlink_events.jsonl`), and `NaN`/infinity, which ArduPilot really does put in
+unpopulated fields. The second matters more than it looks: `NaN` is not valid
+JSON, and PlotJuggler answers a message it cannot parse by **stopping the
+stream**, so one of them would end the live plot rather than spoil one point.
+
+### Why JSON and not MAVLink
+
+Because PlotJuggler has no MAVLink plugin. Its live data sources are UDP
+Server, WebSocket, ZMQ, MQTT, serial and ROS 2, and its parsers are
+JSON/CBOR/BSON/MessagePack, Protobuf, ROS and InfluxDB line protocol.
+ArduPilot's own PlotJuggler plugin,
+[plotjuggler-apbin-plugins](https://github.com/ArduPilot/plotjuggler-apbin-plugins),
+loads **dataflash `.BIN` files** — offline, after the flight, and a different
+job from this one.
+
+If you want *raw* MAVLink somewhere else — QGroundControl, a second script —
+that already exists and does not need this feature: add another
+`--out 127.0.0.1:<port>` to the `sim_vehicle.py` line, which is exactly how
+14551 is made.
+
+### Türkçe: PlotJuggler ile canlı telemetri
+
+Bir araç çalışırken ArgazUI, telemetriyi yerel bir UDP portuna aynalar ve
+PlotJuggler bunu anlık olarak çizer. ArgazUI PlotJuggler'ı başlatmaz, sadece
+portu açar.
+
+**Bağlanmak için:**
+
+1. **▶ BAŞLAT**'a bas ve bağlantıyı bekle. Hızlı Komutlar'ın altındaki
+   **CANLI GRAFİK** satırı adresi ve portu ayrı ayrı, her biri kendi **⧉**
+   kopyalama düğmesiyle gösterir; yanında aynadan çıkan mesaj sayısı vardır.
+2. PlotJuggler'da: **Streaming → UDP Server → Start**.
+3. Açılan pencerede üç ayrı kutu var:
+
+   | Kutu | Değer |
+   |---|---|
+   | **Address** | `127.0.0.1` — **yalnızca host. `127.0.0.1:14552` değil, boş da değil.** |
+   | **Port** | `14552` |
+   | **Message Protocol** | `JSON` |
+
+4. Soldaki ağaçtan istediğin seriyi grafiğe sürükle.
+
+#### "Couldn't bind to IPv4 UDP server" uyarısını görürsen
+
+> ⚠ **O pencerede OK'a basma.** Pencereyi **✕** ile kapat ya da **Stop** deyip
+> Address kutusuna `127.0.0.1` yazarak yeniden bağlan.
+
+Bu özelliğin tek tuzağı bu ve belirti sebebin tam tersi göründüğü için açıkça
+yazıyoruz. **Address** kutusunda düz bir IP dışında bir şey varsa —
+`127.0.0.1:14552` ya da boş kutu — PlotJuggler şunu gösterir:
+
+```
+Couldn't bind to IPv4 UDP server at (127.0.0.1:14552, 14552)
+```
+
+**Bu yanlış alarmdır.** Soket aslında açıldı ve veri geliyor: pencere açık
+dururken arkadaki Timeseries List dolar ve değerler güncellenir. PlotJuggler
+3.17.2 üzerinde ve kaynağında
+(`plotjuggler_plugins/DataStreamUDP/udp_server.cpp`) doğrulandı: `readyRead`
+sinyali, `success` bayrağına bakılmadan ÖNCE bağlanıyor ve modal `QMessageBox`
+iç içe bir olay döngüsü çalıştırıyor — veri bu yüzden akmaya devam ediyor.
+**Akışı bozan şey OK'a basmaktır**: mesaj kutusu kapanınca `shutdown()`
+çalışıyor ve çalışan soket yok ediliyor. Uyarı, soketin durumunu değil, senin
+yazdığın metni bildiriyor.
+
+ArgazUI tarafında bir sorun yok — bind de o bayrak da ilk paket okunmadan önce
+oluyor.
+
+Port yalnızca bir araç çalışırken açıktır: BAŞLAT ile açılır, DURDUR ile
+kapanır. Böylece açık kalmış bir PlotJuggler oturumu eski bir uçuşun
+değerlerini göstermeye devam etmez, sadece veri almayı keser.
+
+**Ne gelir:** Her MAVLink mesajı bir JSON nesnesi olarak gider ve PlotJuggler
+bunu alan başına bir seriye açar — `ATTITUDE/roll`, `VFR_HUD/alt`,
+`SYS_STATUS/voltage_battery` gibi. Ölçülen bir ArduCopter oturumunda 34 mesaj
+tipi ve yaklaşık 250 seri, uçuş saniyesi başına yaklaşık 130 paket (26 KB)
+çıktı. `t` alanı ArgazUI'nin mesajı aldığı duvar saati zamanıdır ve
+PlotJuggler'ın varsayılan X eksenidir; ayar yapman gerekmez.
+
+Metin alanları (`STATUSTEXT.text` gibi) ve `NaN`/sonsuz değerler bilinçli
+olarak gönderilmez. İkincisi önemli: `NaN` geçerli JSON değildir ve PlotJuggler
+ayrıştıramadığı bir mesajda **akışı durdurur** — yani tek bir NaN, tek bir
+noktayı değil bütün canlı grafiği bitirirdi.
+
+**Neden MAVLink değil de JSON?** PlotJuggler'ın MAVLink eklentisi yok; canlı
+kaynakları UDP Server, WebSocket, ZMQ, MQTT, seri port ve ROS 2, ayrıştırıcıları
+ise JSON/CBOR/BSON/MessagePack, Protobuf, ROS ve InfluxDB satır protokolü.
+ArduPilot'un kendi PlotJuggler eklentisi dataflash `.BIN` dosyalarını okur —
+uçuştan sonra, çevrimdışı; bu ayrı bir iş. Ham MAVLink'i başka bir yere
+(QGroundControl, ikinci bir script) göndermek istersen bu özelliğe gerek yok:
+`sim_vehicle.py` satırına bir `--out 127.0.0.1:<port>` daha ekle — 14551 de
+tam olarak böyle üretiliyor.
+
+### Not covered by any test
+
+That PlotJuggler actually draws the graph. A tier-1 test starts a real SITL,
+binds the mirror port and asserts that a `HEARTBEAT` arrives as valid JSON and
+that the port closes with the session — but nothing automated in this project
+can look at a rendered window. That step is in
+[docs/manual-checklist.md](../docs/manual-checklist.md), marked ✗.
 
 ---
 

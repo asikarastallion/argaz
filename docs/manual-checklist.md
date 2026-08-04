@@ -83,6 +83,42 @@ test behind them.*
 *The 14551 fan-out is configured by the launch commands and never exercised by
 a test. This is the largest uncovered area in the project.*
 
+## 5b. The live plot
+
+| | step | expected |
+|---|---|---|
+| ✔ | press START, then check the LIVE PLOT line under Quick Commands | Address and Port are shown as two separate values and the message count climbs |
+| ✔ | press STOP | the mirror port closes and stops sending |
+| ✗ | connect PlotJuggler (**Streaming → UDP Server**; Address `127.0.0.1`, Port `14552`, protocol **JSON**) during a flight | series appear under `ATTITUDE/`, `VFR_HUD/`, `SYS_STATUS/` … and update live |
+| ✗ | drag `ATTITUDE/roll` onto a plot and fly a manoeuvre | the trace moves with the aircraft, in step with the terminal |
+| ✗ | leave PlotJuggler connected across a STOP → START | it resumes on the new session without being restarted |
+
+*The ✔ rows are covered from both ends: a tier-1 test binds the mirror port
+against a real SITL and asserts that a `HEARTBEAT` arrives as valid JSON and
+that the port goes quiet on STOP, and an e2e test reads the address off the
+page in a real browser while a vehicle flies. But **no test has ever seen a
+rendered plot.** PlotJuggler stops its stream on the first message it cannot
+parse, so a datagram this project never produced in testing would look, to a
+user, like the feature silently not working.*
+
+*Put only `127.0.0.1` in PlotJuggler's **Address** box. A `host:port` string
+there — or an empty box — parses as no address, and PlotJuggler then shows
+"Couldn't bind to IPv4 UDP server" for a socket that is receiving fine;
+pressing OK on that dialog is what kills the stream. See USAGE.md 5d for why.*
+
+## 5c. The Flight Runs panel with real history
+
+| | step | expected |
+|---|---|---|
+| ✔ | open the panel with more than five runs recorded | five rows, and a control saying how many more there are |
+| ✔ | click it, then click it again | the rest appear, then collapse back to five |
+| ✔ | open `#run=<id>` for a run below the fold | the report opens and the list expands to show it |
+| ✗ | scroll the panel on a laptop screen with ~50 runs recorded | the page stays usable and the panel does not dominate it |
+
+*The row cap is asserted in `tests/e2e/test_runs_panel.py` against seeded run
+directories. What no test judges is whether five is the right number on your
+screen.*
+
 ## 6. Stopping, and the evidence
 
 | | step | expected |

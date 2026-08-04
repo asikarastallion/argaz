@@ -122,7 +122,8 @@ class Manager:
         self.sim = TerminalSession(on_output=hub.writer(SIM))
         self.shell = TerminalSession(on_output=hub.writer(SHELL))
         self.mav = MavlinkLink(port=paths.UI_MAVLINK_PORT, on_log=hub.push_log,
-                               on_event=self._record_event)
+                               on_event=self._record_event,
+                               mirror_port=paths.PLOTJUGGLER_PORT)
         self.active_model: Optional[dict] = None
         self.lock = threading.Lock()
         # Prosedur motoru durumu. Yetenekler araçtan OKUNUR (models.json'dan
@@ -474,6 +475,10 @@ class Manager:
             "procedure_running": bool(self.proc_thread and self.proc_thread.is_alive()),
             "script_port": paths.SCRIPT_MAVLINK_PORT,
             "ui_port": paths.UI_MAVLINK_PORT,
+            # Where to point a plotting tool, and whether anything is actually
+            # going out of it. The message count is there so the panel can
+            # show the stream working rather than assert that it does.
+            "plotjuggler": self.mav.mirror.info(),
             "lang": get_language(),
         }
 

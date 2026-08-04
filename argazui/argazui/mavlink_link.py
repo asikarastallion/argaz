@@ -18,6 +18,11 @@ gider (sim_vehicle.py yolunda MAVProxy etkilesimlidir ve oradan komut alir).
 Port ayrimi:
   14550 -> ArgazUI (bu modul)
   14551 -> kullanicinin gorev scriptleri
+  14552 -> canli telemetri aynasi (bkz. telemetry_mirror.py)
+
+The mirror is fed from `_absorb`, which is the single place every received
+message already passes through. It decodes nothing of its own — see that
+module for why the live plot is JSON rather than MAVLink.
 """
 from __future__ import annotations
 
@@ -33,6 +38,7 @@ from typing import Callable, Optional
 from pymavlink import mavutil
 
 from .i18n import t
+from .telemetry_mirror import TelemetryMirror
 
 ARM_MAGIC = 21196  # ArduPilot "force" arm/disarm sihirli sayisi
 
@@ -316,7 +322,8 @@ class MavlinkLink:
 
     def __init__(self, port: int = 14550, on_log: Optional[Callable[[str], None]] = None,
                  connection: Optional[str] = None,
-                 on_event: Optional[Callable[[dict], None]] = None):
+                 on_event: Optional[Callable[[dict], None]] = None,
+                 mirror_port: int = 0):
         self.port = port
         # Varsayilan: MAVProxy'nin 14550'ye verdigi UDP cikisi (UI yolu).
         # Testler MAVProxy'siz kosarken SITL'in kendi TCP portuna baglanabilsin
@@ -356,6 +363,10 @@ class MavlinkLink:
         # the link because `_absorb` is the one place every message passes
         # through; scoped by the runner, which resets it before its first step.
         self.stability = StabilityWatch()
+        # Live telemetry out to a plotting tool. Owned here for the same reason
+        # as the stability watch: `_absorb` sees every message exactly once.
+        # Its lifetime is this link's — opened by start(), closed by stop().
+        self.mirror = TelemetryMirror(port=mirror_port, on_log=self.on_log)
 
     def emit(self, kind: str, **payload) -> None:
         """Bir olayi kosu kaydina bildirir; hicbir zaman cagirana hata dondurmez."""
@@ -404,6 +415,10 @@ class MavlinkLink:
         self.vehicle = vehicle
         if self._thread and self._thread.is_alive():
             return
+        # Before the worker exists, so no message can arrive with the mirror
+        # half-open. Failing to open one is never a reason not to fly.
+        if self.mirror.enabled and self.mirror.open():
+            self.on_log(t("mirror_open", host=self.mirror.host, port=self.mirror.port))
         self._stop.clear()
         self._thread = threading.Thread(target=self._run, name="mavlink-link", daemon=True)
         self._thread.start()
@@ -413,6 +428,9 @@ class MavlinkLink:
         if self._thread:
             self._thread.join(timeout=3)
         self._thread = None
+        # After the join, not before: the worker is the only thread that sends
+        # on the mirror, so closing it here cannot race a send in progress.
+        self.mirror.close()
         if self._conn:
             try:
                 self._conn.close()
@@ -575,6 +593,13 @@ class MavlinkLink:
                 self.on_log(f"[SITL] {text}")
                 self.emit("statustext", severity=int(getattr(msg, "severity", 6)),
                           text=text)
+
+        # Mirrored last, and from here rather than from the receive loop, so it
+        # sees exactly what the link itself accepted: the ground-station
+        # heartbeats filtered out at the top of this method have already
+        # returned, and a plot of "the vehicle" does not get MAVProxy's own
+        # HEARTBEAT overwriting the aircraft's mode with a GCS's zero.
+        self.mirror.send(msg)
 
     # ------------------------------------------------------------- vehicle clock
     # How long a measurement window must be before it is believed. Short

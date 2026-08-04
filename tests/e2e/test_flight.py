@@ -116,6 +116,50 @@ def test_flying_from_the_browser(browser_page, flight_server):
     assert_no_console_errors(page, "during the flight")
 
 
+def test_the_live_plot_line_says_where_to_listen_and_that_it_is_flowing(
+        browser_page, flight_server):
+    """The address a user pastes into PlotJuggler, from the page itself.
+
+    `tests/test_telemetry_mirror.py` proves the port carries telemetry. This
+    proves the interface tells someone where it is — the two halves of a
+    feature whose entire value is a number a person has to copy correctly.
+
+    It does not prove PlotJuggler draws anything; nothing here can see a
+    rendered window. That row stays ✗ in docs/manual-checklist.md.
+    """
+    page = open_page(browser_page, flight_server)
+    info = flight_server.api("/api/status")["plotjuggler"]
+    assert info["enabled"] and info["running"], info
+
+    assert not page.eval_on_selector("#livestream", "e => e.hidden"), (
+        "a vehicle is running but the LIVE PLOT line is hidden")
+
+    # Address and port are two separate, separately copyable values. This is
+    # not cosmetic: a combined "127.0.0.1:14552" token is what gets pasted into
+    # PlotJuggler's Address box, where a host:port string parses as no address
+    # at all — it then reports a bind failure for a socket that is receiving
+    # perfectly, and pressing OK on that dialog destroys it. The maintainer hit
+    # exactly this. See USAGE.md 5d.
+    assert page.inner_text("#ls-addr").strip() == info["host"]
+    assert page.inner_text("#ls-port").strip() == str(info["port"])
+    combined = f"{info['host']}:{info['port']}"
+    warning = page.inner_text("#ls-warn")
+    assert combined in warning, (
+        "the strip does not warn against pasting host:port into Address")
+    # Everywhere except inside that warning, the combined form must not appear.
+    assert combined not in page.inner_text("#livestream").replace(warning, ""), (
+        f"the LIVE PLOT strip presents {combined!r} as a value to copy again")
+
+    # The `on` class is set only once messages have actually left the mirror,
+    # so this waits for the stream rather than for the label. Independent of
+    # the interface language, unlike the text beside it.
+    page.wait_for_function("() => !!document.querySelector('#ls-state.on')",
+                           timeout=30000)
+    assert str(info["port"]) in page.inner_text("#ls-hint"), (
+        "the hint does not name the port it tells the user to type")
+    assert_no_console_errors(page, "with the live plot line shown")
+
+
 def test_the_run_appears_in_the_panel_after_stop(browser_page, flight_server):
     """STOP archives the session and the panel shows it."""
     page = open_page(browser_page, flight_server)
@@ -139,4 +183,12 @@ def test_the_run_appears_in_the_panel_after_stop(browser_page, flight_server):
 
     body = flight_server.api("/api/runs")
     assert any(r["model"].get("id") == E2E_MODEL["id"] for r in body["runs"]), body
+
+    # The live plot port belongs to the session, not to the server: STOP has
+    # to close it, or a PlotJuggler left connected would keep showing the last
+    # flight's numbers as though they were current.
+    assert not flight_server.api("/api/status")["plotjuggler"]["running"]
+    assert page.query_selector("#ls-state.on") is None, (
+        "the LIVE PLOT line still reports a running stream after STOP")
+
     assert_no_console_errors(page, "after stopping the vehicle")

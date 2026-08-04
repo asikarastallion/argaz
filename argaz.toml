@@ -1,5 +1,6 @@
-# Local ArgazUI configuration. Paths are relative to this file, never to a
-# particular user's home directory. See argaz.toml.example for descriptions.
+# Copy to argaz.toml and adjust paths for your machine. Relative paths are
+# resolved relative to this file, so this sample has no machine-specific paths.
+
 ardupilot_root = "ardupilot"
 sitl_models_root = "SITL_Models"
 ardu_ws_root = "ardu_ws"
@@ -14,3 +15,10 @@ quadplane_env_script = "quadplane_env.sh"
 port = 8770
 mavlink_port = 14550
 script_mavlink_port = 14551
+
+# Live telemetry mirror, for watching a flight as a graph while it happens.
+# ArgazUI SENDS one JSON object per MAVLink message to this UDP port while a
+# session is running; PlotJuggler listens on it (Streaming -> UDP Server,
+# protocol JSON). Nothing has to be listening — the datagrams simply go
+# nowhere. Set to 0 to switch the mirror off entirely.
+plotjuggler_port = 14552
