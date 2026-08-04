@@ -537,6 +537,13 @@ of the same Dockerfile fly the same autopilot. Definitions are under
 
 ## Scope
 
+### Implemented in v1.2
+
+Live telemetry streaming: a running session mirrors every MAVLink message it
+receives to a loopback UDP port as JSON, which PlotJuggler plots in real time
+alongside the post-flight report v1.1 already produced. The port opens on START
+and closes on STOP, and `plotjuggler_port` configures it.
+
 ### Implemented in v1.1
 
 Class-based takeoff and landing procedures with measurable acceptance criteria;

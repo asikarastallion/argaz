@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (v1.2 in progress)
+## v1.2.0 — 2026-08-04
 
 ### Live telemetry to PlotJuggler
 
