@@ -15,6 +15,12 @@ on:
     # docs/** is ignored so that `status.yml` committing a regenerated
     # docs/status.md cannot start another tier-1 run, which would regenerate
     # it again. Nothing under docs/ can change a test result.
+    #
+    # That commit also touches README.md's STATUS-SUMMARY block, which is NOT
+    # under docs/ and is deliberately not listed here: a human editing the
+    # README should still run the tests. The bot's commit carries [skip ci]
+    # instead, so the exemption is scoped to that one commit rather than to
+    # the file. See status.yml's "Commit it if it changed" step.
     paths-ignore: ['docs/**']
   pull_request:
     paths-ignore: ['docs/**']
