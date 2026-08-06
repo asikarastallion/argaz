@@ -1,0 +1,303 @@
+{
+  "artefacts": {
+    "capability_keys": [
+      "autopilot",
+      "quadplane",
+      "tailsitter",
+      "fw_takeoff_allowed",
+      "arm_vtol_only"
+    ],
+    "condition_keys": [
+      "armed",
+      "mode",
+      "mode_in",
+      "alt_above",
+      "alt_below",
+      "climb_rate_above",
+      "climb_rate_below",
+      "groundspeed_above",
+      "prearm_ok",
+      "param",
+      "attitude_stable"
+    ],
+    "procedure_roles": [
+      "takeoff",
+      "land"
+    ],
+    "result_schema": 2,
+    "run_id_pattern": "^\\d{8}T\\d{6}Z_.+",
+    "statuses": [
+      "passed",
+      "failed",
+      "error",
+      "no-procedure"
+    ],
+    "step_types": [
+      "set_param",
+      "get_param",
+      "set_mode",
+      "arm",
+      "disarm",
+      "rc_override",
+      "rc_release",
+      "send_command",
+      "upload_mission",
+      "wait_for",
+      "sleep"
+    ]
+  },
+  "launch_headless": {
+    "alti_transition_quad": [
+      "source <QUADPLANE_ENV>",
+      "gz sim -v4 -r -s alti_transition_runway.sdf &",
+      "sleep 6",
+      "mkdir -p <RUN_DIR>/alti_transition_quad",
+      "cd <RUN_DIR>/alti_transition_quad",
+      "sim_vehicle.py -v ArduPlane --model JSON --add-param-file=$SITL_MODELS/Gazebo/config/alti_transition_quad.param --out 127.0.0.1:<SCRIPT_PORT>"
+    ],
+    "bicopter": [
+      "source <QUADPLANE_ENV>",
+      "gz sim -v4 -r -s bicopter_runway.sdf &",
+      "sleep 6",
+      "mkdir -p <RUN_DIR>/bicopter",
+      "cd <RUN_DIR>/bicopter",
+      "sim_vehicle.py -v ArduCopter --model JSON --add-param-file=$SITL_MODELS/Gazebo/config/bicopter.param --out 127.0.0.1:<SCRIPT_PORT>"
+    ],
+    "hexapod_copter": [
+      "source <QUADPLANE_ENV>",
+      "gz sim -v4 -r -s hexapod_copter_runway.sdf &",
+      "sleep 6",
+      "mkdir -p <RUN_DIR>/hexapod_copter/scripts",
+      "cp -f <SITL_MODELS>/Gazebo/scripts/hexapod_copter.lua <RUN_DIR>/hexapod_copter/scripts/",
+      "cd <RUN_DIR>/hexapod_copter",
+      "sim_vehicle.py -v ArduCopter -f hexa --model JSON --add-param-file=$SITL_MODELS/Gazebo/config/hexapod_copter.param --out 127.0.0.1:<SCRIPT_PORT>"
+    ],
+    "iris": [
+      "source <ENV_SH>",
+      "ros2 launch ardupilot_gz_bringup iris_runway.launch.py console:=True map:=True rviz:=True"
+    ],
+    "mini_talon_vtail": [
+      "source <QUADPLANE_ENV>",
+      "gz sim -v4 -r -s vtail_runway.sdf &",
+      "sleep 6",
+      "mkdir -p <RUN_DIR>/mini_talon_vtail",
+      "cd <RUN_DIR>/mini_talon_vtail",
+      "sim_vehicle.py -v ArduPlane -f plane --model JSON --add-param-file=$SITL_MODELS/Gazebo/config/mini_talon_vtail.param --out 127.0.0.1:<SCRIPT_PORT>"
+    ],
+    "skycat_tvbs": [
+      "source <QUADPLANE_ENV>",
+      "gz sim -v4 -r -s skycat_runway.sdf &",
+      "sleep 6",
+      "mkdir -p <RUN_DIR>/skycat_tvbs",
+      "cd <RUN_DIR>/skycat_tvbs",
+      "sim_vehicle.py -v ArduPlane --model JSON --add-param-file=$SITL_MODELS/Gazebo/config/skycat_tvbs.param --out 127.0.0.1:<SCRIPT_PORT>"
+    ],
+    "skywalker_x8": [
+      "source <QUADPLANE_ENV>",
+      "gz sim -v4 -r -s skywalker_x8_runway.sdf &",
+      "sleep 6",
+      "mkdir -p <RUN_DIR>/skywalker_x8",
+      "cd <RUN_DIR>/skywalker_x8",
+      "sim_vehicle.py -v ArduPlane --model JSON --add-param-file=$SITL_MODELS/Gazebo/config/skywalker_x8.param --out 127.0.0.1:<SCRIPT_PORT>"
+    ],
+    "skywalker_x8_quad": [
+      "source <QUADPLANE_ENV>",
+      "gz sim -v4 -r -s skywalker_x8_quad_runway.sdf &",
+      "sleep 6",
+      "mkdir -p <RUN_DIR>/skywalker_x8_quad",
+      "cd <RUN_DIR>/skywalker_x8_quad",
+      "sim_vehicle.py -v ArduPlane --model JSON --add-param-file=$SITL_MODELS/Gazebo/config/skywalker_x8_quad.param --out 127.0.0.1:<SCRIPT_PORT>"
+    ],
+    "swan_k1_hwing": [
+      "source <QUADPLANE_ENV>",
+      "gz sim -v4 -r -s swan_k1_hwing_runway.sdf &",
+      "sleep 6",
+      "mkdir -p <RUN_DIR>/swan_k1_hwing",
+      "cd <RUN_DIR>/swan_k1_hwing",
+      "sim_vehicle.py -v ArduPlane --model JSON --add-param-file=$SITL_MODELS/Gazebo/config/swan_k1_hwing.param --add-param-file=<RUN_DIR>/swan_k1_hwing/argazui_overrides.parm --out 127.0.0.1:<SCRIPT_PORT>"
+    ],
+    "wsc_aircraft": [
+      "source <QUADPLANE_ENV>",
+      "gz sim -v4 -r -s wsc_aircraft_runway.sdf &",
+      "sleep 6",
+      "mkdir -p <RUN_DIR>/wsc_aircraft",
+      "cd <RUN_DIR>/wsc_aircraft",
+      "sim_vehicle.py -v ArduPlane --model JSON --add-param-file=$SITL_MODELS/Gazebo/config/wsc_aircraft.param --out 127.0.0.1:<SCRIPT_PORT>"
+    ],
+    "zephyr": [
+      "source <ENV_SH>",
+      "gz sim -v4 -r -s zephyr_runway.sdf &",
+      "sleep 6",
+      "mkdir -p <RUN_DIR>/zephyr",
+      "cd <RUN_DIR>/zephyr",
+      "sim_vehicle.py -v ArduPlane -f gazebo-zephyr --model JSON --out 127.0.0.1:<SCRIPT_PORT>"
+    ]
+  },
+  "launch_with_display": {
+    "alti_transition_quad": [
+      "source <QUADPLANE_ENV>",
+      "gz sim -v4 -r alti_transition_runway.sdf &",
+      "sleep 6",
+      "mkdir -p <RUN_DIR>/alti_transition_quad",
+      "cd <RUN_DIR>/alti_transition_quad",
+      "sim_vehicle.py -v ArduPlane --model JSON --add-param-file=$SITL_MODELS/Gazebo/config/alti_transition_quad.param --console --map --out 127.0.0.1:<SCRIPT_PORT>"
+    ],
+    "bicopter": [
+      "source <QUADPLANE_ENV>",
+      "gz sim -v4 -r bicopter_runway.sdf &",
+      "sleep 6",
+      "mkdir -p <RUN_DIR>/bicopter",
+      "cd <RUN_DIR>/bicopter",
+      "sim_vehicle.py -v ArduCopter --model JSON --add-param-file=$SITL_MODELS/Gazebo/config/bicopter.param --console --map --out 127.0.0.1:<SCRIPT_PORT>"
+    ],
+    "hexapod_copter": [
+      "source <QUADPLANE_ENV>",
+      "gz sim -v4 -r hexapod_copter_runway.sdf &",
+      "sleep 6",
+      "mkdir -p <RUN_DIR>/hexapod_copter/scripts",
+      "cp -f <SITL_MODELS>/Gazebo/scripts/hexapod_copter.lua <RUN_DIR>/hexapod_copter/scripts/",
+      "cd <RUN_DIR>/hexapod_copter",
+      "sim_vehicle.py -v ArduCopter -f hexa --model JSON --add-param-file=$SITL_MODELS/Gazebo/config/hexapod_copter.param --console --map --out 127.0.0.1:<SCRIPT_PORT>"
+    ],
+    "iris": [
+      "source <ENV_SH>",
+      "ros2 launch ardupilot_gz_bringup iris_runway.launch.py console:=True map:=True rviz:=True"
+    ],
+    "mini_talon_vtail": [
+      "source <QUADPLANE_ENV>",
+      "gz sim -v4 -r vtail_runway.sdf &",
+      "sleep 6",
+      "mkdir -p <RUN_DIR>/mini_talon_vtail",
+      "cd <RUN_DIR>/mini_talon_vtail",
+      "sim_vehicle.py -v ArduPlane -f plane --model JSON --add-param-file=$SITL_MODELS/Gazebo/config/mini_talon_vtail.param --console --map --out 127.0.0.1:<SCRIPT_PORT>"
+    ],
+    "skycat_tvbs": [
+      "source <QUADPLANE_ENV>",
+      "gz sim -v4 -r skycat_runway.sdf &",
+      "sleep 6",
+      "mkdir -p <RUN_DIR>/skycat_tvbs",
+      "cd <RUN_DIR>/skycat_tvbs",
+      "sim_vehicle.py -v ArduPlane --model JSON --add-param-file=$SITL_MODELS/Gazebo/config/skycat_tvbs.param --console --map --out 127.0.0.1:<SCRIPT_PORT>"
+    ],
+    "skywalker_x8": [
+      "source <QUADPLANE_ENV>",
+      "gz sim -v4 -r skywalker_x8_runway.sdf &",
+      "sleep 6",
+      "mkdir -p <RUN_DIR>/skywalker_x8",
+      "cd <RUN_DIR>/skywalker_x8",
+      "sim_vehicle.py -v ArduPlane --model JSON --add-param-file=$SITL_MODELS/Gazebo/config/skywalker_x8.param --console --map --out 127.0.0.1:<SCRIPT_PORT>"
+    ],
+    "skywalker_x8_quad": [
+      "source <QUADPLANE_ENV>",
+      "gz sim -v4 -r skywalker_x8_quad_runway.sdf &",
+      "sleep 6",
+      "mkdir -p <RUN_DIR>/skywalker_x8_quad",
+      "cd <RUN_DIR>/skywalker_x8_quad",
+      "sim_vehicle.py -v ArduPlane --model JSON --add-param-file=$SITL_MODELS/Gazebo/config/skywalker_x8_quad.param --console --map --out 127.0.0.1:<SCRIPT_PORT>"
+    ],
+    "swan_k1_hwing": [
+      "source <QUADPLANE_ENV>",
+      "gz sim -v4 -r swan_k1_hwing_runway.sdf &",
+      "sleep 6",
+      "mkdir -p <RUN_DIR>/swan_k1_hwing",
+      "cd <RUN_DIR>/swan_k1_hwing",
+      "sim_vehicle.py -v ArduPlane --model JSON --add-param-file=$SITL_MODELS/Gazebo/config/swan_k1_hwing.param --add-param-file=<RUN_DIR>/swan_k1_hwing/argazui_overrides.parm --console --map --out 127.0.0.1:<SCRIPT_PORT>"
+    ],
+    "wsc_aircraft": [
+      "source <QUADPLANE_ENV>",
+      "gz sim -v4 -r wsc_aircraft_runway.sdf &",
+      "sleep 6",
+      "mkdir -p <RUN_DIR>/wsc_aircraft",
+      "cd <RUN_DIR>/wsc_aircraft",
+      "sim_vehicle.py -v ArduPlane --model JSON --add-param-file=$SITL_MODELS/Gazebo/config/wsc_aircraft.param --console --map --out 127.0.0.1:<SCRIPT_PORT>"
+    ],
+    "zephyr": [
+      "source <ENV_SH>",
+      "gz sim -v4 -r zephyr_runway.sdf &",
+      "sleep 6",
+      "mkdir -p <RUN_DIR>/zephyr",
+      "cd <RUN_DIR>/zephyr",
+      "sim_vehicle.py -v ArduPlane -f gazebo-zephyr --model JSON --console --map --out 127.0.0.1:<SCRIPT_PORT>"
+    ]
+  },
+  "procedures": {
+    "copter": {
+      "candidates": {
+        "land": [
+          "copter_land"
+        ],
+        "takeoff": [
+          "copter_takeoff"
+        ]
+      },
+      "land": "copter_land",
+      "takeoff": "copter_takeoff"
+    },
+    "plane": {
+      "candidates": {
+        "land": [
+          "plane_land",
+          "plane_land_rtl"
+        ],
+        "takeoff": [
+          "plane_takeoff",
+          "plane_takeoff_auto"
+        ]
+      },
+      "land": "plane_land",
+      "takeoff": "plane_takeoff"
+    },
+    "quadplane": {
+      "candidates": {
+        "land": [
+          "vtol_land"
+        ],
+        "takeoff": [
+          "vtol_takeoff",
+          "vtol_takeoff_mission"
+        ]
+      },
+      "land": "vtol_land",
+      "takeoff": "vtol_takeoff"
+    },
+    "quadplane_fw_takeoff": {
+      "candidates": {
+        "land": [
+          "vtol_land"
+        ],
+        "takeoff": [
+          "vtol_takeoff",
+          "vtol_takeoff_mission"
+        ]
+      },
+      "land": "vtol_land",
+      "takeoff": "vtol_takeoff"
+    },
+    "tailsitter": {
+      "candidates": {
+        "land": [
+          "tailsitter_land"
+        ],
+        "takeoff": [
+          "tailsitter_takeoff",
+          "vtol_takeoff_mission"
+        ]
+      },
+      "land": "tailsitter_land",
+      "takeoff": "tailsitter_takeoff"
+    },
+    "tailsitter_armvtol": {
+      "candidates": {
+        "land": [
+          "tailsitter_land"
+        ],
+        "takeoff": [
+          "tailsitter_takeoff",
+          "vtol_takeoff_mission"
+        ]
+      },
+      "land": "tailsitter_land",
+      "takeoff": "tailsitter_takeoff"
+    }
+  }
+}

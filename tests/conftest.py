@@ -40,6 +40,19 @@ import pytest
 from support import SUITE_REPORT, TEST_RUNS_ROOT      # noqa: F401
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """Options the suite understands.
+
+    `--regenerate-golden` rewrites the characterisation record in
+    tests/golden/. It lives here because pytest reads pytest_addoption from
+    conftest files and plugins only — declaring it in the test module that
+    uses it silently does nothing.
+    """
+    parser.addoption(
+        "--regenerate-golden", action="store_true", default=False,
+        help="rewrite tests/golden/single_vehicle.json from current behaviour")
+
+
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers", "tier1: real SITL, no Gazebo — verifies procedure logic only")
@@ -48,6 +61,20 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers", "container_only: can only be exercised inside the tier image; "
                    "skipped elsewhere and reported as unverified, never as passed")
+    # WHY THE FLEET TIERS DO NOT REUSE tier1/tier2
+    # --------------------------------------------
+    # `status.py` builds the model table from tests carrying the `tier2`
+    # marker, taking the model id out of the test's parametrise id. A fleet
+    # test marked tier2 would be read as a claim about a model — and the
+    # Gazebo-free fleet tier touches no model at all. Separate markers keep
+    # "this fleet flew" and "this model works" from ever being the same
+    # sentence, which is the same separation tier1/tier2 already enforce.
+    config.addinivalue_line(
+        "markers", "fleet_sitl: N real SITLs without Gazebo — verifies fleet "
+                   "logic (ports, supervisor, teardown) and never a model")
+    config.addinivalue_line(
+        "markers", "fleet_gazebo: N real SITLs in a real world — the only "
+                   "fleet tier that may verify a model")
 
 
 # --------------------------------------------------------------- suite record
@@ -74,8 +101,13 @@ def pytest_runtest_logreport(report: pytest.TestReport) -> None:
         "nodeid": report.nodeid, "outcome": "passed", "reason": "",
         "duration": 0.0, "markers": []})
     entry["duration"] += report.duration
+    # Every marker the status generator knows about. A marker missing here is
+    # recorded as no marker at all, so the test disappears from every summary
+    # — which is how the fleet tiers first rendered as "no suite record" after
+    # they had actually run.
     entry["markers"] = sorted(
-        name for name in ("tier1", "tier2", "e2e", "container_only")
+        name for name in ("tier1", "tier2", "fleet_sitl", "fleet_gazebo",
+                          "e2e", "container_only")
         if name in report.keywords)
 
     if report.failed:
