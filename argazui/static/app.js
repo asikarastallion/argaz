@@ -49,6 +49,7 @@
       cls: "class", method: "method", env: "env",
       rviz_yes: "RViz/DDS: yes", rviz_no: "RViz/DDS: no",
       ctx_none: "(no model selected)", ctx_idle: " — vehicle not running",
+      hint_mode_settling: "waiting for the mode to settle — a command sent now would be silently overwritten by the flight-mode switch",
       hint_pick: "Pick a model. The buttons change with the vehicle class " +
                  "(Copter/Plane/VTOL).",
       hint_buttons: "Buttons are sent over MAVLink (port 14550). Results appear in " +
@@ -244,6 +245,7 @@
       cls: "sınıf", method: "yöntem", env: "env",
       rviz_yes: "RViz/DDS: var", rviz_no: "RViz/DDS: yok",
       ctx_none: "(model seçilmedi)", ctx_idle: " — araç çalışmıyor",
+      hint_mode_settling: "mod oturana kadar bekleniyor — şimdi gönderilen komut uçuş modu anahtarı tarafından sessizce ezilir",
       hint_pick: "Bir model seç. Butonlar aracın sınıfına (Copter/Plane/VTOL) göre " +
                  "değişir.",
       hint_buttons: "Butonlar MAVLink üzerinden gönderilir (port 14550). Sonuçlar " +
@@ -545,6 +547,10 @@
         } else if (msg.type === "status") {
           statusSeen = true;
           applyStatus(msg.status);
+        } else if (msg.type === "fleet") {
+          // The Fleet page's state. Defined later in this file, so the guard
+          // is needed for the moment before it is installed.
+          if (window.__applyFleet) window.__applyFleet(msg.fleet);
         } else if (msg.type === "procedure") {
           applyProcedureEvent(msg);
         }
@@ -839,7 +845,21 @@
     $("btn-stop").disabled = !active;
 
     const cls = s.vehicle_class || (selected && selected.vehicle_class);
-    renderButtons(cls, !!active);
+    // THE MODE-SETTLE GATE.
+    //
+    // A vehicle is not ready for a command merely because its link is up.
+    // ArduPlane reads its flight-mode switch shortly after RC input becomes
+    // valid and overwrites any mode set in that window — with no NAK and no
+    // STATUSTEXT, so the command silently does nothing. Measured three times
+    // in seven full-suite runs; see docs/e2e-flight-flake.md.
+    //
+    // So the buttons wait for the mode to have stopped moving on its own.
+    // `mode_settled` is computed on the VEHICLE's clock, per docs/thresholds.md.
+    const settled = !active || v.mode_settled !== false;
+    renderButtons(cls, !!active && settled);
+    if (active && !settled) {
+      $("cmd-hint").textContent = t("hint_mode_settling");
+    }
     $("script-hint").textContent =
       t("hint_scripts", { script: s.script_port, ui: s.ui_port });
     renderLiveStream(s.plotjuggler);
@@ -1574,4 +1594,417 @@
     }
     setTimeout(() => { TABS[activeTab].fit.fit(); sendResize(activeTab); }, 200);
   })();
+})();
+
+/* ==========================================================================
+   FLEET PAGE  (v1.3)
+
+   THREE DISPLAY RULES, EACH OF WHICH IS A CORRECTNESS REQUIREMENT
+   ---------------------------------------------------------------
+   1. REVERTED is visually distinct from ACCEPTED. It is the outcome the whole
+      project exists to surface — the autopilot said yes and the vehicle did
+      not stay — and rendering it as a green tick would put back exactly the
+      untruth v1.1 removed.
+   2. A not-measured criterion never renders as a pass. Blank, zero and a grey
+      dash that reads as "fine" are the same failure. The panel says what was
+      not measured and why, in the words the report uses.
+   3. The target of a command is never ambiguous. The button says how many
+      vehicles it will reach BEFORE it is pressed.
+
+   The single-vehicle page above is untouched.
+   ========================================================================== */
+(function () {
+  const $ = (id) => document.getElementById(id);
+  let fleetState = null;
+  let selected = new Set();
+  let targetMode = "all";
+
+  /* ------------------------------------------------------------ page tabs */
+  document.querySelectorAll(".pagetab").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".pagetab").forEach((b) =>
+        b.classList.toggle("active", b === btn));
+      const want = btn.dataset.page;
+      $("page-single").hidden = want !== "single";
+      $("page-fleet").hidden = want !== "fleet";
+    });
+  });
+
+  /* -------------------------------------------------------- fleet picker */
+  async function loadFleets() {
+    let data;
+    try {
+      data = await (await fetch("/api/fleets")).json();
+    } catch (e) {
+      $("err-fleet").hidden = false;
+      $("err-fleet").textContent = "could not list fleets: " + e;
+      return;
+    }
+    $("fleet-dir").textContent = data.directory || "";
+    const sel = $("fleet-select");
+    sel.innerHTML = "";
+    (data.fleets || []).forEach((f) => {
+      const opt = document.createElement("option");
+      opt.value = f.name;
+      opt.textContent = f.name + (f.ok ? "" : "  — invalid");
+      opt.dataset.ok = f.ok ? "1" : "0";
+      sel.appendChild(opt);
+    });
+    sel._fleets = data.fleets || [];
+    renderBadge();
+  }
+
+  function currentFleet() {
+    const sel = $("fleet-select");
+    return (sel._fleets || []).find((f) => f.name === sel.value) || null;
+  }
+
+  /* A fleet that does not validate says WHY, and cannot be started. */
+  function renderBadge() {
+    const f = currentFleet();
+    const box = $("fleet-badge");
+    box.innerHTML = "";
+    if (!f) { $("btn-fleet-start").disabled = true; return; }
+
+    const badge = document.createElement("span");
+    badge.className = "badge " + (f.ok ? "ok" : "bad");
+    badge.id = "fleet-validation";
+    badge.textContent = f.ok ? "VALID" : "INVALID";
+    box.appendChild(badge);
+
+    const meta = document.createElement("span");
+    meta.className = "badge-meta";
+    meta.textContent = `${f.vehicles} vehicles · ${f.gazebo ? "Gazebo" : "SITL only"}`;
+    box.appendChild(meta);
+
+    (f.errors || []).forEach((e) => {
+      const p = document.createElement("p");
+      p.className = "badge-reason error";
+      p.textContent = e;
+      box.appendChild(p);
+    });
+    (f.warnings || []).forEach((w) => {
+      const p = document.createElement("p");
+      p.className = "badge-reason warn";
+      p.textContent = w;
+      box.appendChild(p);
+    });
+    $("btn-fleet-start").disabled = !f.ok;
+  }
+
+  $("fleet-select").addEventListener("change", renderBadge);
+  $("btn-fleet-refresh").addEventListener("click", loadFleets);
+
+  $("btn-fleet-start").addEventListener("click", async () => {
+    const f = currentFleet();
+    if (!f) return;
+    $("btn-fleet-start").disabled = true;
+    await fetch("/api/fleet/start", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: f.name }),
+    });
+  });
+
+  $("btn-fleet-stop").addEventListener("click", async () => {
+    await fetch("/api/fleet/stop", { method: "POST" });
+  });
+
+  /* ------------------------------------------------------- target bar (3) */
+  document.querySelectorAll(".tgt").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      targetMode = btn.dataset.target;
+      document.querySelectorAll(".tgt").forEach((b) =>
+        b.classList.toggle("active", b === btn));
+      renderTarget();
+    });
+  });
+
+  function targetIds() {
+    if (!fleetState || !fleetState.vehicles.length) return [];
+    if (targetMode === "all") return fleetState.vehicles.map((v) => v.id);
+    return fleetState.vehicles.map((v) => v.id).filter((id) => selected.has(id));
+  }
+
+  /* RULE 3: the count is on the buttons themselves, before they are pressed. */
+  function renderTarget() {
+    const ids = targetIds();
+    const total = fleetState ? fleetState.vehicles.length : 0;
+    const label = !fleetState || !total
+      ? "no fleet"
+      : (ids.length === 0
+          ? `0 of ${total} vehicles — nothing will be commanded`
+          : `${ids.length} of ${total} vehicles: ${ids.join(", ")}`);
+    $("target-count").textContent = label;
+    $("target-count").dataset.count = String(ids.length);
+
+    document.querySelectorAll(".fleetcmd").forEach((btn) => {
+      const base = btn.dataset.cmd;
+      btn.textContent = ids.length ? `${base} → ${ids.length}` : `${base} → none`;
+      btn.disabled = !fleetState || !fleetState.running || ids.length === 0;
+      btn.title = ids.length ? `will command: ${ids.join(", ")}`
+                             : "no vehicles targeted";
+    });
+  }
+
+  document.querySelectorAll(".fleetcmd").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const ids = targetIds();
+      if (!ids.length) return;
+      $("fleet-cmd-hint").textContent =
+        `sending ${btn.dataset.cmd} to ${ids.length}: ${ids.join(", ")}…`;
+      const res = await (await fetch("/api/fleet/command", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          command: btn.dataset.cmd, target: ids,
+          policy: $("fleet-policy").value || null,
+        }),
+      })).json();
+      if (!res.ok) $("fleet-cmd-hint").textContent = res.text || "command failed";
+      else renderAck(res.result);
+    });
+  });
+
+  /* -------------------------------------------------------- vehicle grid */
+  function renderGrid() {
+    const grid = $("fleet-grid");
+    if (!fleetState || !fleetState.vehicles.length) {
+      grid.innerHTML = "";
+      $("fleet-grid-hint").hidden = false;
+      $("fleet-grid-hint").textContent = fleetState && fleetState.starting
+        ? "fleet starting…" : (fleetState && fleetState.error
+          ? "fleet failed to start: " + fleetState.error : "No fleet running.");
+      return;
+    }
+    $("fleet-grid-hint").hidden = true;
+    grid.innerHTML = "";
+    fleetState.vehicles.forEach((v) => {
+      const card = document.createElement("div");
+      card.className = "vcard" + (v.link_stale ? " stale" : "");
+      card.dataset.vehicle = v.id;
+
+      const head = document.createElement("div");
+      head.className = "vcard-head";
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.className = "vsel";
+      box.dataset.vehicle = v.id;
+      box.checked = selected.has(v.id);
+      box.addEventListener("change", () => {
+        if (box.checked) selected.add(v.id); else selected.delete(v.id);
+        renderTarget();
+      });
+      head.appendChild(box);
+      const title = document.createElement("b");
+      title.textContent = `${v.id}  ·  sysid ${v.sysid}`;
+      head.appendChild(title);
+      card.appendChild(head);
+
+      const rows = [
+        ["model", v.model],
+        ["mode", v.mode || "—"],
+        ["armed", v.armed ? "ARMED" : "disarmed"],
+        ["alt", v.alt === null || v.alt === undefined ? "—" : v.alt.toFixed(1) + " m"],
+        ["pre-arm", !v.prearm_known ? "unknown" : (v.prearm_ok ? "ready" : "not ready")],
+        ["link", v.heartbeat_age === null || v.heartbeat_age === undefined
+          ? "no heartbeat yet" : v.heartbeat_age.toFixed(1) + " s ago"],
+      ];
+      rows.forEach(([k, val]) => {
+        const line = document.createElement("div");
+        line.className = "vrow";
+        line.innerHTML = `<span>${k}</span><b class="v-${k.replace(/[^a-z]/g, "")}">${val}</b>`;
+        card.appendChild(line);
+      });
+
+      const attach = document.createElement("button");
+      attach.className = "btn link vattach";
+      attach.textContent = fleetState.console_vehicle === v.id
+        ? "detach console" : "attach console";
+      attach.addEventListener("click", async () => {
+        await fetch("/api/fleet/attach", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            vehicle: fleetState.console_vehicle === v.id ? "" : v.id }),
+        });
+      });
+      card.appendChild(attach);
+      grid.appendChild(card);
+    });
+  }
+
+  /* ------------------------------------------------- ACK matrix — RULE 1 */
+  const OUTCOME_CLASS = {
+    ACCEPTED: "ok",
+    REVERTED: "reverted",   // distinct from ok AND from bad, deliberately
+    DENIED: "bad",
+    TIMEOUT: "warn",
+    NO_LINK: "warn",
+  };
+
+  function renderAck(result) {
+    const box = $("ack-matrix");
+    box.innerHTML = "";
+    if (!result) {
+      box.innerHTML = '<p class="hint">No group command sent yet.</p>';
+      $("ack-title").textContent = "";
+      return;
+    }
+    $("ack-title").textContent =
+      `${result.command} · ${result.policy} · ${result.verdict}`;
+
+    const verdict = document.createElement("div");
+    verdict.id = "ack-verdict";
+    verdict.className = "verdict " + (result.verdict === "PASSED" ? "ok"
+      : result.verdict === "PARTIAL" ? "warn" : "bad");
+    verdict.textContent = result.verdict;
+    box.appendChild(verdict);
+
+    const table = document.createElement("table");
+    table.className = "tbl ack";
+    table.innerHTML =
+      "<tr><th>vehicle</th><th>outcome</th><th>ack</th><th>t</th><th>detail</th></tr>";
+    (result.results || []).forEach((r) => {
+      const tr = document.createElement("tr");
+      tr.dataset.vehicle = r.vehicle;
+      tr.dataset.outcome = r.outcome;
+      const cls = OUTCOME_CLASS[r.outcome] || "warn";
+      // RULE 1: the outcome cell carries its own class AND its own words. A
+      // REVERTED row is never green and never says only "ACCEPTED".
+      tr.innerHTML =
+        `<td>${r.vehicle}</td>` +
+        `<td class="outcome ${cls}"><span class="dot"></span>${r.outcome}</td>` +
+        `<td>${r.ack || "—"}</td>` +
+        `<td>${r.t_ms} ms</td>` +
+        `<td>${(r.reason || r.observed || "—").slice(0, 160)}</td>`;
+      table.appendChild(tr);
+    });
+    box.appendChild(table);
+  }
+
+  /* --------------------------------- measured-or-absent panels — RULE 2 */
+  function renderMeasure(el, title, body) {
+    el.innerHTML = "";
+    el.appendChild(body);
+  }
+
+  /* A panel that was not measured says so in words. It never shows a number,
+     a zero, or a dash that could be read as "fine". */
+  function notMeasured(reason) {
+    const wrap = document.createElement("div");
+    wrap.className = "not-measured";
+    const tag = document.createElement("span");
+    tag.className = "badge notmeasured";
+    tag.textContent = "NOT MEASURED";
+    wrap.appendChild(tag);
+    const why = document.createElement("p");
+    why.className = "not-measured-reason";
+    why.textContent = reason || "no reason was given, which is itself a defect";
+    wrap.appendChild(why);
+    return wrap;
+  }
+
+  function renderSeparation() {
+    const el = $("sep-panel");
+    const s = fleetState && fleetState.separation;
+    if (!s || !s.measured) {
+      el.dataset.measured = "false";
+      renderMeasure(el, "separation", notMeasured(s ? s.reason : "no fleet is running"));
+      return;
+    }
+    el.dataset.measured = "true";
+    const wrap = document.createElement("div");
+    const min = s.minimum_m === null ? "—" : s.minimum_m.toFixed(2);
+    const cur = s.current_m === null ? "—" : s.current_m.toFixed(2);
+    const bad = s.violations > 0;
+    wrap.innerHTML =
+      `<div class="gauge ${bad ? "bad" : "ok"}" id="sep-current">${cur} m</div>` +
+      `<p class="hint">minimum this run <b id="sep-min">${min} m</b> against a ` +
+      `limit of ${s.limit_m} m — ${s.violations} violation(s)</p>`;
+    const spark = document.createElement("div");
+    spark.className = "spark";
+    spark.id = "sep-spark";
+    (s.series || []).forEach(([, d]) => {
+      const bar = document.createElement("i");
+      const h = Math.max(2, Math.min(40, (d / (s.limit_m * 3)) * 40));
+      bar.style.height = h + "px";
+      if (d < s.limit_m) bar.className = "bad";
+      spark.appendChild(bar);
+    });
+    wrap.appendChild(spark);
+    renderMeasure(el, "separation", wrap);
+  }
+
+  function renderRtf() {
+    const el = $("rtf-panel");
+    const r = fleetState && fleetState.rtf;
+    if (!r || !r.measured) {
+      el.dataset.measured = "false";
+      renderMeasure(el, "rtf", notMeasured(r ? r.reason : "no fleet is running"));
+      return;
+    }
+    el.dataset.measured = "true";
+    const wrap = document.createElement("div");
+    const below = r.rtf !== null && r.floor !== undefined && r.rtf < r.floor;
+    wrap.innerHTML =
+      `<div class="gauge ${below ? "bad" : "ok"}" id="rtf-current">` +
+      `${r.rtf === null ? "—" : r.rtf.toFixed(2)}x</div>` +
+      `<p class="hint">floor ${r.floor} — judged over seconds spent below it, ` +
+      `not on the worst single sample</p>`;
+    renderMeasure(el, "rtf", wrap);
+  }
+
+  /* ------------------------------------------------------------- transcript */
+  function renderTranscript() {
+    const el = $("term-launch");
+    if (!el) return;
+    const lines = (fleetState && fleetState.launch_transcript) || [];
+    el.textContent = lines.length ? lines.join("\n")
+      : "# the exact commands each vehicle was started with appear here";
+  }
+
+  /* ------------------------------------------------------------- apply state */
+  function applyFleet(state) {
+    fleetState = state;
+    $("fleet-run-id").textContent = state.run_id || "";
+    const pol = $("fleet-policy");
+    if (pol.options.length !== (state.policies || []).length) {
+      pol.innerHTML = "";
+      (state.policies || []).forEach((p) => {
+        const o = document.createElement("option");
+        o.value = p; o.textContent = p;
+        if (p === state.default_policy) o.selected = true;
+        pol.appendChild(o);
+      });
+    }
+    const known = new Set(state.vehicles.map((v) => v.id));
+    [...selected].forEach((id) => { if (!known.has(id)) selected.delete(id); });
+
+    renderGrid();
+    renderTarget();
+    renderAck(state.last_command);
+    renderSeparation();
+    renderRtf();
+    renderTranscript();
+    $("err-fleet").hidden = !state.error;
+    if (state.error) $("err-fleet").textContent = state.error;
+  }
+
+  window.__applyFleet = applyFleet;   // used by the websocket handler and tests
+
+  /* the third terminal tab is a transcript, not an xterm */
+  document.querySelectorAll(".tab[data-stream]").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const want = tab.dataset.stream;
+      const launch = $("term-launch");
+      if (launch) launch.hidden = want !== "launch";
+      if (want === "launch") {
+        const sim = $("term-sim"), sh = $("term-shell");
+        if (sim) sim.hidden = true;
+        if (sh) sh.hidden = true;
+        document.querySelectorAll(".tab[data-stream]").forEach((b) =>
+          b.classList.toggle("active", b === tab));
+      }
+    });
+  });
+
+  loadFleets();
 })();
