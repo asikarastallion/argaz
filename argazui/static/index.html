@@ -263,7 +263,7 @@
             it (mode timeline, altitude and attitude plots, vibration, EKF).</li>
       </ol>
 
-      <h3>The two terminal tabs</h3>
+      <h3>The terminal tabs</h3>
       <table class="tbl">
         <tr><th>SIMULATION</th>
             <td>Gazebo / SITL / MAVProxy run here. For models launched with
@@ -273,11 +273,80 @@
         <tr><th>COMMAND / SCRIPT</th>
             <td>A plain bash shell. Mission scripts run here, and you can type any
                 shell command.</td></tr>
+        <tr><th>FLEET LAUNCH</th>
+            <td>A read-only transcript of the exact command line each fleet
+                vehicle was started with, including its instance number, its
+                sysid and its home. Not a shell — it is the record of what ran.</td></tr>
       </table>
-      <p class="note">Why two terminals? The simulation occupies the shell's
-        foreground — that is required for MAVProxy to keep reading the keyboard —
-        so running a script needs a second shell.</p>
+      <p class="note">Why not one terminal per vehicle? A fleet of four would
+        mean four consoles nobody watches. There are three, whatever the fleet
+        size: the transcript above, one <b>attach console</b> for the vehicle
+        you are focused on, and the free shell.</p>
 
+
+      <h3>FLEET — flying more than one vehicle</h3>
+      <p>The <b>FLEET</b> tab at the top of the page is a second, separate
+        path. Everything above still works exactly as it did; a fleet does not
+        change how a single vehicle flies.</p>
+      <ol class="steps">
+        <li><b>Pick a fleet.</b> Fleets are declared in files, not in the
+            interface: <code>argazui/config/fleets/&lt;name&gt;.toml</code>.
+            That file is copied into the run directory, so running the same
+            file twice is what makes two runs comparable.</li>
+        <li><b>Check the badge.</b> A fleet that does not validate cannot be
+            started, and the badge says <u>why</u> — a duplicate sysid, a model
+            tier 2 has not passed, two vehicles spawning too close together.
+            Nothing is launched to find this out. The same check runs from the
+            command line: <code>argazui fleet validate &lt;name&gt;</code>.</li>
+        <li><b>▶ START FLEET.</b> Vehicles come up one stage at a time, and
+            each stage has to pass before the next begins. A stage that times
+            out fails the run rather than hoping.</li>
+        <li><b>Choose a target.</b> <b>All</b> or <b>Selected</b>, with the
+            tick boxes on the cards. The command buttons show how many vehicles
+            they will reach <u>before</u> you press them — <code>ARM → 2</code>
+            means two, and <code>ARM → none</code> is disabled.</li>
+        <li><b>Read the ACK matrix,</b> not the fact that a command was sent.
+            See below.</li>
+        <li><b>■ STOP FLEET.</b> Vehicles first, then the physics server, then
+            the port leases, then a sweep for anything left running.</li>
+      </ol>
+
+      <h3>An ACK is not a result</h3>
+      <p>An autopilot can accept a command and then not do it. This was
+        measured on this project: ArduPlane accepted a mode change and was back
+        in the previous mode 140 ms later, with no rejection and no message.
+        So every vehicle gets one of five answers:</p>
+      <table class="tbl">
+        <tr><th>ACCEPTED</th><td>acknowledged, and the state still held
+            afterwards</td></tr>
+        <tr><th>REVERTED</th><td>acknowledged, and the vehicle did <u>not</u>
+            stay in that state. Shown in its own colour — this is not a
+            success</td></tr>
+        <tr><th>DENIED</th><td>refused, with the autopilot's own wording</td></tr>
+        <tr><th>TIMEOUT</th><td>no acknowledgement arrived in time</td></tr>
+        <tr><th>NO_LINK</th><td>there was no link to acknowledge it</td></tr>
+      </table>
+      <p class="note">The outcome words are deliberately left in English: they
+        are exactly what <code>fleet.json</code>, <code>timeline.jsonl</code>
+        and <code>fleet_report.md</code> record, so a row on screen can be
+        matched to the file it came from.</p>
+
+      <h3>NOT MEASURED is not a pass</h3>
+      <p>The separation and real-time-factor panels sometimes say
+        <b>NOT MEASURED</b> with a reason instead of showing a number. That is
+        a result, not a fault:</p>
+      <ul>
+        <li>A fleet <b>without Gazebo</b> has no physics server, so there is no
+            real-time factor to report — and its vehicles do not share a clock,
+            so a distance computed between two of them would not be a distance.
+            Both panels say so.</li>
+        <li>With Gazebo, separation comes from the world state itself — one
+            message carrying every model's position at one instant — rather
+            than from each vehicle's own idea of where it is.</li>
+      </ul>
+      <p class="note">A blank, a zero or a grey dash would all read as "fine".
+        The panel says what was not measured and why, in the same words the
+        run's report uses.</p>
       <h3>MAVLink ports</h3>
       <table class="tbl">
         <tr><th>14550</th><td>ArgazUI — quick command buttons and the status chips</td></tr>
@@ -337,7 +406,7 @@
             titreşim, EKF).</li>
       </ol>
 
-      <h3>Terminalin iki sekmesi</h3>
+      <h3>Terminal sekmeleri</h3>
       <table class="tbl">
         <tr><th>SİMÜLASYON</th>
             <td>Gazebo / SITL / MAVProxy burada çalışır. <code>sim_vehicle.py</code> ile
@@ -347,11 +416,77 @@
         <tr><th>KOMUT / SCRIPT</th>
             <td>Boş bir bash kabuğu. Görev scriptleri burada çalışır; istediğin kabuk
                 komutunu da yazabilirsin.</td></tr>
+        <tr><th>FİLO BAŞLATMA</th>
+            <td>Filodaki her aracın hangi komut satırıyla başlatıldığının birebir
+                kaydı — instance numarası, sysid'i ve home'u dahil. Kabuk değildir;
+                ne çalıştığının kaydıdır.</td></tr>
       </table>
-      <p class="note">Neden iki terminal? Simülasyon kabuğun ön planını işgal eder
-        (MAVProxy'nin klavyeden komut alabilmesi için bu zorunludur), bu yüzden script
-        çalıştırmaya ayrı bir kabuk gerekir.</p>
+      <p class="note">Neden araç başına bir terminal yok? Dört araçlık bir filo,
+        kimsenin bakmadığı dört konsol demek olurdu. Filo kaç araçlı olursa olsun
+        üç tane var: yukarıdaki kayıt, odaklandığın araç için tek bir
+        <b>konsola bağlan</b>, ve serbest kabuk.</p>
 
+
+      <h3>FİLO — birden fazla araç uçurmak</h3>
+      <p>Sayfanın üstündeki <b>FİLO</b> sekmesi ikinci ve ayrı bir yoldur.
+        Yukarıdaki her şey aynen çalışmaya devam eder; filo, tek aracın nasıl
+        uçtuğunu değiştirmez.</p>
+      <ol class="steps">
+        <li><b>Filo seç.</b> Filolar arayüzde değil, dosyada tanımlanır:
+            <code>argazui/config/fleets/&lt;ad&gt;.toml</code>. Bu dosya koşu
+            dizinine kopyalanır; aynı dosyayı iki kez çalıştırmak, iki koşuyu
+            karşılaştırılabilir yapan şeydir.</li>
+        <li><b>Rozete bak.</b> Doğrulamayı geçmeyen filo başlatılamaz ve rozet
+            <u>nedenini</u> söyler — tekrarlanan sysid, tier 2'yi geçmemiş bir
+            model, birbirine fazla yakın iki spawn noktası. Bunu öğrenmek için
+            hiçbir şey başlatılmaz. Aynı kontrol komut satırından da çalışır:
+            <code>argazui fleet validate &lt;ad&gt;</code>.</li>
+        <li><b>▶ FİLOYU BAŞLAT.</b> Araçlar aşama aşama açılır; her aşamanın
+            kapısı geçilmeden sonraki başlamaz. Zaman aşımına uğrayan bir aşama,
+            "herhalde olmuştur" demek yerine koşuyu başarısız sayar.</li>
+        <li><b>Hedef seç.</b> <b>Tümü</b> ya da <b>Seçili</b> — kartlardaki
+            kutucuklarla. Komut butonları, basmadan <u>önce</u> kaç araca
+            gideceğini yazar: <code>ARM → 2</code> iki araç demektir,
+            <code>ARM → yok</code> ise buton kapalıdır.</li>
+        <li><b>ACK matrisini oku;</b> komutun gönderilmiş olmasını değil.
+            Aşağıya bakın.</li>
+        <li><b>■ FİLOYU DURDUR.</b> Önce araçlar, sonra fizik sunucusu, sonra
+            port kiraları, en son da geride kalan bir şey var mı diye tarama.</li>
+      </ol>
+
+      <h3>ACK bir sonuç değildir</h3>
+      <p>Bir otopilot komutu kabul edip yapmayabilir. Bu, bu projede ölçüldü:
+        ArduPlane bir mod değişimini kabul etti ve 140 ms sonra eski moduna
+        dönmüştü — ne bir ret, ne bir mesaj. Bu yüzden her araç beş cevaptan
+        birini alır:</p>
+      <table class="tbl">
+        <tr><th>ACCEPTED</th><td>kabul edildi ve durum sonrasında da korundu</td></tr>
+        <tr><th>REVERTED</th><td>kabul edildi ama araç o durumda <u>kalmadı</u>.
+            Kendi rengiyle gösterilir — bu bir başarı değildir</td></tr>
+        <tr><th>DENIED</th><td>reddedildi; otopilotun kendi ifadesiyle</td></tr>
+        <tr><th>TIMEOUT</th><td>zamanında hiçbir onay gelmedi</td></tr>
+        <tr><th>NO_LINK</th><td>onaylayacak bir bağlantı yoktu</td></tr>
+      </table>
+      <p class="note">Sonuç sözcükleri bilerek İngilizce bırakıldı:
+        <code>fleet.json</code>, <code>timeline.jsonl</code> ve
+        <code>fleet_report.md</code> tam olarak bunları kaydeder, böylece
+        ekrandaki satır geldiği dosyayla eşleştirilebilir.</p>
+
+      <h3>ÖLÇÜLMEDİ, "sorun yok" demek değildir</h3>
+      <p>Ayrışma ve gerçek zaman çarpanı panelleri bazen sayı yerine gerekçesiyle
+        birlikte <b>ÖLÇÜLMEDİ</b> yazar. Bu bir arıza değil, bir sonuçtur:</p>
+      <ul>
+        <li><b>Gazebo'suz</b> bir filoda fizik sunucusu yoktur, dolayısıyla
+            raporlanacak bir gerçek zaman çarpanı da yoktur — ve araçlar ortak
+            bir saat paylaşmadığı için ikisi arasında hesaplanan bir mesafe,
+            mesafe olmaz. İki panel de bunu söyler.</li>
+        <li>Gazebo varken ayrışma, her aracın kendi konum tahmininden değil,
+            dünyanın durumundan okunur: tek bir mesajın tek bir anda taşıdığı
+            tüm model konumlarından.</li>
+      </ul>
+      <p class="note">Boş bırakmak, sıfır yazmak ya da gri bir tire koymak —
+        üçü de "sorun yok" diye okunurdu. Panel, neyin ölçülmediğini ve nedenini,
+        koşunun raporundaki ifadelerle söyler.</p>
       <h3>MAVLink portları</h3>
       <table class="tbl">
         <tr><th>14550</th><td>ArgazUI — hızlı komut butonları ve üstteki göstergeler</td></tr>

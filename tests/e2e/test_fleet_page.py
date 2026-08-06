@@ -473,3 +473,39 @@ def test_no_fleet_string_is_missing_from_either_language(fleet_page):
 
     used = set(re.findall(r'T\("(fleet_[a-z_]+)"', source))
     assert used - en == set(), f"used but never defined: {sorted(used - en)}"
+
+
+def test_the_help_sheet_covers_the_fleet_in_both_languages(fleet_page):
+    """The panel is the first thing a new user reads; it must describe v1.3.
+
+    Both language blocks are checked, because the help sheet keeps its two
+    languages as separate blocks of markup rather than as translated keys —
+    so one can be updated and the other silently left behind.
+
+    `text_content()` and not `inner_text()`: the latter returns RENDERED text,
+    which applies `text-transform: uppercase` to headings. Lower-casing that
+    back is not safe for Turkish — `"FİLO".lower()` is `"fi\u0307lo"`, an `i`
+    plus a combining dot, which matches nothing. Reading the markup avoids
+    both problems and is what this test is actually about.
+    """
+    page = fleet_page
+    page.click('[data-sheet="sheet-help"]')
+    page.wait_for_selector("#sheet-help:not([hidden])")
+
+    en = page.text_content('#sheet-help [data-lang-block="en"]')
+    for expected in ("FLEET", "REVERTED", "NOT MEASURED is not a pass",
+                     "FLEET LAUNCH", "argazui fleet validate",
+                     "attach console"):
+        assert expected in en, f"the English help never mentions {expected!r}"
+    assert "two terminal tabs" not in en, "the help still claims there are two"
+
+    tr = page.text_content('#sheet-help [data-lang-block="tr"]')
+    for expected in ("FİLO", "REVERTED", "ÖLÇÜLMEDİ", "FİLO BAŞLATMA",
+                     "argazui fleet validate", "konsola bağlan"):
+        assert expected in tr, f"the Turkish help never mentions {expected!r}"
+    assert "iki sekmesi" not in tr, "the Turkish help still claims there are two"
+
+    # One block updated and the other forgotten is the failure this guards.
+    assert abs(len(en) - len(tr)) < len(en) * 0.35, (
+        f"the language blocks have drifted apart: en={len(en)} chars, "
+        f"tr={len(tr)}")

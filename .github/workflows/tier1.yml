@@ -46,6 +46,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull the tier-1 image
+        id: pull
         run: |
           start=$SECONDS
           if ! docker pull "$IMAGE"; then
@@ -85,6 +86,19 @@ jobs:
       # can reach docs/status.md's model table. A fleet run proves the fleet
       # engine; it is not evidence about any airframe.
       - name: Run the Gazebo-free fleet tier
+        # WHY THIS RUNS EVEN AFTER A FAILING STEP
+        # ----------------------------------------
+        # This repository deliberately keeps red tests: `sitl_tailsitter` in
+        # tier 1, and three models in tier 2. Chaining the fleet tier behind
+        # them meant it never ran at all — the step was `skipped` on every
+        # push, and docs/status.md correctly reported "no suite record" for a
+        # tier that had simply never executed.
+        #
+        # `!cancelled()` rather than `always()`: a cancelled workflow should
+        # stop. The `steps.pull` guard is the other half — if the image never
+        # arrived there is nothing to run the fleet in, and starting docker
+        # against a missing image would bury the real error.
+        if: ${{ !cancelled() && steps.pull.conclusion == 'success' }}
         run: |
           start=$SECONDS
           set +e
