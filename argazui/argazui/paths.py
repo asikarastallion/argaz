@@ -76,6 +76,17 @@ def _value(key: str, env: str, toml: dict[str, Any], default: Any) -> Any:
     return default
 
 
+def _table(name: str, toml: dict[str, Any]) -> dict[str, Any]:
+    """One `[section]` from argaz.toml, or an empty one.
+
+    Fleet settings live under `[fleet]` rather than beside `port` and
+    `runs_root`, because there will be several of them and a flat file with a
+    `fleet_` prefix on every key is the same nesting written less clearly.
+    """
+    value = toml.get(name)
+    return value if isinstance(value, dict) else {}
+
+
 def configure(**overrides: Any) -> None:
     """Apply CLI overrides and refresh exported compatibility constants.
 
@@ -110,6 +121,19 @@ def configure(**overrides: Any) -> None:
         # SITL's reusable working directory — see runs.py for why they differ.
         "RUNS_DIR": configured_path("runs_root", "ARGAZ_RUNS_ROOT", root / "runs"),
     })
+    # ------------------------------------------------------------- fleet (v1.3)
+    # 0 means "not configured": fleet/spec.py then derives a ceiling from the
+    # CPU count. It is not a fixed number because the real limit is cores —
+    # each vehicle is a SITL process running its own physics loop, and once
+    # they outnumber the cores every RTF reading describes the host rather
+    # than the fleet.
+    fleet_table = _table("fleet", toml)
+    globals().update({
+        "FLEET_MAX_VEHICLES": int(_value("max_vehicles", "ARGAZ_FLEET_MAX_VEHICLES",
+                                         fleet_table, 0) or 0),
+        "FLEETS_DIR": CONFIG_DIR / "fleets",
+    })
+
     globals().update({
         "SITL_MODELS_DOCS": SITL_MODELS / "Gazebo" / "docs",
         "SITL_MODELS_CONFIG": SITL_MODELS / "Gazebo" / "config",
@@ -132,6 +156,8 @@ def source_summary() -> dict[str, str]:
         "mavlink_port": str(UI_MAVLINK_PORT),
         "script_mavlink_port": str(SCRIPT_MAVLINK_PORT),
         "plotjuggler_port": str(PLOTJUGGLER_PORT),
+        "fleet_max_vehicles": (str(FLEET_MAX_VEHICLES) if FLEET_MAX_VEHICLES
+                               else "(derived from CPU count)"),
     }
 
 

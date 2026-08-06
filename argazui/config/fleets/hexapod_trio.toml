@@ -1,0 +1,63 @@
+# Three Hexapod Copters in one Gazebo world — the first real fleet.
+#
+# WHY THIS MODEL
+# --------------
+# `hexapod_copter` is a plain multirotor with no VTOL transition to go wrong,
+# it is `gz_plus_sitl_paramfile` (composable into a generated world), and it
+# is `passed` in the tier-2 record. It also ships a Lua script, which is the
+# useful part: a model that needs a file copied into its working directory
+# forces per-vehicle directory materialisation to be right from the first
+# flight rather than discovered later by a model that happens to need it.
+#
+# `bicopter` is the fallback if the Lua path complicates bring-up.
+#
+# ORIGIN — READ THIS BEFORE CHANGING IT
+# -------------------------------------
+# hexapod_copter_runway.sdf declares NO <spherical_coordinates>, so Gazebo has
+# no datum of its own and its origin is simply (0, 0, 0) in the world frame.
+# The numbers below are ArduPilot SITL's default home, which is what the
+# vehicle's EKF will believe regardless. They are declared here so the ENU
+# offsets have a stated reference and the separation monitor compares like
+# with like. If a <spherical_coordinates> block is ever added to that world,
+# these MUST be changed to match it, or the visual position and the EKF
+# position drift apart and every separation reading becomes fiction.
+
+[fleet]
+name             = "hexapod_trio"
+description      = "3x Hexapod Copter, 10 m grid, one Gazebo world"
+world            = "hexapod_copter_runway.sdf"
+formation        = "grid"
+spacing_m        = 10.0
+min_separation_m = 5.0
+max_rtf_drop     = 0.35
+
+[fleet.origin]
+lat     = -35.363262
+lon     = 149.165237
+alt     = 584.0
+heading = 0.0
+
+[fleet.policy]
+# Staggered because three multirotors lifting at once on one physics server is
+# the RTF spike this policy exists to avoid — and because prop wash between
+# vehicles 10 m apart is real.
+start              = "staggered"
+start_delay_s      = 3.0
+on_vehicle_failure = "abort_fleet"
+group_command      = "parallel_ack"
+
+[[vehicle]]
+id    = "v1"
+model = "hexapod_copter"
+sysid = 1
+role  = "leader"
+
+[[vehicle]]
+id    = "v2"
+model = "hexapod_copter"
+sysid = 2
+
+[[vehicle]]
+id    = "v3"
+model = "hexapod_copter"
+sysid = 3

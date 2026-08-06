@@ -22,3 +22,27 @@ script_mavlink_port = 14551
 # protocol JSON). Nothing has to be listening — the datagrams simply go
 # nowhere. Set to 0 to switch the mirror off entirely.
 plotjuggler_port = 14552
+
+# ---------------------------------------------------------------- fleet (v1.3)
+# Multi-vehicle simulation. Everything here is optional; with the section
+# absent, a fleet still works and the ceiling is derived from this machine.
+#
+# [fleet]
+# max_vehicles = 4
+#
+# The ceiling on vehicles in one fleet. Left unset it is 4 — a MEASURED
+# default, not a formula. Real-time factor in one Gazebo world was measured at
+# 0.78 with two vehicles, 0.57 with three and 0.43 with four, falling as
+# roughly 1.77/N. It is not limited by cores: this was measured on a 16-core
+# machine. Gazebo steps physics serially and lockstep waits for every FDM in
+# turn, so adding cores does not buy vehicles. See docs/fleet-rtf-scaling.md.
+#
+# This is a guard rail against an impossible fleet. What decides whether a run
+# was viable is the RTF monitor, which measures the world that actually ran.
+#
+# Fleets themselves are NOT configured here. They are declared one per file in
+# argazui/config/fleets/<name>.toml, because a fleet is the unit that has to
+# be reproducible: the spec file is snapshotted into every run directory, and
+# running the same file twice is what makes two runs comparable.
+# `argazui fleet list` shows them; `argazui fleet validate <name>` checks one
+# without starting anything.

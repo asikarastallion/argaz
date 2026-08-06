@@ -1,0 +1,51 @@
+# Two vehicles on SITL's own physics. No Gazebo, no registered model.
+#
+# WHAT THIS FLEET IS FOR
+# ----------------------
+# It is the fleet the Gazebo-free tier of the suite flies, and it is the
+# reason that tier can exist at all. Ports, the router, group commands,
+# artefacts and teardown are about 80% of the fleet engine and none of them
+# involve Gazebo, so they can be verified in CI in minutes instead of being
+# reachable only on a machine with a GPU and a 10 GB image.
+#
+# `frame` rather than `model` is what makes it Gazebo-free: a registry model
+# carries an SDF that needs a world, a SITL frame carries its own physics.
+# Because no registered model is involved, tier-2 model eligibility does not
+# apply here — there is nothing for tier 2 to have verified.
+
+[fleet]
+name             = "sitl_pair"
+description      = "2x SITL quad frame, no Gazebo — the CI fleet"
+# No `world` key at all. That absence IS the declaration of a SITL-only fleet.
+formation        = "line"
+spacing_m        = 10.0
+min_separation_m = 5.0
+max_rtf_drop     = 0.35
+
+# SITL's own default home, as the binary prints it at boot:
+#   Home: -35.363262 149.165237 alt=584.000000m hdg=353.000000
+# Declared rather than inherited so the spawn maths has a stated datum.
+[fleet.origin]
+lat     = -35.363262
+lon     = 149.165237
+alt     = 584.0
+heading = 0.0
+
+[fleet.policy]
+start              = "staggered"
+start_delay_s      = 3.0
+on_vehicle_failure = "abort_fleet"
+group_command      = "parallel_ack"
+
+[[vehicle]]
+id      = "v1"
+frame   = "quad"
+vehicle = "ArduCopter"
+sysid   = 1
+role    = "leader"
+
+[[vehicle]]
+id      = "v2"
+frame   = "quad"
+vehicle = "ArduCopter"
+sysid   = 2
