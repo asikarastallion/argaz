@@ -76,6 +76,30 @@ jobs:
           echo "suite_seconds=$((SECONDS - start))" >> "$GITHUB_ENV"
           exit $status
 
+      # The Gazebo-free fleet tier. Running it on every push is the entire
+      # point of having built it that way: ports, the supervisor, the router,
+      # group commands, artefacts and teardown are roughly 80% of the fleet
+      # engine and none of them involve Gazebo.
+      #
+      # It carries the `fleet_sitl` marker and NOT `tier2`, so nothing it does
+      # can reach docs/status.md's model table. A fleet run proves the fleet
+      # engine; it is not evidence about any airframe.
+      - name: Run the Gazebo-free fleet tier
+        run: |
+          start=$SECONDS
+          set +e
+          docker run --rm \
+            -v "$PWD/argazui:/opt/argaz/argazui" \
+            -v "$PWD/tests:/opt/argaz/tests" \
+            -v "$PWD/pytest.ini:/opt/argaz/pytest.ini" \
+            -v "$PWD/runs:/opt/argaz/runs" \
+            -w /opt/argaz --entrypoint python3 "$IMAGE" \
+            -m pytest tests/ -m fleet_sitl -q
+          status=$?
+          set -e
+          echo "fleet_seconds=$((SECONDS - start))" >> "$GITHUB_ENV"
+          exit $status
+
       - name: Report timings
         if: always()
         run: |
@@ -86,6 +110,7 @@ jobs:
             echo "|---|---|"
             echo "| pull image | ${pull_seconds:-n/a} |"
             echo "| run suite | ${suite_seconds:-n/a} |"
+            echo "| fleet (SITL-only) | ${fleet_seconds:-n/a} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # The suite record is what docs/status.md is generated from, so it is

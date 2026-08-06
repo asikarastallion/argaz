@@ -41,6 +41,13 @@
 <div class="build-warning" id="build-warning" hidden></div>
 
 <main>
+  <!-- ----------------------------------------------------------- page tabs -->
+  <nav class="pagetabs" id="pagetabs">
+    <button class="pagetab active" data-page="single" id="tab-single">SINGLE VEHICLE</button>
+    <button class="pagetab" data-page="fleet" id="tab-fleet">FLEET</button>
+  </nav>
+
+<div class="page" id="page-single">
   <!-- ---------------------------------------------------------- model picker -->
   <section class="panel models">
     <div class="cols">
@@ -135,6 +142,74 @@
     <p class="hint" id="script-hint"></p>
   </section>
 
+</div><!-- /page-single -->
+
+<div class="page" id="page-fleet" hidden>
+
+  <!-- --------------------------------------------------------- fleet picker -->
+  <section class="panel">
+    <h2><span>Fleet</span> <small id="fleet-dir"></small></h2>
+    <div class="row">
+      <select id="fleet-select"></select>
+      <button class="btn big start" id="btn-fleet-start" disabled>▶ START FLEET</button>
+      <button class="btn big stop" id="btn-fleet-stop">■ STOP FLEET</button>
+      <button class="btn link" id="btn-fleet-refresh">⟳ revalidate</button>
+    </div>
+    <div id="fleet-badge" class="fleet-badge"></div>
+    <p class="panel-error" id="err-fleet" hidden></p>
+  </section>
+
+  <!-- ---------------------------------------------------------- vehicle grid -->
+  <section class="panel">
+    <h2><span>Vehicles</span> <small id="fleet-run-id"></small></h2>
+    <div id="fleet-grid" class="fleet-grid"></div>
+    <p class="hint" id="fleet-grid-hint">No fleet running.</p>
+  </section>
+
+  <!-- ------------------------------------------------------------ target bar -->
+  <section class="panel">
+    <h2><span>Target</span></h2>
+    <div class="row targetbar">
+      <button class="btn tgt active" id="btn-target-all" data-target="all">All</button>
+      <button class="btn tgt" id="btn-target-selected" data-target="selected">Selected</button>
+      <span class="target-count" id="target-count">no fleet</span>
+    </div>
+
+    <h2><span>Group command</span></h2>
+    <div class="row">
+      <select id="fleet-policy"></select>
+      <button class="btn fleetcmd" data-cmd="ARM" id="btn-fleet-arm">ARM</button>
+      <button class="btn fleetcmd" data-cmd="TAKEOFF" id="btn-fleet-takeoff">TAKEOFF</button>
+      <button class="btn fleetcmd" data-cmd="MODE LOITER">MODE LOITER</button>
+      <button class="btn fleetcmd" data-cmd="MODE RTL">RTL</button>
+      <button class="btn fleetcmd" data-cmd="MODE LAND">LAND</button>
+      <button class="btn fleetcmd" data-cmd="DISARM">DISARM</button>
+    </div>
+    <p class="hint" id="fleet-cmd-hint"></p>
+  </section>
+
+  <!-- ------------------------------------------------------------ ACK matrix -->
+  <section class="panel">
+    <h2><span>ACK matrix</span> <small id="ack-title"></small></h2>
+    <div id="ack-matrix" class="ackmatrix">
+      <p class="hint">No group command sent yet.</p>
+    </div>
+    <p class="hint">An ACK is not a result. <b>REVERTED</b> means the autopilot
+       accepted the command and the vehicle did not stay in the state it
+       produces.</p>
+  </section>
+
+  <!-- ---------------------------------------------------- separation and RTF -->
+  <section class="panel">
+    <h2><span>Separation</span></h2>
+    <div id="sep-panel" class="measure-panel"></div>
+
+    <h2><span>Real-time factor</span></h2>
+    <div id="rtf-panel" class="measure-panel"></div>
+  </section>
+
+</div><!-- /page-fleet -->
+
   <!-- --------------------------------------------------------------- terminal -->
   <section class="panel terminal-panel">
     <h2><span data-i18n="terminal">Terminal</span>
@@ -142,12 +217,17 @@
     <div class="tabs">
       <button class="tab active" data-stream="sim" data-i18n="tab_sim">SIMULATION</button>
       <button class="tab" data-stream="shell" data-i18n="tab_shell">COMMAND / SCRIPT</button>
+      <button class="tab" data-stream="launch" id="tab-launch">FLEET LAUNCH</button>
       <span class="wschip connecting" id="ws-state">…</span>
       <span class="tabhint" id="tabhint"></span>
     </div>
     <div class="termwrap">
       <div id="term-sim" class="termbox"></div>
       <div id="term-shell" class="termbox" hidden></div>
+      <!-- Not an xterm: the launch transcript is a record of the exact argv
+           each vehicle was started with, not an interactive session. Three
+           terminals for a fleet of N, never N terminals. -->
+      <pre id="term-launch" class="termbox transcript" hidden></pre>
     </div>
   </section>
 </main>

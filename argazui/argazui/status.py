@@ -150,6 +150,7 @@ def collect(runs_roots: list[Path], registry: Optional[dict] = None) -> dict:
         "rows": rows,
         "suites": suites,
         "tier1": _tier1_summary(suites),
+        "fleet": _fleet_summary(suites),
         "unverified_here": _unverified(suites),
     }
 
@@ -197,6 +198,40 @@ def _row_for(model: dict, tier2_tests: dict[str, dict], runs: list[dict]) -> Row
         if row.result in (PASSED, FLAKY, FAILED):
             row.tier = "tier 2"
     return row
+
+
+def _fleet_summary(suites: list[Suite]) -> dict:
+    """What the FLEET tiers did — deliberately reported without a model verdict.
+
+    A fleet run proves the fleet ENGINE: ports, the supervisor, the router,
+    group commands, artefacts, teardown. `fleet_gazebo` does fly a registered
+    model, but in a fleet, and that is a different claim from the
+    single-vehicle verification the model table is built on. So this section
+    never produces or alters a model row — see the tests in
+    tests/test_status_table.py, which assert exactly that.
+    """
+    out = {}
+    for marker in ("fleet_sitl", "fleet_gazebo"):
+        tests = [t for s in suites for t in s.by_marker(marker)]
+        if not tests:
+            out[marker] = {"total": 0}
+            continue
+        counts: dict = {}
+        for test in tests:
+            counts[test["outcome"]] = counts.get(test["outcome"], 0) + 1
+        when = max((s.generated_utc for s in suites
+                    if s.by_marker(marker)), default="")
+        where = next((s.environment for s in suites if s.by_marker(marker)), "")
+        out[marker] = {
+            "total": len(tests), "counts": counts,
+            "passed": counts.get("passed", 0),
+            "failed": counts.get("failed", 0) + counts.get("error", 0),
+            "skipped": counts.get("skipped", 0),
+            "generated_utc": when, "environment": where,
+            "failing": sorted(t["nodeid"] for t in tests
+                              if t["outcome"] in ("failed", "error")),
+        }
+    return out
 
 
 def _tier1_summary(suites: list[Suite]) -> dict:
@@ -298,6 +333,52 @@ def render(data: dict, workflow: str = "", run_url: str = "") -> str:
             lines += ["", "Failing tier-1 tests:", ""]
             lines += [f"- `{nodeid}`" for nodeid in tier1["failed"]]
     lines.append("")
+
+    # ------------------------------------------------------------ the fleet
+    fleet = data.get("fleet") or {}
+    lines += ["## What the fleet tiers verified", ""]
+    lines += [
+        "**This section is about the fleet ENGINE, not about any model.** It "
+        "reports whether N vehicles can be allocated, launched, gated, "
+        "commanded, measured and torn down. The table above is unaffected by "
+        "anything here: model rows come from `tier2`-marked tests and from "
+        "nothing else, and a fleet result — however green — never becomes one.",
+        "",
+    ]
+    labels = {
+        "fleet_sitl": ("fleet, SITL only",
+                       "N real SITLs and no Gazebo. Ports, the supervisor, "
+                       "readiness gates, the router, group commands, "
+                       "artefacts and teardown — about 80% of the fleet "
+                       "engine, which is why it runs on every push."),
+        "fleet_gazebo": ("fleet, Gazebo",
+                         "Three vehicles in one real world: world "
+                         "composition, the cross-wiring check, separation "
+                         "from the world-state message, real-time factor and "
+                         "the lockstep stall diagnosis."),
+    }
+    any_fleet = False
+    for marker, (title, blurb) in labels.items():
+        entry = fleet.get(marker) or {}
+        lines += [f"### {title}", ""]
+        if not entry.get("total"):
+            lines += ["No suite record was available when this was generated.",
+                      ""]
+            continue
+        any_fleet = True
+        counts = ", ".join(f"{n} {k}" for k, n in sorted(entry["counts"].items()))
+        lines += [
+            f"{entry['total']} tests, {counts} — in "
+            f"{entry.get('environment') or 'an unrecorded environment'}, at "
+            f"{entry.get('generated_utc') or 'an unrecorded time'}.",
+            "", blurb, ""]
+        if entry.get("failing"):
+            lines += ["Failing:", ""]
+            lines += [f"- `{nodeid}`" for nodeid in entry["failing"]]
+            lines.append("")
+    if not any_fleet:
+        lines += ["No fleet suite records were available at all, so nothing "
+                  "here is a claim about the fleet engine either.", ""]
 
     # ------------------------------------------------- environment-restricted
     unverified = data.get("unverified_here") or []

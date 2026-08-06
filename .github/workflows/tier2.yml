@@ -98,6 +98,30 @@ jobs:
           echo "suite_seconds=$((SECONDS - start))" >> "$GITHUB_ENV"
           exit $status
 
+      # The Gazebo fleet tier: three vehicles in one world. Nightly, beside
+      # the model set, because it needs the same image and the same GPU-less
+      # headless Gazebo.
+      #
+      # `fleet_gazebo`, never `tier2`: this flies a registered model in a
+      # FLEET, which proves the fleet engine works with that model — it is not
+      # the single-vehicle verification docs/status.md's model rows are built
+      # from, and conflating them would put an unearned tick in the table.
+      - name: Fly the fleet
+        run: |
+          start=$SECONDS
+          set +e
+          docker run --rm --shm-size=1g \
+            -v "$PWD/argazui:/opt/argaz/argazui" \
+            -v "$PWD/tests:/opt/argaz/tests" \
+            -v "$PWD/pytest.ini:/opt/argaz/pytest.ini" \
+            -v "$PWD/runs:/opt/argaz/runs" \
+            -w /opt/argaz --entrypoint python3 "$IMAGE" \
+            -m pytest tests/ -m fleet_gazebo -q
+          status=$?
+          set -e
+          echo "fleet_seconds=$((SECONDS - start))" >> "$GITHUB_ENV"
+          exit $status
+
       - name: Report timings
         if: always()
         run: |
@@ -108,6 +132,7 @@ jobs:
             echo "|---|---|"
             echo "| pull image | ${pull_seconds:-n/a} |"
             echo "| fly the models | ${suite_seconds:-n/a} |"
+            echo "| fly the fleet | ${fleet_seconds:-n/a} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # Every flight leaves a run directory: dataflash log, parameter dump,

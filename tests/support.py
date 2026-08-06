@@ -40,10 +40,43 @@ import sitl as sitl_mod                                      # noqa: E402
 # format is identical and `argazui report` reads either.
 TEST_RUNS_ROOT = Path(os.environ.get("ARGAZ_TEST_RUNS", ROOT / "runs" / "tests"))
 
+def _tier_of_this_run() -> str:
+    """Which tier this pytest invocation is running, from its own -m filter.
+
+    WHY THE RECORD IS PER TIER
+    --------------------------
+    `suite.json` was ONE file that every run overwrote. Running tier 1 after
+    tier 2 therefore destroyed the tier-2 record — and because
+    `argazui fleet validate` reads model eligibility from exactly that record,
+    a fleet that had been validated by a real flight silently reverted to
+    "untested" partway through v1.3's phase 5. Nothing was wrong with the
+    fleet; the evidence had been deleted by an unrelated test run.
+
+    CI never hit this because each workflow uploads its own artefact. A
+    developer's machine has one directory, so the tiers have to name
+    themselves.
+    """
+    marker = ""
+    argv = sys.argv
+    for index, arg in enumerate(argv):
+        if arg == "-m" and index + 1 < len(argv):
+            marker = argv[index + 1]
+        elif arg.startswith("-m") and len(arg) > 2:
+            marker = arg[2:]
+    for tier in ("fleet_gazebo", "fleet_sitl", "tier2", "tier1", "e2e"):
+        if tier in marker:
+            return tier
+    return "mixed"
+
+
 # Machine-readable outcome of one suite run. `docs/status.md` is generated from
-# this and nothing else, so a test that did not execute here cannot appear
-# there as a pass.
-SUITE_REPORT = Path(os.environ.get("ARGAZ_TEST_REPORT", TEST_RUNS_ROOT / "suite.json"))
+# these and nothing else, so a test that did not execute cannot appear there
+# as a pass.
+#
+# One file PER TIER: a tier-1 run must not be able to delete a tier-2 result.
+SUITE_REPORT = Path(os.environ.get(
+    "ARGAZ_TEST_REPORT",
+    TEST_RUNS_ROOT / _tier_of_this_run() / "suite.json"))
 
 
 class Vehicle:
