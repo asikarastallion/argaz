@@ -363,3 +363,113 @@ def test_the_page_has_no_console_errors(fleet_page):
     page = fleet_page
     apply(page, fleet_state())
     assert_no_console_errors(page, "on the fleet page")
+
+
+# ------------------------------------------------------------ language switch
+# The Fleet page builds most of its text at render time rather than putting it
+# in the HTML, so `data-i18n` alone cannot reach it. It was shipped English-only
+# by mistake: switching to TR left the grid, the ACK matrix and the measurement
+# panels in English. These pin both halves — the static swap and the re-render.
+
+def test_the_fleet_tab_switches_to_turkish(fleet_page):
+    page = fleet_page
+    apply(page, fleet_state())
+
+    page.click('[data-set-lang="tr"]')
+    page.wait_for_timeout(300)
+
+    # static, via data-i18n
+    assert page.inner_text("#tab-fleet") == "FİLO"
+    assert page.inner_text("#btn-fleet-start").strip() == "▶ FİLOYU BAŞLAT"
+    # `inner_text` returns RENDERED text, and the panel headings carry
+    # `text-transform: uppercase`, so compare case-insensitively.
+    assert "araçlar" in page.inner_text("#page-fleet").lower()
+
+    # dynamic, via the re-render hook — this is the half that was broken
+    grid = page.inner_text('.vcard[data-vehicle="v1"]')
+    assert "mod" in grid and "irtifa" in grid, grid
+    assert "hazır" in grid
+    assert "pre-arm" not in grid and "alt" not in grid.split("\n")
+
+    target = page.inner_text("#target-count")
+    assert "3 araçtan 3 tanesi" in target, target
+    assert "vehicles" not in target
+
+
+def test_turkish_reaches_the_ack_matrix_and_the_panels(fleet_page):
+    page = fleet_page
+    apply(page, fleet_state(
+        last_command={
+            "command": "MODE LOITER", "policy": "parallel_ack",
+            "verdict": "PARTIAL", "seconds": 1.9, "target": ["v1", "v2"],
+            "results": [
+                {"vehicle": "v1", "outcome": "ACCEPTED", "ack": "ACCEPTED",
+                 "reason": "mode -> LOITER", "t_ms": 40, "confirmed": True,
+                 "observed": "held"},
+                {"vehicle": "v2", "outcome": "REVERTED", "ack": "ACCEPTED",
+                 "reason": "did not hold", "t_ms": 37, "confirmed": False,
+                 "observed": "did not hold"}]},
+        separation={"measured": False, "reason": "saatler ortak değil",
+                    "minimum_m": None, "current_m": None, "series": []}))
+
+    page.click('[data-set-lang="tr"]')
+    page.wait_for_timeout(300)
+
+    header = page.inner_text("#ack-matrix")
+    assert "araç" in header and "sonuç" in header, header
+
+    # The OUTCOME vocabulary stays English on purpose: it is what fleet.json,
+    # timeline.jsonl and fleet_report.md all record, and a row that disagrees
+    # with the artefact it came from is harder to trace, not easier to read.
+    assert "REVERTED" in header
+    assert "ACCEPTED" in header
+
+    assert "ÖLÇÜLMEDİ" in page.inner_text("#sep-panel")
+    assert "NOT MEASURED" not in page.inner_text("#sep-panel")
+
+
+def test_switching_back_to_english_restores_it(fleet_page):
+    page = fleet_page
+    apply(page, fleet_state())
+    page.click('[data-set-lang="tr"]')
+    page.wait_for_timeout(250)
+    page.click('[data-set-lang="en"]')
+    page.wait_for_timeout(250)
+
+    assert page.inner_text("#tab-fleet") == "FLEET"
+    assert "3 of 3 vehicles" in page.inner_text("#target-count")
+    assert page.inner_text("#btn-fleet-arm").strip() == "ARM → 3"
+
+
+def test_no_fleet_string_is_missing_from_either_language(fleet_page):
+    """A key present in one dictionary and absent from the other renders as
+    the key itself — visible, but only if somebody happens to look."""
+    page = fleet_page
+    missing = page.evaluate("""() => {
+        const t = window.__t;
+        if (!t) return ["__t was never exposed"];
+        const bad = [];
+        // Every key the fleet page uses, taken from the English dictionary.
+        for (const k of window.__fleetKeys || []) {
+            for (const lang of ["en", "tr"]) {
+                localStorage.setItem("argazui.lang", lang);
+            }
+        }
+        return bad;
+    }""")
+    assert missing == []
+    # The real check is done in Python against the source, which cannot be
+    # fooled by whichever language happens to be active.
+    from pathlib import Path
+    source = (Path(__file__).resolve().parents[2]
+              / "argazui" / "static" / "app.js").read_text(encoding="utf-8")
+    import re
+    en_block = source.split("    tr: {")[0]
+    tr_block = source.split("    tr: {")[1].split("\n  };")[0]
+    keys = lambda s: set(re.findall(r"\b(fleet_[a-z_]+|nav_single|nav_fleet):", s))
+    en, tr = keys(en_block), keys(tr_block)
+    assert en - tr == set(), f"missing from tr: {sorted(en - tr)}"
+    assert tr - en == set(), f"missing from en: {sorted(tr - en)}"
+
+    used = set(re.findall(r'T\("(fleet_[a-z_]+)"', source))
+    assert used - en == set(), f"used but never defined: {sorted(used - en)}"

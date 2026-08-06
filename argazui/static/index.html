@@ -43,8 +43,8 @@
 <main>
   <!-- ----------------------------------------------------------- page tabs -->
   <nav class="pagetabs" id="pagetabs">
-    <button class="pagetab active" data-page="single" id="tab-single">SINGLE VEHICLE</button>
-    <button class="pagetab" data-page="fleet" id="tab-fleet">FLEET</button>
+    <button class="pagetab active" data-page="single" id="tab-single" data-i18n="nav_single">SINGLE VEHICLE</button>
+    <button class="pagetab" data-page="fleet" id="tab-fleet" data-i18n="nav_fleet">FLEET</button>
   </nav>
 
 <div class="page" id="page-single">
@@ -148,12 +148,12 @@
 
   <!-- --------------------------------------------------------- fleet picker -->
   <section class="panel">
-    <h2><span>Fleet</span> <small id="fleet-dir"></small></h2>
+    <h2><span data-i18n="fleet_title">Fleet</span> <small id="fleet-dir"></small></h2>
     <div class="row">
       <select id="fleet-select"></select>
-      <button class="btn big start" id="btn-fleet-start" disabled>▶ START FLEET</button>
-      <button class="btn big stop" id="btn-fleet-stop">■ STOP FLEET</button>
-      <button class="btn link" id="btn-fleet-refresh">⟳ revalidate</button>
+      <button class="btn big start" id="btn-fleet-start" disabled data-i18n="fleet_start">▶ START FLEET</button>
+      <button class="btn big stop" id="btn-fleet-stop" data-i18n="fleet_stop">■ STOP FLEET</button>
+      <button class="btn link" id="btn-fleet-refresh" data-i18n="fleet_revalidate">⟳ revalidate</button>
     </div>
     <div id="fleet-badge" class="fleet-badge"></div>
     <p class="panel-error" id="err-fleet" hidden></p>
@@ -161,21 +161,21 @@
 
   <!-- ---------------------------------------------------------- vehicle grid -->
   <section class="panel">
-    <h2><span>Vehicles</span> <small id="fleet-run-id"></small></h2>
+    <h2><span data-i18n="fleet_vehicles">Vehicles</span> <small id="fleet-run-id"></small></h2>
     <div id="fleet-grid" class="fleet-grid"></div>
-    <p class="hint" id="fleet-grid-hint">No fleet running.</p>
+    <p class="hint" id="fleet-grid-hint" data-i18n="fleet_none_running">No fleet running.</p>
   </section>
 
   <!-- ------------------------------------------------------------ target bar -->
   <section class="panel">
-    <h2><span>Target</span></h2>
+    <h2><span data-i18n="fleet_target">Target</span></h2>
     <div class="row targetbar">
-      <button class="btn tgt active" id="btn-target-all" data-target="all">All</button>
-      <button class="btn tgt" id="btn-target-selected" data-target="selected">Selected</button>
+      <button class="btn tgt active" id="btn-target-all" data-target="all" data-i18n="fleet_target_all">All</button>
+      <button class="btn tgt" id="btn-target-selected" data-target="selected" data-i18n="fleet_target_selected">Selected</button>
       <span class="target-count" id="target-count">no fleet</span>
     </div>
 
-    <h2><span>Group command</span></h2>
+    <h2><span data-i18n="fleet_group">Group command</span></h2>
     <div class="row">
       <select id="fleet-policy"></select>
       <button class="btn fleetcmd" data-cmd="ARM" id="btn-fleet-arm">ARM</button>
@@ -190,21 +190,21 @@
 
   <!-- ------------------------------------------------------------ ACK matrix -->
   <section class="panel">
-    <h2><span>ACK matrix</span> <small id="ack-title"></small></h2>
+    <h2><span data-i18n="fleet_ack">ACK matrix</span> <small id="ack-title"></small></h2>
     <div id="ack-matrix" class="ackmatrix">
-      <p class="hint">No group command sent yet.</p>
+      <p class="hint" data-i18n="fleet_ack_none">No group command sent yet.</p>
     </div>
-    <p class="hint">An ACK is not a result. <b>REVERTED</b> means the autopilot
-       accepted the command and the vehicle did not stay in the state it
-       produces.</p>
+    <p class="hint" id="ack-note" data-i18n="fleet_ack_note">An ACK is not a
+       result. REVERTED means the autopilot accepted the command and the
+       vehicle did not stay in the state it produces.</p>
   </section>
 
   <!-- ---------------------------------------------------- separation and RTF -->
   <section class="panel">
-    <h2><span>Separation</span></h2>
+    <h2><span data-i18n="fleet_sep">Separation</span></h2>
     <div id="sep-panel" class="measure-panel"></div>
 
-    <h2><span>Real-time factor</span></h2>
+    <h2><span data-i18n="fleet_rtf">Real-time factor</span></h2>
     <div id="rtf-panel" class="measure-panel"></div>
   </section>
 
@@ -217,7 +217,7 @@
     <div class="tabs">
       <button class="tab active" data-stream="sim" data-i18n="tab_sim">SIMULATION</button>
       <button class="tab" data-stream="shell" data-i18n="tab_shell">COMMAND / SCRIPT</button>
-      <button class="tab" data-stream="launch" id="tab-launch">FLEET LAUNCH</button>
+      <button class="tab" data-stream="launch" id="tab-launch" data-i18n="fleet_launch_tab">FLEET LAUNCH</button>
       <span class="wschip connecting" id="ws-state">…</span>
       <span class="tabhint" id="tabhint"></span>
     </div>

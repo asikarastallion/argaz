@@ -203,6 +203,58 @@
       build_unstamped: "(the server did not stamp this page)",
       build_unstamped_reason: "the server served this page without a build stamp, " +
                               "which only servers older than ArgazUI 1.1 do",
+
+      // ---------------------------------------------------------- fleet (v1.3)
+      // English is the default language, so these strings are also what the
+      // e2e assertions read. Changing one changes a test.
+      nav_single: "SINGLE VEHICLE", nav_fleet: "FLEET",
+      fleet_title: "Fleet",
+      fleet_start: "▶ START FLEET", fleet_stop: "■ STOP FLEET",
+      fleet_revalidate: "⟳ revalidate",
+      fleet_valid: "VALID", fleet_invalid: "INVALID",
+      fleet_invalid_suffix: "  — invalid",
+      fleet_meta: "{n} vehicles · {where}",
+      fleet_where_gz: "Gazebo", fleet_where_sitl: "SITL only",
+      fleet_list_failed: "could not list fleets: ",
+      fleet_vehicles: "Vehicles",
+      fleet_none_running: "No fleet running.",
+      fleet_starting: "fleet starting…",
+      fleet_start_failed: "fleet failed to start: ",
+      fleet_target: "Target", fleet_target_all: "All",
+      fleet_target_selected: "Selected",
+      fleet_no_fleet: "no fleet",
+      fleet_target_none: "0 of {total} vehicles — nothing will be commanded",
+      fleet_target_some: "{n} of {total} vehicles: {ids}",
+      fleet_cmd_none: "none",
+      fleet_will_command: "will command: {ids}",
+      fleet_no_target: "no vehicles targeted",
+      fleet_group: "Group command",
+      fleet_sending: "sending {cmd} to {n}: {ids}…",
+      fleet_cmd_failed: "command failed",
+      fleet_ack: "ACK matrix",
+      fleet_ack_none: "No group command sent yet.",
+      fleet_ack_note: "An ACK is not a result. REVERTED means the autopilot " +
+                      "accepted the command and the vehicle did not stay in " +
+                      "the state it produces.",
+      fleet_col_vehicle: "vehicle", fleet_col_outcome: "outcome",
+      fleet_col_ack: "ack", fleet_col_t: "t", fleet_col_detail: "detail",
+      fleet_sep: "Separation", fleet_rtf: "Real-time factor",
+      fleet_not_measured: "NOT MEASURED",
+      fleet_no_reason: "no reason was given, which is itself a defect",
+      fleet_sep_summary: "minimum this run {min} against a limit of {limit} m " +
+                         "— {n} violation(s)",
+      fleet_rtf_summary: "floor {floor} — judged over seconds spent below it, " +
+                         "not on the worst single sample",
+      fleet_row_model: "model", fleet_row_mode: "mode", fleet_row_armed: "armed",
+      fleet_row_alt: "alt", fleet_row_prearm: "pre-arm", fleet_row_link: "link",
+      fleet_armed: "ARMED", fleet_disarmed: "disarmed",
+      fleet_prearm_unknown: "unknown", fleet_prearm_ready: "ready",
+      fleet_prearm_not: "not ready",
+      fleet_no_heartbeat: "no heartbeat yet", fleet_ago: "{s} s ago",
+      fleet_attach: "attach console", fleet_detach: "detach console",
+      fleet_launch_tab: "FLEET LAUNCH",
+      fleet_transcript_empty: "# the exact commands each vehicle was started " +
+                              "with appear here",
     },
     tr: {
       tagline: "ArduPilot SITL + Gazebo kontrol paneli",
@@ -396,6 +448,57 @@
       build_unstamped: "(sunucu bu sayfaya damga basmadı)",
       build_unstamped_reason: "sunucu bu sayfayı derleme damgası olmadan verdi; " +
                               "bunu yalnızca ArgazUI 1.1'den eski sunucular yapar",
+
+      // ---------------------------------------------------------- filo (v1.3)
+      nav_single: "TEK ARAÇ", nav_fleet: "FİLO",
+      fleet_title: "Filo",
+      fleet_start: "▶ FİLOYU BAŞLAT", fleet_stop: "■ FİLOYU DURDUR",
+      fleet_revalidate: "⟳ yeniden doğrula",
+      fleet_valid: "GEÇERLİ", fleet_invalid: "GEÇERSİZ",
+      fleet_invalid_suffix: "  — geçersiz",
+      fleet_meta: "{n} araç · {where}",
+      fleet_where_gz: "Gazebo", fleet_where_sitl: "yalnızca SITL",
+      fleet_list_failed: "filo listesi alınamadı: ",
+      fleet_vehicles: "Araçlar",
+      fleet_none_running: "Çalışan filo yok.",
+      fleet_starting: "filo başlatılıyor…",
+      fleet_start_failed: "filo başlatılamadı: ",
+      fleet_target: "Hedef", fleet_target_all: "Tümü",
+      fleet_target_selected: "Seçili",
+      fleet_no_fleet: "filo yok",
+      fleet_target_none: "{total} araçtan 0 tanesi — hiçbir araca komut gitmeyecek",
+      fleet_target_some: "{total} araçtan {n} tanesi: {ids}",
+      fleet_cmd_none: "yok",
+      fleet_will_command: "komut gidecek: {ids}",
+      fleet_no_target: "hedef araç seçilmedi",
+      fleet_group: "Grup komutu",
+      fleet_sending: "{cmd} komutu {n} araca gönderiliyor: {ids}…",
+      fleet_cmd_failed: "komut başarısız",
+      fleet_ack: "ACK matrisi",
+      fleet_ack_none: "Henüz grup komutu gönderilmedi.",
+      fleet_ack_note: "ACK bir sonuç değildir. REVERTED, otopilotun komutu " +
+                      "kabul ettiğini ama aracın komutun ürettiği durumda " +
+                      "kalmadığını gösterir.",
+      fleet_col_vehicle: "araç", fleet_col_outcome: "sonuç",
+      fleet_col_ack: "ack", fleet_col_t: "süre", fleet_col_detail: "ayrıntı",
+      fleet_sep: "Ayrışma", fleet_rtf: "Gerçek zaman çarpanı",
+      fleet_not_measured: "ÖLÇÜLMEDİ",
+      fleet_no_reason: "gerekçe verilmedi; bu başlı başına bir kusurdur",
+      fleet_sep_summary: "bu koşudaki en küçük mesafe {min}, sınır {limit} m " +
+                         "— {n} ihlal",
+      fleet_rtf_summary: "taban {floor} — en kötü tek örneğe göre değil, " +
+                         "tabanın altında geçirilen saniyeye göre değerlendirilir",
+      fleet_row_model: "model", fleet_row_mode: "mod", fleet_row_armed: "arm",
+      fleet_row_alt: "irtifa", fleet_row_prearm: "ön kontrol",
+      fleet_row_link: "bağlantı",
+      fleet_armed: "ARMED", fleet_disarmed: "disarm",
+      fleet_prearm_unknown: "bilinmiyor", fleet_prearm_ready: "hazır",
+      fleet_prearm_not: "hazır değil",
+      fleet_no_heartbeat: "henüz heartbeat yok", fleet_ago: "{s} sn önce",
+      fleet_attach: "konsola bağlan", fleet_detach: "konsoldan ayrıl",
+      fleet_launch_tab: "FİLO BAŞLATMA",
+      fleet_transcript_empty: "# her aracın hangi komutla başlatıldığı burada " +
+                              "birebir görünür",
     },
   };
 
@@ -407,6 +510,10 @@
     if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(v);
     return s;
   }
+
+  // Published for the Fleet page, which is a separate IIFE. Exposing the
+  // translator rather than duplicating the strings keeps one dictionary.
+  window.__t = t;
 
   let MODELS = [];
   let BUTTONS = {};
@@ -423,6 +530,18 @@
     document.querySelectorAll("[data-i18n]").forEach((el) => {
       el.textContent = t(el.dataset.i18n);
     });
+    // The Fleet page lives in its own IIFE and builds most of its text at
+    // render time, so `data-i18n` alone cannot reach it. It publishes a
+    // re-render hook; calling it here is what makes the language switch
+    // apply to the fleet grid, the ACK matrix and the measurement panels.
+    if (window.__relangFleet) {
+      try {
+        window.__relangFleet();
+      } catch (e) {
+        console.error("ArgazUI: re-rendering the fleet page in a new language "
+                      + "failed", e);
+      }
+    }
     document.querySelectorAll(".langbtn").forEach((b) => {
       b.classList.toggle("active", b.dataset.setLang === LANG);
     });
@@ -1615,6 +1734,12 @@
    ========================================================================== */
 (function () {
   const $ = (id) => document.getElementById(id);
+
+  // The main IIFE owns the dictionary; this block borrows the translator so
+  // there is exactly one set of strings. The fallback keeps the page working
+  // if the main block failed to initialise, rather than rendering `undefined`.
+  const T = (key, vars) => (window.__t ? window.__t(key, vars) : key);
+
   let fleetState = null;
   let selected = new Set();
   let targetMode = "all";
@@ -1637,20 +1762,29 @@
       data = await (await fetch("/api/fleets")).json();
     } catch (e) {
       $("err-fleet").hidden = false;
-      $("err-fleet").textContent = "could not list fleets: " + e;
+      $("err-fleet").textContent = T("fleet_list_failed") + e;
       return;
     }
     $("fleet-dir").textContent = data.directory || "";
     const sel = $("fleet-select");
+    sel._fleets = data.fleets || [];
+    renderFleetOptions();
+  }
+
+  /* Redraws the picker from what was already fetched. Split out of
+     loadFleets so a language switch does not have to hit the network. */
+  function renderFleetOptions() {
+    const sel = $("fleet-select");
+    const keep = sel.value;
     sel.innerHTML = "";
-    (data.fleets || []).forEach((f) => {
+    (sel._fleets || []).forEach((f) => {
       const opt = document.createElement("option");
       opt.value = f.name;
-      opt.textContent = f.name + (f.ok ? "" : "  — invalid");
+      opt.textContent = f.name + (f.ok ? "" : T("fleet_invalid_suffix"));
       opt.dataset.ok = f.ok ? "1" : "0";
       sel.appendChild(opt);
     });
-    sel._fleets = data.fleets || [];
+    if (keep) sel.value = keep;
     renderBadge();
   }
 
@@ -1669,12 +1803,15 @@
     const badge = document.createElement("span");
     badge.className = "badge " + (f.ok ? "ok" : "bad");
     badge.id = "fleet-validation";
-    badge.textContent = f.ok ? "VALID" : "INVALID";
+    badge.textContent = f.ok ? T("fleet_valid") : T("fleet_invalid");
     box.appendChild(badge);
 
     const meta = document.createElement("span");
     meta.className = "badge-meta";
-    meta.textContent = `${f.vehicles} vehicles · ${f.gazebo ? "Gazebo" : "SITL only"}`;
+    meta.textContent = T("fleet_meta", {
+      n: f.vehicles,
+      where: T(f.gazebo ? "fleet_where_gz" : "fleet_where_sitl"),
+    });
     box.appendChild(meta);
 
     (f.errors || []).forEach((e) => {
@@ -1730,19 +1867,20 @@
     const ids = targetIds();
     const total = fleetState ? fleetState.vehicles.length : 0;
     const label = !fleetState || !total
-      ? "no fleet"
+      ? T("fleet_no_fleet")
       : (ids.length === 0
-          ? `0 of ${total} vehicles — nothing will be commanded`
-          : `${ids.length} of ${total} vehicles: ${ids.join(", ")}`);
+          ? T("fleet_target_none", { total })
+          : T("fleet_target_some", {
+              n: ids.length, total, ids: ids.join(", ") }));
     $("target-count").textContent = label;
     $("target-count").dataset.count = String(ids.length);
 
     document.querySelectorAll(".fleetcmd").forEach((btn) => {
       const base = btn.dataset.cmd;
-      btn.textContent = ids.length ? `${base} → ${ids.length}` : `${base} → none`;
+      btn.textContent = `${base} → ${ids.length || T("fleet_cmd_none")}`;
       btn.disabled = !fleetState || !fleetState.running || ids.length === 0;
-      btn.title = ids.length ? `will command: ${ids.join(", ")}`
-                             : "no vehicles targeted";
+      btn.title = ids.length ? T("fleet_will_command", { ids: ids.join(", ") })
+                             : T("fleet_no_target");
     });
   }
 
@@ -1750,8 +1888,8 @@
     btn.addEventListener("click", async () => {
       const ids = targetIds();
       if (!ids.length) return;
-      $("fleet-cmd-hint").textContent =
-        `sending ${btn.dataset.cmd} to ${ids.length}: ${ids.join(", ")}…`;
+      $("fleet-cmd-hint").textContent = T("fleet_sending", {
+        cmd: btn.dataset.cmd, n: ids.length, ids: ids.join(", ") });
       const res = await (await fetch("/api/fleet/command", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1759,7 +1897,7 @@
           policy: $("fleet-policy").value || null,
         }),
       })).json();
-      if (!res.ok) $("fleet-cmd-hint").textContent = res.text || "command failed";
+      if (!res.ok) $("fleet-cmd-hint").textContent = res.text || T("fleet_cmd_failed");
       else renderAck(res.result);
     });
   });
@@ -1771,8 +1909,10 @@
       grid.innerHTML = "";
       $("fleet-grid-hint").hidden = false;
       $("fleet-grid-hint").textContent = fleetState && fleetState.starting
-        ? "fleet starting…" : (fleetState && fleetState.error
-          ? "fleet failed to start: " + fleetState.error : "No fleet running.");
+        ? T("fleet_starting")
+        : (fleetState && fleetState.error
+            ? T("fleet_start_failed") + fleetState.error
+            : T("fleet_none_running"));
       return;
     }
     $("fleet-grid-hint").hidden = true;
@@ -1799,26 +1939,34 @@
       head.appendChild(title);
       card.appendChild(head);
 
+      // (stable id, translated label, value). The id drives the CSS class so
+      // styling and any selector never depend on the language.
       const rows = [
-        ["model", v.model],
-        ["mode", v.mode || "—"],
-        ["armed", v.armed ? "ARMED" : "disarmed"],
-        ["alt", v.alt === null || v.alt === undefined ? "—" : v.alt.toFixed(1) + " m"],
-        ["pre-arm", !v.prearm_known ? "unknown" : (v.prearm_ok ? "ready" : "not ready")],
-        ["link", v.heartbeat_age === null || v.heartbeat_age === undefined
-          ? "no heartbeat yet" : v.heartbeat_age.toFixed(1) + " s ago"],
+        ["model", T("fleet_row_model"), v.model],
+        ["mode", T("fleet_row_mode"), v.mode || "—"],
+        ["armed", T("fleet_row_armed"),
+          T(v.armed ? "fleet_armed" : "fleet_disarmed")],
+        ["alt", T("fleet_row_alt"),
+          v.alt === null || v.alt === undefined ? "—" : v.alt.toFixed(1) + " m"],
+        ["prearm", T("fleet_row_prearm"),
+          !v.prearm_known ? T("fleet_prearm_unknown")
+            : T(v.prearm_ok ? "fleet_prearm_ready" : "fleet_prearm_not")],
+        ["link", T("fleet_row_link"),
+          v.heartbeat_age === null || v.heartbeat_age === undefined
+            ? T("fleet_no_heartbeat")
+            : T("fleet_ago", { s: v.heartbeat_age.toFixed(1) })],
       ];
-      rows.forEach(([k, val]) => {
+      rows.forEach(([id, label, val]) => {
         const line = document.createElement("div");
         line.className = "vrow";
-        line.innerHTML = `<span>${k}</span><b class="v-${k.replace(/[^a-z]/g, "")}">${val}</b>`;
+        line.innerHTML = `<span>${label}</span><b class="v-${id}">${val}</b>`;
         card.appendChild(line);
       });
 
       const attach = document.createElement("button");
       attach.className = "btn link vattach";
-      attach.textContent = fleetState.console_vehicle === v.id
-        ? "detach console" : "attach console";
+      attach.textContent = T(fleetState.console_vehicle === v.id
+        ? "fleet_detach" : "fleet_attach");
       attach.addEventListener("click", async () => {
         await fetch("/api/fleet/attach", {
           method: "POST", headers: { "Content-Type": "application/json" },
@@ -1844,7 +1992,7 @@
     const box = $("ack-matrix");
     box.innerHTML = "";
     if (!result) {
-      box.innerHTML = '<p class="hint">No group command sent yet.</p>';
+      box.innerHTML = `<p class="hint">${T("fleet_ack_none")}</p>`;
       $("ack-title").textContent = "";
       return;
     }
@@ -1860,8 +2008,16 @@
 
     const table = document.createElement("table");
     table.className = "tbl ack";
+    // The OUTCOME words (ACCEPTED / REVERTED / DENIED / TIMEOUT / NO_LINK)
+    // and the verdict are deliberately NOT translated: they are the
+    // vocabulary fleet.json, timeline.jsonl and fleet_report.md all use, and
+    // a row whose text differs from the artefact it came from is harder to
+    // trace, not easier to read. The prose around them is translated instead
+    // — see the note under the matrix.
     table.innerHTML =
-      "<tr><th>vehicle</th><th>outcome</th><th>ack</th><th>t</th><th>detail</th></tr>";
+      `<tr><th>${T("fleet_col_vehicle")}</th><th>${T("fleet_col_outcome")}</th>` +
+      `<th>${T("fleet_col_ack")}</th><th>${T("fleet_col_t")}</th>` +
+      `<th>${T("fleet_col_detail")}</th></tr>`;
     (result.results || []).forEach((r) => {
       const tr = document.createElement("tr");
       tr.dataset.vehicle = r.vehicle;
@@ -1893,11 +2049,11 @@
     wrap.className = "not-measured";
     const tag = document.createElement("span");
     tag.className = "badge notmeasured";
-    tag.textContent = "NOT MEASURED";
+    tag.textContent = T("fleet_not_measured");
     wrap.appendChild(tag);
     const why = document.createElement("p");
     why.className = "not-measured-reason";
-    why.textContent = reason || "no reason was given, which is itself a defect";
+    why.textContent = reason || T("fleet_no_reason");
     wrap.appendChild(why);
     return wrap;
   }
@@ -1917,8 +2073,9 @@
     const bad = s.violations > 0;
     wrap.innerHTML =
       `<div class="gauge ${bad ? "bad" : "ok"}" id="sep-current">${cur} m</div>` +
-      `<p class="hint">minimum this run <b id="sep-min">${min} m</b> against a ` +
-      `limit of ${s.limit_m} m — ${s.violations} violation(s)</p>`;
+      `<p class="hint">${T("fleet_sep_summary", {
+        min: `<b id="sep-min">${min} m</b>`,
+        limit: s.limit_m, n: s.violations })}</p>`;
     const spark = document.createElement("div");
     spark.className = "spark";
     spark.id = "sep-spark";
@@ -1947,8 +2104,7 @@
     wrap.innerHTML =
       `<div class="gauge ${below ? "bad" : "ok"}" id="rtf-current">` +
       `${r.rtf === null ? "—" : r.rtf.toFixed(2)}x</div>` +
-      `<p class="hint">floor ${r.floor} — judged over seconds spent below it, ` +
-      `not on the worst single sample</p>`;
+      `<p class="hint">${T("fleet_rtf_summary", { floor: r.floor })}</p>`;
     renderMeasure(el, "rtf", wrap);
   }
 
@@ -1958,7 +2114,7 @@
     if (!el) return;
     const lines = (fleetState && fleetState.launch_transcript) || [];
     el.textContent = lines.length ? lines.join("\n")
-      : "# the exact commands each vehicle was started with appear here";
+      : T("fleet_transcript_empty");
   }
 
   /* ------------------------------------------------------------- apply state */
@@ -1989,6 +2145,23 @@
   }
 
   window.__applyFleet = applyFleet;   // used by the websocket handler and tests
+
+  /* Called by applyLang after it has swapped every [data-i18n] element.
+     Most of this page's text is built at render time rather than sitting in
+     the HTML, so the static swap alone would leave the grid, the ACK matrix
+     and the measurement panels in the previous language. */
+  window.__relangFleet = () => {
+    renderFleetOptions();
+    if (fleetState) {
+      applyFleet(fleetState);
+    } else {
+      renderGrid();
+      renderTarget();
+      renderSeparation();
+      renderRtf();
+      renderTranscript();
+    }
+  };
 
   /* the third terminal tab is a transcript, not an xterm */
   document.querySelectorAll(".tab[data-stream]").forEach((tab) => {
