@@ -10,8 +10,32 @@
   const I18N = {
     en: {
       tagline: "ArduPilot SITL + Gazebo control panel",
-      nav_help: "HOW TO USE", nav_about: "CONTACT",
+      nav_help: "HOW TO USE", nav_about: "CONTACT", nav_docs: "DOCS",
       nav_help_title: "How to Use", nav_about_title: "Contact & Project",
+      nav_docs_title: "Engineering documentation",
+
+      docs_search: "Search pages and headings…",
+      docs_search_hint: "{pages} pages. Search matches page titles and every " +
+                        "heading inside them.",
+      docs_search_results: "{pages} page(s), {headings} heading(s) match " +
+                           "\"{query}\".",
+      docs_search_none: "Nothing matches \"{query}\".",
+      docs_loading: "loading…",
+      docs_failed: "This page could not be loaded: {error}",
+      docs_missing: "unavailable",
+      docs_source: "Source: {source} — this page is that file in the " +
+                   "repository, shown here. Edit the file to change it.",
+      docs_source_section: "Source: {source}, section “{section}” — this page " +
+                           "is that part of the file, shown here. Edit the " +
+                           "file to change it.",
+      docs_source_generated: "Generated from the page registry in " +
+                             "argazui/argazui/docs.py. It states no technical " +
+                             "fact of its own.",
+      docs_untranslated: "This page has no Turkish source. What follows is the " +
+                         "canonical English document in the repository — a " +
+                         "stale translation of a technical page would be worse " +
+                         "than an honest English one.",
+      docs_link_file: "file",
       selected_model: "SELECTED MODEL",
       click_to_enlarge: "click to enlarge",
       pick_for_preview: "select a model to preview",
@@ -49,6 +73,7 @@
       cls: "class", method: "method", env: "env",
       rviz_yes: "RViz/DDS: yes", rviz_no: "RViz/DDS: no",
       ctx_none: "(no model selected)", ctx_idle: " — vehicle not running",
+      hint_mode_settling: "waiting for the mode to settle — a command sent now would be silently overwritten by the flight-mode switch",
       hint_pick: "Pick a model. The buttons change with the vehicle class " +
                  "(Copter/Plane/VTOL).",
       hint_buttons: "Buttons are sent over MAVLink (port 14550). Results appear in " +
@@ -116,6 +141,26 @@
       runs_copy_failed: "could not copy — the command is: {cmd}",
       runs_rebuild: "⟳ rebuild report",
       runs_rebuilding: "rebuilding the report…",
+      runs_compare: "⇄ compare with the previous run",
+      runs_comparing: "comparing…",
+      runs_compare_failed: "could not compare: {error}",
+      cmp_title: "Compared against {baseline}",
+      cmp_passed: "No regression — no metric degraded past its threshold.",
+      cmp_regressed: "REGRESSION — at least one metric degraded past its threshold.",
+      cmp_incomparable: "Not comparable — these two runs were not produced " +
+                        "under conditions that make their numbers mean the " +
+                        "same thing, so nothing was compared.",
+      cmp_blocking: "{field}: {reason} (baseline {baseline}, current {current})",
+      cmp_drift: "Configuration differences: a comparison across these " +
+                 "measures the change as much as it measures the aircraft.",
+      cmp_metric: "Metric", cmp_baseline: "Baseline", cmp_current: "Current",
+      cmp_delta: "Δ", cmp_relative: "Δ%", cmp_verdict: "Verdict",
+      cmp_v_improved: "improved", cmp_v_degraded: "degraded",
+      cmp_v_unchanged: "unchanged", cmp_v_incomparable: "incomparable",
+      cmp_note: "Metrics are measurements, not acceptance criteria. A " +
+                "regression here does not mean a criterion failed — it means " +
+                "the aircraft is doing the same thing measurably less well " +
+                "than the baseline did.",
       runs_no_report: "No report for this run yet.",
       runs_no_bin: "this run has no dataflash log",
       runs_advisories: "{n} advisory",
@@ -205,8 +250,32 @@
     },
     tr: {
       tagline: "ArduPilot SITL + Gazebo kontrol paneli",
-      nav_help: "NASIL KULLANILIR", nav_about: "İLETİŞİM",
+      nav_help: "NASIL KULLANILIR", nav_about: "İLETİŞİM", nav_docs: "DOKÜMANTASYON",
       nav_help_title: "Nasıl Kullanılır", nav_about_title: "İletişim & Proje",
+      nav_docs_title: "Mühendislik dokümantasyonu",
+
+      docs_search: "Sayfa ve başlık ara…",
+      docs_search_hint: "{pages} sayfa. Arama, sayfa başlıklarıyla birlikte " +
+                        "içlerindeki her başlıkta eşleşir.",
+      docs_search_results: "\"{query}\" için {pages} sayfa, {headings} başlık " +
+                           "eşleşti.",
+      docs_search_none: "\"{query}\" ile eşleşen bir şey yok.",
+      docs_loading: "yükleniyor…",
+      docs_failed: "Bu sayfa yüklenemedi: {error}",
+      docs_missing: "erişilemiyor",
+      docs_source: "Kaynak: {source} — bu sayfa, depodaki o dosyanın kendisidir. " +
+                   "Değiştirmek için dosyayı düzenle.",
+      docs_source_section: "Kaynak: {source}, “{section}” bölümü — bu sayfa, o " +
+                           "dosyanın ilgili kısmıdır. Değiştirmek için dosyayı " +
+                           "düzenle.",
+      docs_source_generated: "argazui/argazui/docs.py içindeki sayfa " +
+                             "kaydından üretilir. Kendine ait hiçbir teknik " +
+                             "bilgi barındırmaz.",
+      docs_untranslated: "Bu sayfanın Türkçe kaynağı yok. Aşağıdaki metin, " +
+                         "depodaki asıl İngilizce belgedir — teknik bir " +
+                         "sayfanın eskimiş çevirisi, dürüst bir İngilizce " +
+                         "metinden kötü olurdu.",
+      docs_link_file: "dosya",
       selected_model: "SEÇİLİ MODEL",
       click_to_enlarge: "büyütmek için tıkla",
       pick_for_preview: "önizleme için bir model seç",
@@ -244,6 +313,7 @@
       cls: "sınıf", method: "yöntem", env: "env",
       rviz_yes: "RViz/DDS: var", rviz_no: "RViz/DDS: yok",
       ctx_none: "(model seçilmedi)", ctx_idle: " — araç çalışmıyor",
+      hint_mode_settling: "mod oturana kadar bekleniyor — şimdi gönderilen komut uçuş modu anahtarı tarafından sessizce ezilir",
       hint_pick: "Bir model seç. Butonlar aracın sınıfına (Copter/Plane/VTOL) göre " +
                  "değişir.",
       hint_buttons: "Butonlar MAVLink üzerinden gönderilir (port 14550). Sonuçlar " +
@@ -311,6 +381,26 @@
       runs_copy_failed: "kopyalanamadı — komut: {cmd}",
       runs_rebuild: "⟳ raporu yeniden üret",
       runs_rebuilding: "rapor yeniden üretiliyor…",
+      runs_compare: "⇄ önceki koşuyla karşılaştır",
+      runs_comparing: "karşılaştırılıyor…",
+      runs_compare_failed: "karşılaştırılamadı: {error}",
+      cmp_title: "{baseline} referansına karşı",
+      cmp_passed: "Regresyon yok — hiçbir metrik eşiğini aşacak kadar kötüleşmedi.",
+      cmp_regressed: "REGRESYON — en az bir metrik eşiğini aşacak kadar kötüleşti.",
+      cmp_incomparable: "Karşılaştırılamaz — bu iki koşu, sayılarının aynı " +
+                        "anlama gelmesini sağlayacak koşullarda üretilmemiş; " +
+                        "bu yüzden hiçbir şey karşılaştırılmadı.",
+      cmp_blocking: "{field}: {reason} (referans {baseline}, güncel {current})",
+      cmp_drift: "Yapılandırma farkları: bunların üzerinden yapılan bir " +
+                 "karşılaştırma, aracı ölçtüğü kadar değişikliği de ölçer.",
+      cmp_metric: "Metrik", cmp_baseline: "Referans", cmp_current: "Güncel",
+      cmp_delta: "Δ", cmp_relative: "Δ%", cmp_verdict: "Hüküm",
+      cmp_v_improved: "iyileşti", cmp_v_degraded: "kötüleşti",
+      cmp_v_unchanged: "değişmedi", cmp_v_incomparable: "karşılaştırılamaz",
+      cmp_note: "Metrikler ölçümdür, kabul kriteri değil. Buradaki bir " +
+                "regresyon bir kriterin düştüğü anlamına gelmez — aracın aynı " +
+                "işi referansa göre ölçülebilir biçimde daha kötü yaptığı " +
+                "anlamına gelir.",
       runs_no_report: "Bu koşunun henüz raporu yok.",
       runs_no_bin: "bu koşuda dataflash log yok",
       runs_advisories: "{n} danışma",
@@ -447,6 +537,9 @@
     renderRuns();
     if (lastStatus) { $("buttons").dataset.key = ""; applyStatus(lastStatus); }
 
+    const search = $("docs-search");
+    if (search) search.placeholder = t("docs_search");
+
     // Keep backend terminal messages in the same language.
     if (push !== false) {
       try {
@@ -456,6 +549,18 @@
           body: JSON.stringify({ lang: LANG }),
         });
       } catch (e) { /* offline is fine */ }
+    }
+
+    // The portal's titles, summaries and page bodies are chosen by the server
+    // from its own language setting, so they can only be refreshed after the
+    // POST above has landed. Only if the portal has been opened at all.
+    if (DOCS) {
+      try {
+        await loadDocs();
+        if (docsPage && !$("sheet-docs").hidden) await openDocs(docsPage);
+      } catch (e) {
+        console.error("ArgazUI: the documentation index could not be reloaded", e);
+      }
     }
   }
 
@@ -839,7 +944,21 @@
     $("btn-stop").disabled = !active;
 
     const cls = s.vehicle_class || (selected && selected.vehicle_class);
-    renderButtons(cls, !!active);
+    // THE MODE-SETTLE GATE.
+    //
+    // A vehicle is not ready for a command merely because its link is up.
+    // ArduPlane reads its flight-mode switch shortly after RC input becomes
+    // valid and overwrites any mode set in that window — with no NAK and no
+    // STATUSTEXT, so the command silently does nothing. Measured three times
+    // in seven full-suite runs; see docs/e2e-flight-flake.md.
+    //
+    // So the buttons wait for the mode to have stopped moving on its own.
+    // `mode_settled` is computed on the VEHICLE's clock, per MODE_SETTLE_S.
+    const settled = !active || v.mode_settled !== false;
+    renderButtons(cls, !!active && settled);
+    if (active && !settled) {
+      $("cmd-hint").textContent = t("hint_mode_settling");
+    }
     $("script-hint").textContent =
       t("hint_scripts", { script: s.script_port, ui: s.ui_port });
     renderLiveStream(s.plotjuggler);
@@ -1368,6 +1487,11 @@
     $("run-plots").innerHTML = "";
     $("run-files").textContent = "";
     $("run-action-hint").textContent = "";
+    // A comparison belongs to the run that was open when it was made; leaving
+    // it on screen while a different run loads would attach one run's numbers
+    // to another run's name.
+    $("run-compare").hidden = true;
+    $("run-compare").innerHTML = "";
     $("sheet-run").hidden = false;
 
     const detail = await (await fetch(`/api/runs/${encodeURIComponent(runId)}`)).json();
@@ -1426,7 +1550,10 @@
     const match = /^#run=(.+)$/.exec(location.hash || "");
     if (match) showRun(decodeURIComponent(match[1]));
   }
-  window.addEventListener("hashchange", openRunFromHash);
+  window.addEventListener("hashchange", () => {
+    openRunFromHash();
+    openDocsFromHash();
+  });
 
   // ---------------------------------------------------------------- scripts
   let SCRIPTS = { scripts: [], dir: "" };
@@ -1530,6 +1657,416 @@
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
+  // ------------------------------------------------------------------- docs
+  // A markdown renderer, deliberately small. The portal shows files from this
+  // repository, and those files use a known subset: headings, fenced code,
+  // lists, tables, blockquotes, links and inline code. Anything outside that
+  // subset is rendered as the literal text it is.
+  //
+  // EVERYTHING IS ESCAPED FIRST
+  // Markdown in this repository contains raw HTML — `<br>`, `<sub>`, editing
+  // comments — and the documents are files anyone with a checkout can edit.
+  // Escaping before any transformation means a document can never inject
+  // markup into this page; the cost is that a deliberate `<sub>` shows as
+  // text, which is a trade this project is happy with.
+
+  function slugify(text) {
+    return String(text).toLowerCase()
+      .replace(/[`*_~[\]()]/g, "")
+      .replace(/[^a-z0-9À-ɏ]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "section";
+  }
+
+  // Filled from the docs index: "docs/metrics.md" -> "metrics". Lets a
+  // relative link between two repository documents become a link between two
+  // portal pages instead of a dead one.
+  let DOCS_BY_SOURCE = {};
+
+  function docsHref(href) {
+    const bare = String(href).split("#")[0].split("/").pop();
+    for (const [source, id] of Object.entries(DOCS_BY_SOURCE)) {
+      if (source.split("/").pop() === bare) return `#docs=${id}`;
+    }
+    return "";
+  }
+
+  function mdInline(text) {
+    let s = esc(text);
+    // Code spans are pulled out first so nothing inside them is transformed.
+    // The placeholder is NUL-delimited, not anything a document could contain:
+    // a readable sentinel would eventually match real prose and silently turn
+    // a piece of a sentence into a code span.
+    const codes = [];
+    s = s.replace(/`([^`]+)`/g, (m, code) => {
+      codes.push(code);
+      return `\u0000${codes.length - 1}\u0000`;
+    });
+    // Images become their alt text: the portal shows documents, and a
+    // repository-relative image path would 404 in this page's context.
+    s = s.replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1");
+    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)[^)]*\)/g, (m, label, href) => {
+      if (/^(https?:|mailto:|#)/i.test(href)) {
+        return `<a href="${esc(href)}"${href.startsWith("#") ? ""
+          : ' target="_blank" rel="noopener noreferrer"'}>${label}</a>`;
+      }
+      const internal = docsHref(href);
+      if (internal) return `<a href="${internal}">${label}</a>`;
+      // A relative path with no page behind it: show where the file is
+      // instead of a link that would go nowhere.
+      return `${label} <code>${esc(href)}</code>`;
+    });
+    s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+    return s.replace(/\u0000(\d+)\u0000/g, (m, i) => `<code>${codes[i]}</code>`);
+  }
+
+  function mdCells(row) {
+    // Split on unescaped pipes only. `\|` is how a table cell writes a literal
+    // pipe, and it is not a rare case here: the conditions table in the
+    // acceptance-criteria page spells absolute values as \|p\|, \|q\|, \|r\|,
+    // which a naive split turned into four empty columns.
+    return row.replace(/^\s*\|/, "").replace(/(?<!\\)\|\s*$/, "")
+      .split(/(?<!\\)\|/)
+      .map((cell) => mdInline(cell.trim().replace(/\\\|/g, "|")));
+  }
+
+  function renderMarkdown(source) {
+    const lines = String(source || "").replace(/\r\n?/g, "\n").split("\n");
+    const out = [];
+    let paragraph = [];
+    const flush = () => {
+      if (paragraph.length) out.push(`<p>${mdInline(paragraph.join(" "))}</p>`);
+      paragraph = [];
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      const fence = /^\s*(```|~~~)/.exec(line);
+      if (fence) {
+        flush();
+        const body = [];
+        i++;
+        while (i < lines.length && !lines[i].trimStart().startsWith(fence[1])) {
+          body.push(lines[i++]);
+        }
+        out.push(`<pre><code>${esc(body.join("\n"))}</code></pre>`);
+        continue;
+      }
+
+      const heading = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
+      if (heading) {
+        flush();
+        const level = heading[1].length;
+        out.push(`<h${level} id="${esc(slugify(heading[2]))}">`
+          + `${mdInline(heading[2])}</h${level}>`);
+        continue;
+      }
+
+      if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { flush(); out.push("<hr>"); continue; }
+
+      // A table is a row of pipes followed by a separator row of dashes.
+      if (line.includes("|") && i + 1 < lines.length
+          && /^\s*\|?[\s:|-]*-[\s:|-]*\|?\s*$/.test(lines[i + 1])
+          && lines[i + 1].includes("|")) {
+        flush();
+        const head = mdCells(line);
+        i += 2;
+        const rows = [];
+        while (i < lines.length && lines[i].includes("|") && lines[i].trim()) {
+          rows.push(mdCells(lines[i++]));
+        }
+        i--;
+        out.push("<table><thead><tr>"
+          + head.map((c) => `<th>${c}</th>`).join("")
+          + "</tr></thead><tbody>"
+          + rows.map((r) => "<tr>" + r.map((c) => `<td>${c}</td>`).join("") + "</tr>").join("")
+          + "</tbody></table>");
+        continue;
+      }
+
+      if (/^\s*([-*+]|\d+\.)\s+/.test(line)) {
+        flush();
+        // One level of nesting, which is all these documents use. The stack
+        // closes in order, so a malformed indent cannot leave a tag open.
+        const open = [];
+        while (i < lines.length && /^\s*([-*+]|\d+\.)\s+/.test(lines[i])) {
+          const item = /^(\s*)([-*+]|\d+\.)\s+(.*)$/.exec(lines[i]);
+          const depth = item[1].length >= 2 ? 1 : 0;
+          const tag = /\d/.test(item[2]) ? "ol" : "ul";
+          while (open.length > depth + 1) out.push(`</${open.pop()}>`);
+          if (open.length < depth + 1) { open.push(tag); out.push(`<${tag}>`); }
+          out.push(`<li>${mdInline(item[3])}</li>`);
+          i++;
+        }
+        i--;
+        while (open.length) out.push(`</${open.pop()}>`);
+        continue;
+      }
+
+      if (/^\s*>\s?/.test(line)) {
+        flush();
+        const quoted = [];
+        while (i < lines.length && /^\s*>\s?/.test(lines[i])) {
+          quoted.push(lines[i++].replace(/^\s*>\s?/, ""));
+        }
+        i--;
+        out.push(`<blockquote>${renderMarkdown(quoted.join("\n"))}</blockquote>`);
+        continue;
+      }
+
+      if (!line.trim()) { flush(); continue; }
+      paragraph.push(line);
+    }
+    flush();
+    return out.join("\n");
+  }
+
+  // ------------------------------------------------------------ docs portal
+  let DOCS = null;              // the navigation index, as the server built it
+  let docsPage = null;          // which page is open
+  let docsQuery = "";
+
+  async function loadDocs() {
+    DOCS = await getJSON("/api/docs", (b) => Array.isArray(b && b.groups));
+    DOCS_BY_SOURCE = {};
+    for (const group of DOCS.groups) {
+      for (const page of group.pages) {
+        if (page.source) DOCS_BY_SOURCE[page.source] = page.id;
+      }
+    }
+    renderDocsTree();
+  }
+
+  function docsPages() {
+    return (DOCS ? DOCS.groups : []).flatMap((g) => g.pages);
+  }
+
+  function docsMatches(page, query) {
+    if (!query) return { matched: true, headings: [] };
+    const hay = `${page.title} ${page.summary} ${page.source}`.toLowerCase();
+    const headings = (page.headings || [])
+      .filter((h) => h.text.toLowerCase().includes(query));
+    return { matched: hay.includes(query) || headings.length > 0, headings };
+  }
+
+  function renderDocsTree() {
+    const tree = $("docs-tree");
+    if (!tree || !DOCS) return;
+    tree.innerHTML = "";
+    const query = docsQuery.trim().toLowerCase();
+    let pages = 0;
+    let headings = 0;
+
+    for (const group of DOCS.groups) {
+      const shown = group.pages
+        .map((page) => ({ page, ...docsMatches(page, query) }))
+        .filter((entry) => entry.matched);
+      if (!shown.length) continue;
+
+      const label = document.createElement("div");
+      label.className = "docs-group";
+      label.textContent = group.title;
+      tree.append(label);
+
+      for (const entry of shown) {
+        pages += 1;
+        const button = document.createElement("button");
+        button.className = "docs-link"
+          + (entry.page.id === docsPage ? " active" : "")
+          + (entry.page.available ? "" : " missing");
+        button.innerHTML = `${esc(entry.page.title)}`
+          + `<small>${esc(entry.page.available ? entry.page.summary
+                                               : t("docs_missing"))}</small>`;
+        button.onclick = () => openDocs(entry.page.id);
+        tree.append(button);
+
+        // Headings only appear while searching. Listing every heading of every
+        // page at rest would make the tree longer than the documents.
+        for (const heading of query ? entry.headings : []) {
+          headings += 1;
+          const jump = document.createElement("button");
+          jump.className = "docs-heading" + (heading.level > 2 ? " deep" : "");
+          jump.textContent = heading.text;
+          jump.onclick = () => openDocs(entry.page.id, slugify(heading.text));
+          tree.append(jump);
+        }
+      }
+    }
+
+    const hint = $("docs-searchhint");
+    if (!hint) return;
+    if (!query) {
+      hint.textContent = t("docs_search_hint", { pages: docsPages().length });
+    } else if (!pages) {
+      hint.textContent = t("docs_search_none", { query: docsQuery.trim() });
+    } else {
+      hint.textContent = t("docs_search_results",
+        { pages, headings, query: docsQuery.trim() });
+    }
+  }
+
+  async function openDocs(pageId, anchor) {
+    $("sheet-docs").hidden = false;
+    docsPage = pageId;
+    // A deep link can arrive before anything has fetched the tree.
+    if (!DOCS) {
+      try { await loadDocs(); } catch (e) {
+        console.error("ArgazUI: the documentation index could not be loaded", e);
+      }
+    }
+    renderDocsTree();
+    $("docs-content").innerHTML = `<p class="hint">${esc(t("docs_loading"))}</p>`;
+    $("docs-notice").hidden = true;
+    $("docs-source").textContent = "";
+    // The hash is written so a page can be linked to and reopened; `#docs=`
+    // matches the `#run=` form the runs panel already uses.
+    const wanted = `#docs=${pageId}${anchor ? "/" + anchor : ""}`;
+    if (location.hash !== wanted) history.replaceState(null, "", wanted);
+
+    let doc;
+    try {
+      doc = await getJSON(`/api/docs/${encodeURIComponent(pageId)}`);
+    } catch (e) {
+      $("docs-content").innerHTML =
+        `<p class="panel-error">${esc(t("docs_failed", { error: e.message }))}</p>`;
+      return;
+    }
+
+    $("docs-content").innerHTML = renderMarkdown(doc.markdown);
+    $("docs-notice").hidden = doc.translated !== false;
+    if (doc.translated === false) $("docs-notice").textContent = t("docs_untranslated");
+    $("docs-source").textContent = doc.generated
+      ? t("docs_source_generated")
+      : (doc.section
+          ? t("docs_source_section", { source: doc.source, section: doc.section })
+          : t("docs_source", { source: doc.source }));
+
+    const page = $("docs-page");
+    const target = anchor && $("docs-content").querySelector(`#${CSS.escape(anchor)}`);
+    if (target) target.scrollIntoView({ block: "start" });
+    else page.scrollTop = 0;
+  }
+
+  function openDocsFromHash() {
+    const match = /^#docs=([^/]+)(?:\/(.+))?$/.exec(location.hash || "");
+    if (!match) return false;
+    openDocs(decodeURIComponent(match[1]),
+             match[2] ? decodeURIComponent(match[2]) : undefined);
+    return true;
+  }
+
+  $("btn-docs").onclick = async () => {
+    if (!DOCS) {
+      try { await loadDocs(); } catch (e) {
+        $("sheet-docs").hidden = false;
+        $("docs-content").innerHTML =
+          `<p class="panel-error">${esc(t("docs_failed", { error: e.message }))}</p>`;
+        return;
+      }
+    }
+    openDocs(docsPage || "index");
+  };
+
+  $("docs-search").oninput = (e) => { docsQuery = e.target.value; renderDocsTree(); };
+
+  // -------------------------------------------------------- run comparison
+  const CMP_VERDICT = {
+    improved: "cmp_v_improved", degraded: "cmp_v_degraded",
+    unchanged: "cmp_v_unchanged", incomparable: "cmp_v_incomparable",
+  };
+
+  function renderComparison(comparison) {
+    const box = $("run-compare");
+    box.hidden = false;
+    box.innerHTML = "";
+
+    const head = document.createElement("p");
+    head.className = "cmp-head";
+    const verdict = { passed: "cmp_passed", regressed: "cmp_regressed",
+                      incomparable: "cmp_incomparable" }[comparison.verdict];
+    head.innerHTML = `<b>${esc(t("cmp_title",
+      { baseline: comparison.baseline.run_id }))}</b><br>${esc(t(verdict))}`;
+    box.append(head);
+
+    for (const item of comparison.compatibility.blocking || []) {
+      const line = document.createElement("p");
+      line.className = "cmp-note";
+      line.textContent = t("cmp_blocking", {
+        field: item.field, reason: item.reason,
+        baseline: JSON.stringify(item.baseline), current: JSON.stringify(item.current),
+      });
+      box.append(line);
+    }
+    if ((comparison.compatibility.configuration_drift || []).length) {
+      const drift = document.createElement("div");
+      drift.className = "cmp-drift";
+      drift.innerHTML = `<p class="cmp-note">${esc(t("cmp_drift"))}</p><ul>`
+        + comparison.compatibility.configuration_drift
+            .map((d) => `<li>${esc(d.what)} — <code>${esc(d.field)}</code> (${esc(d.reason)})</li>`)
+            .join("")
+        + "</ul>";
+      box.append(drift);
+    }
+
+    const table = document.createElement("table");
+    table.innerHTML = "<thead><tr>"
+      + [t("cmp_metric"), t("cmp_baseline"), t("cmp_current"), t("cmp_delta"),
+         t("cmp_relative"), t("cmp_verdict")]
+        .map((h) => `<th>${esc(h)}</th>`).join("")
+      + "</tr></thead>";
+    const body = document.createElement("tbody");
+    const number = (value, unit) =>
+      value === null || value === undefined ? "—" : `${Number(value).toPrecision(3)} ${unit || ""}`;
+    for (const row of comparison.metrics) {
+      const tr = document.createElement("tr");
+      // Signed, like the delta beside it: which way a metric moved is the
+      // first thing a reader looks for, and an unsigned percentage makes an
+      // improvement and a regression look identical at a glance.
+      const relative = row.relative === null || row.relative === undefined
+        ? "—" : `${row.relative > 0 ? "+" : ""}${(row.relative * 100).toFixed(1)}%`;
+      const delta = row.delta === null || row.delta === undefined
+        ? "—" : (row.delta > 0 ? "+" : "") + Number(row.delta).toPrecision(3);
+      tr.innerHTML =
+        `<td>${esc(row.label)}${row.procedure ? ` — <code>${esc(row.procedure)}</code>` : ""}`
+        + `<br><small>${esc(row.key)}${row.reason ? " — " + esc(row.reason) : ""}</small></td>`
+        + `<td class="num">${esc(number(row.baseline, row.unit))}</td>`
+        + `<td class="num">${esc(number(row.current, row.unit))}</td>`
+        + `<td class="num">${esc(delta)}</td>`
+        + `<td class="num">${esc(relative)}</td>`
+        + `<td class="v-${esc(row.verdict)}">${esc(t(CMP_VERDICT[row.verdict] || row.verdict))}</td>`;
+      body.append(tr);
+    }
+    table.append(body);
+    box.append(table);
+
+    const note = document.createElement("p");
+    note.className = "cmp-note";
+    note.textContent = t("cmp_note");
+    box.append(note);
+  }
+
+  $("btn-run-compare").onclick = async () => {
+    if (!openRun) return;
+    $("run-action-hint").textContent = t("runs_comparing");
+    try {
+      const body = await getJSON(
+        `/api/runs/${encodeURIComponent(openRun.run_id)}/compare`);
+      if (!body.ok) {
+        // A run with nothing earlier to compare against is an ordinary answer,
+        // not a failure. Say it where the other button hints appear.
+        $("run-compare").hidden = true;
+        $("run-action-hint").textContent = body.text;
+        return;
+      }
+      renderComparison(body.comparison);
+      $("run-action-hint").textContent = "";
+    } catch (e) {
+      $("run-compare").hidden = true;
+      $("run-action-hint").textContent = t("runs_compare_failed", { error: e.message });
+    }
+  };
+
   // ------------------------------------------------------------------ start
   // WHY THE ORDER IS WHAT IT IS
   // The terminals and the status bar are the parts a user cannot work without,
@@ -1571,6 +2108,17 @@
       openRunFromHash();
     } catch (e) {
       console.error("ArgazUI: could not open the run named in the URL", e);
+    }
+    // The documentation index is fetched only when the portal is actually
+    // wanted — either by a deep link now, or by the DOCS button later. It is
+    // twenty-odd file reads on the server and nothing on this page needs it.
+    try {
+      if (/^#docs=/.test(location.hash || "")) {
+        await loadDocs();
+        openDocsFromHash();
+      }
+    } catch (e) {
+      console.error("ArgazUI: could not open the documentation page named in the URL", e);
     }
     setTimeout(() => { TABS[activeTab].fit.fit(); sendResize(activeTab); }, 200);
   })();

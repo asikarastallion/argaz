@@ -1,4 +1,4 @@
-# ArgazUI procedure schema — version 1
+# ArgazUI procedure schema — versions 1 and 2
 
 A **procedure** is a declarative flight sequence: a list of steps plus the
 acceptance criteria that decide whether it worked. Procedures live in
@@ -23,12 +23,26 @@ a fixed-wing aircraft it cannot ever produce a takeoff. Taking off is a
 different *procedure* per vehicle capability, not a different argument to one
 command. This schema models that difference.
 
+## Which version to declare
+
+| version | added | what it adds |
+|---|---|---|
+| `1` | v1.1 | the format below, minus the schema-2 rows |
+| `2` | v1.3 | the temporal acceptance criteria `within` / `for` / `never`, and the instantaneous attitude conditions `roll_within`, `pitch_within`, `angular_rate_above`, `angular_rate_below` |
+
+**Schema-1 files keep working unchanged.** A schema-1 document that uses a
+schema-2 feature is rejected at load time, with a message that says so.
+
+The version was moved rather than extended in place because the alternative is
+quieter and worse: an older ArgazUI would have read a `within:` it does not
+implement, out of a document claiming a version it satisfies.
+
 ---
 
 ## Top level
 
 ```yaml
-schema: 1                       # required, integer, currently always 1
+schema: 2                       # required: 1 or 2 (see above)
 id: plane_takeoff               # required, must equal the filename stem
 name:                           # required, shown in the UI
   en: Plane takeoff (TAKEOFF mode)
@@ -293,8 +307,23 @@ Used by `wait_for`, `when`, and `expect`.
 | `prearm_ok: true` | the `SYS_STATUS` pre-arm health bit is set |
 | `param: {name: Q_ENABLE, min: 1}` | the parameter is within bounds |
 | `attitude_stable: {...}` | the aircraft stayed inside a declared attitude envelope — see below |
+| `roll_within: [-20, 20]` | **schema 2** — roll, right now, is inside the band (degrees) |
+| `pitch_within: [-20, 20]` | **schema 2** — pitch, right now, is inside the band |
+| `angular_rate_above: 90` | **schema 2** — the largest of \|p\|, \|q\|, \|r\| exceeds this (deg/s) |
+| `angular_rate_below: 90` | **schema 2** — the same quantity is under it |
 
 Numeric values accept `{placeholder}` strings.
+
+### Why the schema-2 conditions exist
+
+`attitude_stable` is accumulated over the whole procedure and answers "how much
+time was spent outside a band". The temporal criteria below need the other
+question — *what is the aircraft doing at this instant* — so that "hold this for
+five seconds" and "never do this" have something to be true or false about.
+
+Body rates rather than the rate of change of an Euler angle, for the same
+reason `attitude_stable` uses them: Euler angles are degenerate at a vertical
+attitude, and a tailsitter spends its whole takeoff there.
 
 ### `attitude_stable`
 
@@ -366,6 +395,69 @@ Each entry is evaluated after the steps finish. `timeout` (default 30 s) lets a
 criterion wait for a state that is still developing. Every criterion must hold
 for the procedure to pass, and each one's pass/fail lands in `result.json`.
 
+### Temporal criteria (schema 2)
+
+The shape above answers *where the aircraft ended up*. These three answer
+**when** and **for how long**:
+
+```yaml
+schema: 2
+
+expect:
+  # BECOME true inside a deadline
+  - condition: {alt_above: "{alt*0.9}"}
+    within: 20s
+
+  # become true, then REMAIN true continuously
+  - condition: {alt_above: "{alt*0.9}", armed: true, mode: GUIDED}
+    for: 5s
+
+  # NOT become true at any observed moment in a window
+  - condition: {angular_rate_above: 180}
+    never: 5s
+```
+
+| key | meaning |
+|---|---|
+| *(none)* | the schema-1 shape: true now, or true before `timeout` |
+| `within: 10s` | must become true within the duration. Replaces `timeout`, and stating both is an error — they are two names for one deadline |
+| `for: 5s` | must become true (within `timeout`, default 30 s), then hold continuously for the duration |
+| `never: 20s` | must not be observed true at any point in the duration |
+
+**At most one per criterion.** Two of them together have no single evaluation
+order, and a criterion whose meaning depends on the reader is worse than one
+that does not exist.
+
+**Durations must state their unit** — `ms`, `s`, `sec` or `min`. A bare
+`for: 5` is rejected at load time: every other number in this format is a
+metre, a degree, a PWM count or a parameter value, and a duration that looked
+like one of those would be read wrong exactly once, silently, in flight. `m` is
+deliberately not a unit here, because in a flight procedure it reads as metres.
+
+**They are measured on the vehicle's clock** (`ATTITUDE.time_boot_ms`), not on
+wall time, so `for: 5s` means the same at speedup 1 and speedup 10. Each window
+also carries a wall-clock backstop sized from the measured speedup — the
+vehicle's clock only advances while telemetry arrives, and a criterion waiting
+on a dead stream is a hang rather than a verdict. When the backstop is what
+ended a window, the result says so.
+
+**`for:` does not restart.** A lapse fails the criterion and reports how long
+it did hold. A restarting window would let a condition that flickers on and off
+pass eventually, which is the opposite of *continuously*.
+
+**`never:` is a claim about what was observed.** The evaluator samples every
+0.2 wall-clock seconds; an excursion shorter than one sampling interval of
+vehicle time can pass between two samples unseen. `attitude_stable` remains the
+criterion that weighs every attitude sample the vehicle sent.
+
+**Silence is never success.** A `for:` or a `never:` whose condition rests on
+telemetry that never arrived is reported as *not judged*, naming the signal. An
+attitude criterion evaluated against a state that received no `ATTITUDE`
+message would read 0.0 for every angle — a perfect flight, measured on nothing.
+
+`attitude_stable` may **not** carry a temporal key: it is already an answer
+about the whole procedure. Use the instantaneous conditions instead.
+
 ### What `expect:` decides, and what it does not
 
 A run's `outcome` is one of three values, and `expect:` is what separates the
@@ -385,13 +477,19 @@ in `result.json` as `advisory_count`, shown as their own chip in the UI, and
 as broken, and a genuine acceptance failure must not hide among health
 warnings.
 
+It also produces **metrics** — measured quantities with no threshold of their
+own, which acquire one only when compared against a baseline. They are a third
+kind of output and cannot fail a run either. See
+[docs/metrics.md](../../docs/metrics.md) and
+[docs/regression.md](../../docs/regression.md).
+
 ---
 
-## Reserved for schema 2
+## Reserved for a later schema
 
-The following top-level keys are **reserved and rejected by the schema-1
-validator** so that no procedure starts using them informally before the
-scenario runner exists:
+The following top-level keys are **reserved and rejected by the validator** so
+that no procedure starts using them informally before the scenario runner
+exists:
 
 ```yaml
 mission:      # a full mission to fly, with per-waypoint acceptance criteria

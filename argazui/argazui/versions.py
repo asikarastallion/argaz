@@ -51,17 +51,55 @@ def _git(root: Path, *args: str, timeout: float = 10.0) -> str:
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
-def _command_output(args: list[str], timeout: float = 10.0) -> str:
-    """First non-empty line of a command, or a stated reason it is missing."""
+def command_version(args: list[str], timeout: float = 10.0) -> tuple[str, str]:
+    """First non-empty line of a command, or ("", why there is none).
+
+    Two return values rather than a sentinel string, because the fingerprint
+    has to distinguish "this component is version X" from "this component
+    could not be identified, and here is what happened when we asked". A
+    single string collapses the two the moment someone parses it.
+    """
     try:
         result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                 text=True, timeout=timeout, check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
-        return f"(unavailable: {exc})"
+        return "", f"unavailable: {exc}"
     if result.returncode != 0:
-        return f"(exit {result.returncode})"
-    return next((line.strip() for line in result.stdout.splitlines() if line.strip()),
-                "(no output)")
+        return "", f"exit {result.returncode}"
+    line = next((l.strip() for l in result.stdout.splitlines() if l.strip()), "")
+    return (line, "") if line else ("", "no output")
+
+
+def _command_output(args: list[str], timeout: float = 10.0) -> str:
+    """First non-empty line of a command, or a stated reason it is missing."""
+    value, reason = command_version(args, timeout)
+    return value or f"({reason})"
+
+
+def git_identity(root: Path) -> dict:
+    """What a git checkout says about itself, or why it cannot say.
+
+    Never guesses. A directory that is not a checkout, or one git refuses to
+    read, produces `commit: None` and a reason — recording a plausible-looking
+    revision for a tree nobody could identify would make every comparison
+    against it meaningless in a way no reader could see.
+    """
+    root = Path(root)
+    if not root.exists():
+        return {"commit": None, "describe": None, "dirty": None,
+                "root": str(root), "reason": f"{root} does not exist"}
+    if not (root / ".git").exists():
+        return {"commit": None, "describe": None, "dirty": None,
+                "root": str(root), "reason": f"{root} is not a git checkout"}
+    commit = _git(root, "rev-parse", "HEAD")
+    if not commit:
+        return {"commit": None, "describe": None, "dirty": None,
+                "root": str(root),
+                "reason": f"git could not read HEAD in {root}"}
+    return {"commit": commit, "short_commit": commit[:12],
+            "describe": _git(root, "describe", "--tags", "--always", "--dirty") or None,
+            "dirty": bool(_git(root, "status", "--porcelain")),
+            "root": str(root), "reason": ""}
 
 
 @dataclass

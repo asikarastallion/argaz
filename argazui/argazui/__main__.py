@@ -5,11 +5,14 @@
     python3 -m argazui doctor --json
     python3 -m argazui runs
     python3 -m argazui report runs/20260802T120000Z_skywalker_x8
+    python3 -m argazui compare runs/20260803T101500Z_skywalker_x8 \\
+            --baseline runs/20260802T120000Z_skywalker_x8
 """
 import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Optional
 
 from . import paths
 
@@ -17,10 +20,12 @@ from . import paths
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="ArgazUI — ArduPilot SITL + Gazebo control panel")
     ap.add_argument("command", nargs="?",
-                    choices=("serve", "doctor", "runs", "report", "status"),
+                    choices=("serve", "doctor", "runs", "report", "status",
+                             "compare"),
                     default="serve")
     ap.add_argument("target", nargs="?",
-                    help="report: a run directory or a .BIN dataflash log")
+                    help="report: a run directory or a .BIN dataflash log; "
+                         "compare: the current run directory")
     ap.add_argument("--argaz-root", help="simulation root (overrides ARGAZ_ROOT / argaz.toml)")
     ap.add_argument("--ardupilot-root", help="ArduPilot root")
     ap.add_argument("--sitl-models-root", help="SITL_Models root")
@@ -41,6 +46,13 @@ def main(argv=None) -> int:
     ap.add_argument("--out", help="status: where to write the generated table")
     ap.add_argument("--workflow", default="", help="status: which workflow produced this")
     ap.add_argument("--run-url", default="", help="status: link to that workflow run")
+    ap.add_argument("--baseline",
+                    help="compare: the run directory to compare against "
+                         "(default: the newest earlier run of the same model)")
+    ap.add_argument("--ignore-config-drift", action="store_true",
+                    help="compare: compare even though the firmware, the "
+                         "procedures or the model configuration changed — the "
+                         "difference is still reported")
     args = ap.parse_args(argv)
 
     paths.configure(argaz_root=args.argaz_root, ardupilot_root=args.ardupilot_root,
@@ -60,6 +72,10 @@ def main(argv=None) -> int:
 
     if args.command == "report":
         return _make_report(args.target, args.as_json)
+
+    if args.command == "compare":
+        return _compare(args.target, args.baseline, args.as_json,
+                        args.ignore_config_drift, args.out)
 
     if args.command == "status":
         from pathlib import Path
@@ -161,6 +177,69 @@ def _list_runs(as_json: bool) -> int:
               f"{seconds:>7s}  {procedures or '-'}")
     print(f"\n{len(found)} run(s) under {paths.RUNS_DIR}")
     return 0
+
+
+def _compare(target: Optional[str], baseline: Optional[str], as_json: bool,
+             ignore_config_drift: bool, out: Optional[str]) -> int:
+    """`argazui compare <run> --baseline <run>` — the CI-consumable comparison.
+
+    EXIT CODES, BECAUSE THIS IS MEANT FOR CI
+    ----------------------------------------
+        0  no metric degraded past its threshold
+        1  at least one did — this is the regression signal
+        2  the runs could not be compared, or could not be read
+
+    2 is separate from 1 on purpose. "These runs do not line up" is not the
+    same news as "this build got worse", and a pipeline that treated them
+    alike would eventually report a mis-specified baseline as a regression.
+    """
+    from .regression import RunNotReadable, compare, load_run, previous_run_for, write
+
+    if not target:
+        from .runs import list_runs
+        recent = list_runs(limit=1)
+        if not recent:
+            print(f"ERROR: no runs recorded yet under {paths.RUNS_DIR}, and no "
+                  f"run directory was given.", file=sys.stderr)
+            return 2
+        target = recent[0]["dir"]
+        print(f"No current run given; using the most recent: {recent[0]['run_id']}",
+              file=sys.stderr)
+
+    try:
+        current = load_run(Path(target).expanduser())
+        if baseline:
+            reference = load_run(Path(baseline).expanduser())
+        else:
+            reference = previous_run_for(current)
+            if reference is None:
+                print(f"ERROR: no earlier run of model "
+                      f"'{current['model_id']}' with metrics was found under "
+                      f"{paths.RUNS_DIR}. Name a baseline with --baseline.",
+                      file=sys.stderr)
+                return 2
+            print(f"No baseline given; using the previous run of this model: "
+                  f"{reference['run_id']}", file=sys.stderr)
+    except RunNotReadable as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+
+    comparison = compare(reference, current,
+                         ignore_config_drift=ignore_config_drift)
+    directory = Path(out) if out else Path(current["dir"])
+    as_json_path, as_text_path = write(directory, comparison)
+
+    if as_json:
+        print(json.dumps(comparison, indent=2, ensure_ascii=False))
+    else:
+        from .regression import render
+        print(render(comparison))
+    print(f"wrote {as_json_path}\n      {as_text_path}", file=sys.stderr)
+
+    from .regression import NOT_COMPARABLE, REGRESSED
+    if comparison["verdict"] == NOT_COMPARABLE:
+        return 2
+    return 1 if comparison["verdict"] == REGRESSED else 0
 
 
 def _make_report(target: str, as_json: bool) -> int:

@@ -420,6 +420,116 @@ pre.report {
   padding: 12px; margin: 0; max-height: 55vh; overflow-y: auto;
 }
 
+/* -------------------------------------------------------- regression table */
+/* Shown inside the run sheet. Deliberately plain: the verdict words carry the
+   colour and nothing else does, so `degraded` is the only thing that shouts. */
+.run-compare { margin: 12px 0; }
+.run-compare table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.run-compare th, .run-compare td {
+  text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.run-compare th { color: var(--muted); font-weight: 600; }
+.run-compare td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.run-compare .v-degraded { color: var(--danger); font-weight: 600; }
+.run-compare .v-improved { color: var(--ok); }
+.run-compare .v-unchanged { color: var(--muted); }
+.run-compare .v-incomparable { color: var(--muted); font-style: italic; }
+.run-compare .cmp-head { margin: 0 0 8px; }
+.run-compare .cmp-note { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+.run-compare .cmp-drift {
+  border-left: 2px solid var(--warn); padding-left: 10px; margin: 8px 0;
+}
+
+/* --------------------------------------------------------------- docs portal */
+.sheet.docs { width: min(1180px, 100%); height: 88vh; }
+.docs-body { display: flex; min-height: 0; flex: 1; }
+.docs-nav {
+  width: 288px; flex: 0 0 288px; border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; min-height: 0; padding: 12px;
+}
+.docs-search {
+  width: 100%; background: var(--bg); color: var(--text);
+  border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px;
+  font: inherit; font-size: 13px;
+}
+.docs-search:focus { outline: none; border-color: var(--accent); }
+.docs-searchhint { margin: 6px 2px 4px; font-size: 11px; }
+.docs-tree { overflow-y: auto; min-height: 0; padding-right: 4px; }
+.docs-group {
+  margin: 12px 0 4px; font-size: 11px; letter-spacing: .8px;
+  text-transform: uppercase; color: var(--accent);
+}
+.docs-link {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  background: none; border: 1px solid transparent; border-radius: 6px;
+  color: var(--text); font: inherit; font-size: 13px; padding: 5px 8px;
+}
+.docs-link:hover { background: var(--panel-2); }
+.docs-link.active { background: var(--panel-2); border-color: var(--accent); }
+.docs-link small { display: block; color: var(--muted); font-size: 11px; }
+.docs-link.missing { color: var(--warn); }
+.docs-heading {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  background: none; border: none; color: var(--muted); font: inherit;
+  font-size: 12px; padding: 2px 8px 2px 20px;
+}
+.docs-heading.deep { padding-left: 32px; }
+.docs-heading:hover { color: var(--accent); }
+.docs-page { flex: 1; min-width: 0; overflow-y: auto; padding: 18px 24px 32px; }
+.docs-notice {
+  margin: 0 0 14px; padding: 8px 12px; font-size: 12px;
+  border: 1px solid var(--line); border-left: 2px solid var(--warn);
+  border-radius: 6px; color: var(--muted); background: var(--panel-2);
+}
+.docs-source { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 10px; }
+.docs-content { font-size: 13.5px; line-height: 1.62; }
+.docs-content h1 { font-size: 20px; margin: 0 0 14px; }
+.docs-content h2 {
+  font-size: 15px; margin: 26px 0 8px; padding-bottom: 5px;
+  border-bottom: 1px solid var(--line);
+}
+.docs-content h3 { font-size: 13px; margin: 18px 0 6px; color: var(--accent); }
+.docs-content h4, .docs-content h5, .docs-content h6 {
+  font-size: 12.5px; margin: 14px 0 4px; color: var(--muted);
+}
+.docs-content p { margin: 0 0 10px; }
+.docs-content ul, .docs-content ol { margin: 0 0 10px; padding-left: 22px; }
+.docs-content li { margin-bottom: 4px; }
+.docs-content a { color: var(--accent); }
+.docs-content code {
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px;
+  padding: 1px 5px; font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.docs-content pre {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+  padding: 11px 13px; overflow-x: auto; margin: 0 0 12px;
+}
+.docs-content pre code { background: none; border: none; padding: 0; }
+.docs-content blockquote {
+  margin: 0 0 12px; padding: 2px 0 2px 12px; color: var(--muted);
+  border-left: 2px solid var(--line);
+}
+.docs-content table {
+  width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 0 0 14px;
+  display: block; overflow-x: auto;
+}
+.docs-content th, .docs-content td {
+  border: 1px solid var(--line); padding: 5px 8px; text-align: left;
+  vertical-align: top;
+}
+.docs-content th { background: var(--panel-2); color: var(--muted); }
+.docs-content hr { border: none; border-top: 1px solid var(--line); margin: 18px 0; }
+.docs-content :target { scroll-margin-top: 12px; }
+.docs-content mark { background: #3a4a1f; color: var(--text); border-radius: 3px; }
+
+@media (max-width: 900px) {
+  .docs-body { flex-direction: column; }
+  .docs-nav { width: 100%; flex: 0 0 auto; max-height: 34vh; border-right: none;
+              border-bottom: 1px solid var(--line); }
+}
+
 /* ------------------------------------------------------ failure visibility */
 /* A panel that could not load says so in its own place, and the rest of the
    page keeps working. Silence was the v1.1 regression. */

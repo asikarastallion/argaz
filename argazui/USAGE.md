@@ -78,8 +78,16 @@ vendored under `static/vendor/`, so no internet connection is required.
 | **Alt** | Altitude relative to the launch point |
 | **Spd** | Ground speed |
 
-The **EN / TR**, **HOW TO USE** and **CONTACT** controls sit at the top right
-(`Esc` closes the panels).
+The **EN / TR**, **DOCS**, **HOW TO USE** and **CONTACT** controls sit at the
+top right (`Esc` closes the panels).
+
+**DOCS** opens the engineering documentation portal: a tree down the left, a
+search box that matches page titles *and* every heading inside them, and deep
+links (`#docs=metrics`, `#docs=regression/exit-codes`) you can bookmark or
+paste to somebody. Each page names the file in the repository it came from,
+because the portal serves those files rather than holding a second copy of
+them. Switch language from the top bar before opening it; a page with no
+Turkish source shows the canonical English text with a note saying so.
 
 ### 2.2 Model picker
 
@@ -370,6 +378,44 @@ The last form works on a log from a real flight controller too — it does not
 need a run directory.
 
 ---
+
+## 5c-2. Comparing a run against a baseline
+
+The report says what one flight did. It cannot see the thing that actually
+happens over months: every acceptance criterion still passes while the aircraft
+gets quietly worse at flying — the climb takes four seconds longer, tracking
+error creeps up, a mode change that used to confirm in 100 ms now takes two
+seconds.
+
+So a run's **metrics** can be compared against a named baseline.
+
+In the browser: open a run's report and press **⇄ compare with the previous
+run**. It compares against the newest earlier run of the same model and writes
+`regression.json` and `regression.md` into the run's directory.
+
+From the shell, which is what CI should use:
+
+```bash
+python3 -m argazui compare runs/<current> --baseline runs/<baseline>
+```
+
+| exit | meaning |
+|---|---|
+| `0` | no metric degraded past its threshold |
+| `1` | at least one did — the regression signal |
+| `2` | the two runs could not be compared, or could not be read |
+
+**Two runs are not comparable just because they exist.** A different model or a
+different set of procedures is refused outright. A changed procedure, model
+configuration, ArduPilot commit or firmware makes the comparison
+`incomparable` and names the field that changed; `--ignore-config-drift`
+compares anyway and still reports what differed. Nothing is ever compared
+silently — see [docs/regression.md](../docs/regression.md) and
+[docs/metrics.md](../docs/metrics.md).
+
+Metrics are measurements, not acceptance criteria. A regression does not mean a
+criterion failed; it means the aircraft is doing the same thing measurably less
+well than the baseline did.
 
 ## 5d. Live telemetry in PlotJuggler
 

@@ -90,11 +90,19 @@ recorded, and which firmware it was.
 - **Acceptance criteria that measure state** — altitude reached, mode confirmed
   in a heartbeat, arm state, parameter values, and the attitude envelope the
   aircraft flew through. An ACK is never a pass.
+- **Temporal criteria**: `within`, `for` and `never`, measured on the vehicle's
+  own clock so they mean the same at speedup 1 and speedup 10. A takeoff that
+  reaches altitude and then sinks back is a different result from one that
+  holds it, and an instantaneous check cannot tell them apart. See
+  [docs/acceptance-criteria.md](docs/acceptance-criteria.md).
 - The **button and the regression test execute the same file**, so a passing
   test means a working button.
 - Two test tiers with a hard line between them: application-level verification
   and model-level flight verification are never conflated.
-- Support status generated from test output into [`docs/status.md`](docs/status.md).
+- Support status generated from test output into [`docs/status.md`](docs/status.md),
+  including **claim-scoped verification**: every procedure, confirmed mode
+  change and acceptance criterion listed separately with the run that proves
+  it, under a heading that says anything unlisted was not verified.
 
 ### Evidence and analysis
 
@@ -103,8 +111,19 @@ recorded, and which firmware it was.
 - Post-flight report built from the **autopilot's own dataflash log**, not from
   telemetry.
 - Advisories with named thresholds and the ArduPilot page each came from.
-- Reproducibility metadata: ArduPilot SHA, firmware string, Gazebo version,
-  ArgazUI version, interpreter.
+- **Quantitative metrics** — time to target altitude, attitude tracking error,
+  peak angular rate, time outside the declared envelope, mode-transition
+  latency — each with its unit and the log message it came from. They carry no
+  threshold of their own and cannot fail a run:
+  [docs/metrics.md](docs/metrics.md).
+- **An environment fingerprint per run**: ArgazUI and ArduPilot commits, the
+  firmware identity, SITL_Models and Gazebo versions, the interpreter, and
+  content hashes of the procedures that ran and of the model's configuration.
+  A component that cannot be identified is recorded as unknown *with a reason*,
+  never guessed: [docs/reproducibility.md](docs/reproducibility.md).
+- **Run-to-run regression comparison** with configurable thresholds and CI exit
+  codes, which refuses to compare two runs whose fingerprints disagree unless
+  told to in so many words: [docs/regression.md](docs/regression.md).
 
 ### Operations and reliability
 
@@ -119,6 +138,10 @@ recorded, and which firmware it was.
 - Automatic recovery from three specific ARM refusals (below).
 - Version-drift detection: the page reports when the running server no longer
   matches the files on disk, and names which layer changed.
+- **An engineering documentation portal** in the interface (DOCS in the top
+  bar): a persistent tree, a search across every heading, and deep links.
+  It holds no prose of its own — every page is a file in this repository or one
+  named section of one, and each page says which.
 
 ---
 
@@ -216,7 +239,9 @@ One directory per START…STOP, under `runs/<UTC-time>_<model_id>/`:
 | `mavlink_events.jsonl` | **What the vehicle reported** — modes, arm/disarm, ACKs, autopilot messages, 1 Hz state |
 | `<NNNNNNNN>.BIN` | **What the autopilot recorded** — its own dataflash log |
 | `params_full.txt` / `params_diff.txt` | **Configuration state** — everything, and what differs from firmware default |
-| `report.md` / `report.json` / `plots/` | **Post-flight interpretation** |
+| `report.md` / `report.json` / `plots/` | **Post-flight interpretation**, including the metrics |
+| `fingerprint.json` | **What produced this result** — commits, firmware identity, simulator versions, and content hashes of the procedures and the model configuration |
+| `regression.json` / `regression.md` | **How it compares to a baseline**, once compared |
 | `versions.txt` | **Reproducibility context** — ArduPilot SHA, Gazebo, ArgazUI, interpreter |
 
 The report is built from the dataflash log rather than from telemetry, so it
@@ -237,6 +262,18 @@ triggered them and never change a procedure's verdict. A noisy airframe must
 not mark a working takeoff as broken, and a real acceptance failure must not
 hide among health warnings.
 
+**Metrics** are a third kind of output and cannot fail a run either: measured
+quantities with no threshold of their own, which acquire one only when compared
+against a named baseline. A metric that could not be derived is written as
+`null` with a stated reason rather than omitted — an absent row and a
+measurement that could not be made look identical, and only one of them is a
+fact. See [docs/metrics.md](docs/metrics.md).
+
+Comparing two runs is refused unless their fingerprints agree on the model, the
+procedures, the ArduPilot commit and the firmware that flew — including when
+one of those is *unknown*, which is not evidence that they match. See
+[docs/regression.md](docs/regression.md).
+
 The **Flight Runs** panel lists the five most recent runs in the browser — with
 the report, its plots, a `.BIN` download and a copyable `MAVExplorer.py`
 command — and opens the rest on demand. From the shell:
@@ -246,6 +283,10 @@ python3 -m argazui runs                    # list recorded runs
 python3 -m argazui report                  # rebuild the newest run's report
 python3 -m argazui report some/other.BIN   # analyse any dataflash log
 python3 -m argazui status --runs runs      # regenerate docs/status.md
+
+# compare a run's metrics against a baseline: exit 0 clean, 1 regression,
+# 2 the two runs could not be compared
+python3 -m argazui compare runs/<current> --baseline runs/<baseline>
 ```
 
 `runs/` is gitignored — it is the output of flying, not source. Point
@@ -524,18 +565,48 @@ of the same Dockerfile fly the same autopilot. Definitions are under
 
 ## Documentation
 
+All of it is also in the interface, under **DOCS** in the top bar: a tree, a
+search across every heading, and deep links. The portal serves these files —
+it does not copy them — so there is exactly one place to edit any of it.
+
 | Document | Contents |
 |---|---|
 | [`argazui/USAGE.md`](argazui/USAGE.md) | The full guide: every panel, launch methods, adding models/buttons/scripts. Also in-app under **HOW TO USE**, in English and Turkish. |
-| [`argazui/procedures/SCHEMA.md`](argazui/procedures/SCHEMA.md) | The procedure format: steps, conditions, acceptance criteria, declared overrides |
-| [`docs/status.md`](docs/status.md) | Generated model verification status |
+| [`argazui/procedures/SCHEMA.md`](argazui/procedures/SCHEMA.md) | The procedure format: steps, conditions, acceptance criteria, declared overrides, temporal criteria |
+| [`docs/verification-model.md`](docs/verification-model.md) | What a green result claims — and, at greater length, what it does not |
+| [`docs/acceptance-criteria.md`](docs/acceptance-criteria.md) | Conditions and the temporal shapes `within` / `for` / `never` |
+| [`docs/metrics.md`](docs/metrics.md) | The metric catalogue: units, scopes and source signals |
+| [`docs/regression.md`](docs/regression.md) | Baseline versus current, thresholds, and the CI contract |
+| [`docs/reproducibility.md`](docs/reproducibility.md) | The environment fingerprint, field by field |
+| [`docs/runs-and-evidence.md`](docs/runs-and-evidence.md) | What a run directory contains and why each file is in it |
+| [`docs/lifecycle.md`](docs/lifecycle.md) | START to STOP: what is launched and how it is shut down |
+| [`docs/ci.md`](docs/ci.md) | Which workflow runs which tier, and what each may claim |
+| [`docs/diagnostics.md`](docs/diagnostics.md) | What `argazui doctor` checks and what a failure means |
+| [`docs/testing.md`](docs/testing.md) | Running each tier, and what a skip is worth |
+| [`docs/status.md`](docs/status.md) | Generated model verification status and per-claim results |
 | [`docs/manual-checklist.md`](docs/manual-checklist.md) | What still has to be checked by hand, with each step marked covered or not |
 | [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) *(Turkish)* | Building the underlying environment: apt conflicts, Gazebo/ROS 2 mismatches, the GTK/locale variables that crash GUI apps under a snap terminal |
 | [`CHANGELOG.md`](CHANGELOG.md) | Release history, including what earlier versions got wrong |
 
+Every `docs/*.md` page above has a Turkish twin at `docs/<name>.tr.md`, and the
+portal serves it in Turkish mode. The pages that are sections of `README.md` or
+`USAGE.md` have no Turkish source, and the portal says so above the English
+text rather than letting it pass unremarked — forking every repository document
+into a second language would recreate the duplicate-source problem the portal
+exists to avoid.
+
 ---
 
 ## Scope
+
+### Implemented in v1.3
+
+Temporal acceptance criteria (`within` / `for` / `never`, procedure schema 2)
+measured on the vehicle's clock; quantitative flight metrics derived from the
+dataflash evidence; a machine-readable environment fingerprint per run;
+run-to-run regression comparison with configurable thresholds and CI exit
+codes; claim-scoped verification in the status table; and an engineering
+documentation portal in the interface.
 
 ### Implemented in v1.2
 
@@ -561,7 +632,6 @@ These are listed so they are not mistaken for features:
 - scenario execution — the `mission:` and `failures:` keys are *reserved* in
   the procedure schema and rejected at load time until a version implements them
 - failure injection (wind, GPS loss, motor failure through `SIM_*`)
-- regression comparison between runs
 - authentication, remote access, graphical mission planning, telemetry
   dashboards (MAVProxy's map and console cover part of the last two; ArgazUI
   mirrors live telemetry for PlotJuggler rather than plotting it itself)

@@ -44,6 +44,7 @@ from typing import Any, Optional
 from pymavlink import mavutil
 from pymavlink.DFReader import DFReader_binary
 
+from . import fingerprint, metrics
 from .versions import build_id
 
 # ArduPilot libraries/AP_Logger/AP_Logger.h, enum class LogEvent.
@@ -142,6 +143,13 @@ class _Collector:
         self.vibe: list[tuple[float, float, float, float, int]] = []
         self.ekf: list[tuple[float, float, float, float, float, float]] = []
         self.bat: list[tuple[float, float, float, float]] = []
+        # Only the peak is kept, not the series. IMU is the highest-rate record
+        # in the log — tens of thousands of samples in a two-minute flight —
+        # and the one metric derived from it is a maximum, so keeping the
+        # series would cost memory to answer a question already answered.
+        # None until an IMU record is seen: "no gyro was logged" and "the gyro
+        # read zero" are different answers.
+        self.gyro_peak_dps: Optional[float] = None
         self.t0: Optional[float] = None
         self.t_end: float = 0.0
         self.counts: dict[str, int] = {}
@@ -190,6 +198,15 @@ class _Collector:
         elif kind == "ATT":
             self.att.append((self._t(msg), float(msg.DesRoll), float(msg.Roll),
                              float(msg.DesPitch), float(msg.Pitch)))
+        elif kind == "IMU":
+            # Body rates, in rad/s in the log. Body frame rather than the rate
+            # of change of an Euler angle, because Euler angles are degenerate
+            # at a vertical attitude and a tailsitter spends its takeoff there.
+            rate = max(abs(float(getattr(msg, axis, 0.0)))
+                       for axis in ("GyrX", "GyrY", "GyrZ"))
+            degrees = math.degrees(rate)
+            if self.gyro_peak_dps is None or degrees > self.gyro_peak_dps:
+                self.gyro_peak_dps = degrees
         elif kind == "VIBE":
             self.vibe.append((self._t(msg), float(msg.VibeX), float(msg.VibeY),
                               float(msg.VibeZ), int(getattr(msg, "Clip", 0))))
@@ -366,6 +383,48 @@ def _num(value) -> str:
         return str(value)
 
 
+def _fingerprint_rows(manifest: dict) -> list[str]:
+    """The environment manifest as report table rows.
+
+    Renders `null` as an explicit "unknown (see below)" rather than a dash: a
+    dash reads as "nothing to report", and the whole design of the manifest is
+    that an undetermined component is a finding, not an absence.
+    """
+    def _show(value) -> str:
+        if value is None or value == "":
+            return "*unknown — see below*"
+        if isinstance(value, bool):
+            return "yes" if value else "no"
+        return str(value)
+
+    argaz = manifest.get("argaz") or {}
+    ardupilot = manifest.get("ardupilot") or {}
+    models = manifest.get("sitl_models") or {}
+    runtime = manifest.get("runtime") or {}
+    model = manifest.get("model") or {}
+    rows = [
+        f"| ArgazUI | {_show(argaz.get('version'))} @ "
+        f"{_show(argaz.get('short_commit'))}"
+        f"{' (uncommitted changes)' if argaz.get('dirty') else ''} |",
+        f"| ArduPilot checkout | {_show(ardupilot.get('short_commit'))} "
+        f"({_show(ardupilot.get('describe'))}) |",
+        f"| Firmware | {_show(ardupilot.get('firmware'))} @ "
+        f"{_show(ardupilot.get('firmware_commit'))} |",
+        f"| Firmware is the checkout | {_show(ardupilot.get('firmware_matches_checkout'))} |",
+        f"| SITL_Models | {_show(models.get('short_commit'))} |",
+        f"| Gazebo | {_show((manifest.get('gazebo') or {}).get('version'))} |",
+        f"| ROS 2 | {_show((manifest.get('ros') or {}).get('distro'))} |",
+        f"| Python | {_show(runtime.get('python'))} "
+        f"(pymavlink {_show(runtime.get('pymavlink'))}) |",
+        f"| Model configuration | `{_show(model.get('config_hash'))}` |",
+        f"| Procedures | `{_show(manifest.get('procedure_hash'))}` |",
+    ]
+    for entry in manifest.get("procedures") or []:
+        rows.append(f"| &nbsp;&nbsp;`{entry.get('id')}` (schema "
+                    f"{_show(entry.get('schema'))}) | `{_show(entry.get('hash'))}` |")
+    return rows
+
+
 def _markdown(report: dict) -> str:
     """Renders report.json as the human-readable report.md."""
     out: list[str] = []
@@ -492,6 +551,64 @@ def _markdown(report: dict) -> str:
         add(f"| Battery | {bat['volt_start']:.2f} V → {bat['volt_end']:.2f} V "
             f"(min {bat['volt_min']:.2f} V), {bat['consumed_mah']:.0f} mAh consumed |")
     add("")
+
+    # ------------------------------------------------------------- metrics
+    # After the measurements, before the parameter summary: these are derived
+    # numbers, and the raw quantities they come from should already have been
+    # read. Kept plainly apart from the advisories above, because one of the
+    # two has thresholds and the other deliberately does not.
+    add("## Metrics")
+    add("")
+    add("*Metrics are measurements, not criteria.* Nothing here has a "
+        "threshold on its own and nothing here can fail a run; they exist to "
+        "be compared against a baseline (see `regression.json`) and to give "
+        "the flight numbers a later run can be held to.")
+    add("")
+    flight_metrics = report.get("metrics") or []
+    if flight_metrics:
+        add("| Metric | Value | Unit | Scope | Derived from |")
+        add("|---|---:|---|---|---|")
+        for item in flight_metrics:
+            value = ("—" if item.get("value") is None
+                     else f"{float(item['value']):.3g}")
+            scope = item.get("procedure") or item.get("scope", "run")
+            note = item.get("detail") or ""
+            add(f"| {metrics.label_for(item['key'])} <br><sub>`{item['key']}`</sub> "
+                f"| {value} | {item.get('unit', '')} | `{scope}` "
+                f"| {item.get('source', '')}"
+                + (f" <br><sub>{note}</sub>" if note else "") + " |")
+        unmeasured = [i for i in flight_metrics if i.get("value") is None]
+        if unmeasured:
+            add("")
+            add(f"{len(unmeasured)} metric(s) could not be measured from this "
+                f"run. They are listed with a stated reason rather than "
+                f"omitted: a missing row and a measurement that could not be "
+                f"made look identical, and only one of them is a fact.")
+    else:
+        add("No metrics were computed for this log.")
+    add("")
+
+    # --------------------------------------------------- environment fingerprint
+    fingerprint = report.get("fingerprint") or {}
+    if fingerprint:
+        add("## Environment")
+        add("")
+        add("Everything needed to say what produced this result. A component "
+            "that could not be determined is recorded as unknown *with a "
+            "reason* — it is never guessed and never quietly dropped.")
+        add("")
+        add("| | |")
+        add("|---|---|")
+        for line in _fingerprint_rows(fingerprint):
+            add(line)
+        unknown = fingerprint.get("unknown") or []
+        if unknown:
+            add("")
+            add(f"{len(unknown)} field(s) could not be determined:")
+            add("")
+            for item in unknown:
+                add(f"- `{item.get('field')}` — {item.get('reason')}")
+        add("")
 
     params = report.get("params") or {}
     if params:
@@ -690,8 +807,19 @@ def analyse(bin_path: Path, out_dir: Optional[Path] = None,
     params = _write_params(collector, out_dir)
     plot_files = _plots(collector, modes, intervals, out_dir) if plots else []
 
+    # Derived quantities, computed from the series above and from what the
+    # procedures asked for. They are measurements, not criteria: nothing here
+    # can change the run's outcome. See metrics.py.
+    flight_metrics = metrics.compute(
+        altitude=collector.alt, attitude=collector.att,
+        attitude_stats=attitude, gyro_peak_dps=collector.gyro_peak_dps,
+        armed_intervals=intervals,
+        context=(meta or {}).get("metrics_context"))
+
     report = {
-        "schema": 1,
+        # 2: adds `metrics` and `fingerprint`. Readers of schema 1 keep
+        # working — nothing that existed then has moved or changed meaning.
+        "schema": 2,
         "generated_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "meta": meta or {},
         "log": {
@@ -717,6 +845,15 @@ def analyse(bin_path: Path, out_dir: Optional[Path] = None,
         "notable_messages": notable[:40],
         "advisories": advisories,
         "advisory_count": len(advisories),
+        "metrics": flight_metrics,
+        "metrics_schema": metrics.SCHEMA,
+        # Taken here rather than handed in, because the firmware identity is
+        # something only this function has read. The caller supplies the part
+        # a log cannot know — which model, which procedures — and a bare `.BIN`
+        # analysed on its own still gets a manifest that says so.
+        "fingerprint": fingerprint.capture(
+            firmware=collector.firmware,
+            **((meta or {}).get("fingerprint_context") or {})),
         "plots": plot_files,
         "thresholds": THRESHOLDS,
     }

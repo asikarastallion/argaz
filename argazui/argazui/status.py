@@ -25,6 +25,17 @@ WHAT EACH RESULT MEANS
 
 `no-procedure`, a skipped test and a model absent from the run all collapse to
 `untested`, because they are the same statement: nothing was proven here.
+
+A ROW IS NOT A CLAIM ABOUT A MODEL
+----------------------------------
+`passed` in the table above means "every procedure this model was flown with
+met every criterion it declared". That is narrower than it looks, and the gap
+is where an unearned claim grows back: nobody flew this aircraft through a
+mission, in wind, near its limits, or twice in a row. So the table is not the
+finest thing this generator produces — `verification claims` are. Each one names
+one procedure or one acceptance criterion, its result and the run that proves
+it, and the section that renders them says plainly that anything not listed was
+not verified.
 """
 from __future__ import annotations
 
@@ -36,10 +47,23 @@ from typing import Optional
 
 from . import paths
 
-SCHEMA = 1
+# 2 (v1.3): rows carry `claims` — what was verified, at procedure and
+#           acceptance-criterion granularity, with the run that proves each.
+SCHEMA = 2
 
 PASSED, FAILED, FLAKY, UNTESTED = "passed", "failed", "flaky", "untested"
 RESULTS = (PASSED, FAILED, FLAKY, UNTESTED)
+
+# What a single claim can say. `not evaluated` is its own word and not a
+# failure: a criterion the procedure never reached says nothing about the
+# aircraft, and collapsing it into `failed` would be an invented result in the
+# opposite direction from an invented pass.
+CLAIM_PASSED, CLAIM_FAILED, CLAIM_UNEVALUATED = "passed", "failed", "not evaluated"
+
+# The kinds of thing a run can prove, coarsest first.
+CLAIM_PROCEDURE = "procedure"
+CLAIM_MODE = "mode transition"
+CLAIM_CRITERION = "acceptance criterion"
 
 # A test outcome recorded by tests/conftest.py, mapped to a table result.
 # `skipped` is deliberately UNTESTED and never PASSED: a machine that did not
@@ -53,6 +77,18 @@ FROM_TEST_OUTCOME = {
 
 
 @dataclass
+class Claim:
+    """One thing a run actually verified, and the evidence for it."""
+
+    subject: str
+    kind: str
+    procedure: str
+    result: str
+    detail: str = ""
+    run_id: str = ""
+
+
+@dataclass
 class Row:
     model: dict
     result: str = UNTESTED
@@ -62,10 +98,73 @@ class Row:
     last_run: str = ""
     firmware: str = ""
     tier: str = ""
+    claims: list[Claim] = field(default_factory=list)
 
     @property
     def model_id(self) -> str:
         return self.model.get("id", "?")
+
+    @property
+    def claims_passed(self) -> int:
+        return sum(1 for c in self.claims if c.result == CLAIM_PASSED)
+
+
+def claims_of(result: dict) -> list[Claim]:
+    """Every claim one stored run supports, from the run's own record.
+
+    Only the LAST attempt of each procedure is read, for the same reason
+    `aggregate_status` reads only the last: the suite is allowed one retry, and
+    that leniency is paid for in the `flaky` marker rather than by counting a
+    failed first attempt twice.
+
+    Nothing is inferred here. A criterion that was never evaluated is reported
+    as never evaluated, and a run with no procedures produces no claims at all
+    — which is exactly what "flown by hand" is worth.
+    """
+    run_id = result.get("run_id", "")
+    last: dict[str, dict] = {}
+    for entry in result.get("procedures") or []:
+        if entry.get("procedure"):
+            last[entry["procedure"]] = entry
+
+    out: list[Claim] = []
+    for procedure, entry in last.items():
+        outcome = entry.get("result") or {}
+        role = entry.get("role") or "procedure"
+        verdict = (CLAIM_PASSED if outcome.get("outcome") == "passed"
+                   else CLAIM_FAILED)
+        out.append(Claim(subject=role, kind=CLAIM_PROCEDURE, procedure=procedure,
+                         result=verdict, detail=entry.get("name") or procedure,
+                         run_id=run_id))
+
+        # A mode change confirmed by heartbeat number is a claim in its own
+        # right — it is one of the three things this project says it verifies,
+        # and it is buried inside a procedure's steps rather than stated.
+        for step in outcome.get("steps") or []:
+            if step.get("kind") != "set_mode":
+                continue
+            out.append(Claim(
+                subject=CLAIM_MODE, kind=CLAIM_MODE, procedure=procedure,
+                result=(CLAIM_PASSED if step.get("status") == "passed"
+                        else CLAIM_UNEVALUATED if step.get("status") == "skipped"
+                        else CLAIM_FAILED),
+                detail=f"{step.get('label', 'set_mode')} — {step.get('text', '')}"[:120],
+                run_id=run_id))
+
+        for criterion in outcome.get("expect") or []:
+            text = criterion.get("text") or ""
+            unevaluated = "not evaluated" in text or "degerlendirilmedi" in text
+            out.append(Claim(
+                subject=criterion.get("label") or "criterion",
+                kind=CLAIM_CRITERION, procedure=procedure,
+                result=(CLAIM_PASSED if criterion.get("passed")
+                        else CLAIM_UNEVALUATED if unevaluated else CLAIM_FAILED),
+                detail=(f"[{criterion['kind']} "
+                        f"{criterion.get('duration')}s] {text}"[:160]
+                        if criterion.get("kind") and criterion["kind"] != "eventually"
+                        else text[:160]),
+                run_id=run_id))
+    return out
 
 
 @dataclass
@@ -173,6 +272,11 @@ def _row_for(model: dict, tier2_tests: dict[str, dict], runs: list[dict]) -> Row
 
     if run is not None:
         data = run["data"]
+        # Claims are read from the run whether the row passed or failed. A
+        # failed model still verified something — it took off and then did not
+        # land — and hiding that would leave the reader with less than the run
+        # record actually holds.
+        row.claims = claims_of(data)
         row.procedures = [p.get("procedure", "?") for p in data.get("procedures", [])
                           if p.get("procedure")]
         # De-duplicate while keeping order: a retried procedure appears twice.
@@ -299,6 +403,9 @@ def render(data: dict, workflow: str = "", run_url: str = "") -> str:
             lines += [f"- `{nodeid}`" for nodeid in tier1["failed"]]
     lines.append("")
 
+    # ------------------------------------------------------ what was verified
+    lines += _claims_section(rows)
+
     # ------------------------------------------------- environment-restricted
     unverified = data.get("unverified_here") or []
     if unverified:
@@ -311,6 +418,54 @@ def render(data: dict, workflow: str = "", run_url: str = "") -> str:
         lines.append("")
 
     return "\n".join(lines).rstrip() + "\n"
+
+
+CLAIM_MARK = {CLAIM_PASSED: "passed", CLAIM_FAILED: "**failed**",
+              CLAIM_UNEVALUATED: "*not evaluated*"}
+
+
+def _claims_section(rows: list[Row]) -> list[str]:
+    """What each model actually proved, one claim at a time.
+
+    Deliberately separate from the table. A table row is a summary and reads
+    like a property of the aircraft; a claim names the one procedure or the one
+    criterion behind it, and is the granularity at which this project is
+    willing to say something was verified.
+    """
+    with_claims = [row for row in rows if row.claims]
+    lines = ["## What was actually verified", ""]
+    if not with_claims:
+        lines += ["No run record available when this was generated, so there is "
+                  "nothing to claim.", ""]
+        return lines
+
+    lines += [
+        "Every row below is one thing a machine observed, and the run that "
+        "observed it. **Anything not listed here was not verified** — not by "
+        "this project, and not by the table above. In particular, no model has "
+        "been flown through a mission, in wind, at the edges of its envelope, "
+        "or repeatedly enough to say anything about reliability.",
+        "",
+    ]
+    for row in sorted(with_claims, key=lambda r: r.model_id):
+        runs = sorted({claim.run_id for claim in row.claims if claim.run_id})
+        lines += [
+            f"### `{row.model_id}` — {row.claims_passed} of {len(row.claims)} "
+            f"claim(s) passed",
+            "",
+            f"Evidence: {', '.join(f'`{r}`' for r in runs) or '—'}",
+            "",
+            "| Claim | Kind | Procedure | Result |",
+            "|---|---|---|---|",
+        ]
+        for claim in row.claims:
+            detail = f"<br><sub>{_cell(claim.detail)}</sub>" if claim.detail else ""
+            lines.append(
+                f"| {_cell(claim.subject)}{detail} | {claim.kind} "
+                f"| `{_cell(claim.procedure)}` "
+                f"| {CLAIM_MARK.get(claim.result, claim.result)} |")
+        lines.append("")
+    return lines
 
 
 SUMMARY_START = "<!-- STATUS-SUMMARY: generated by argazui status; do not edit between the markers -->"

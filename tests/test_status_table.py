@@ -193,6 +193,102 @@ def test_the_readme_summary_is_generated_between_its_markers(tmp_path):
     assert status.update_readme(readme, data2) is False
 
 
+# --------------------------------------------------------------------- claims
+# A `passed` row means "every procedure this model was flown with met every
+# criterion it declared". That is narrower than it looks, and the gap is where
+# an unearned claim grows back — so the generator states each claim separately.
+
+RUN_WITH_CLAIMS = {
+    "schema": 3, "run_id": "20260803T000000Z_flyer", "status": "passed",
+    "model": {"id": "flyer"}, "advisory_count": 0, "flaky": [],
+    "started_utc": "2026-08-03T00:00:00Z",
+    "build": {"text": "ArduPlane V4.8.0-dev @ abc123"},
+    "procedures": [
+        {"procedure": "vtol_takeoff", "role": "takeoff", "name": "VTOL takeoff",
+         "result": {"outcome": "passed",
+                    "steps": [{"kind": "set_mode", "status": "passed",
+                               "label": "Switch to QLOITER", "text": "mode -> QLOITER"},
+                              {"kind": "arm", "status": "passed", "label": "Arm"}],
+                    "expect": [
+                        {"label": "reached altitude", "passed": True,
+                         "text": "alt=19.2m", "kind": "within", "duration": 20.0},
+                        {"label": "stayed level", "passed": False,
+                         "text": "roll outside [-20,20]° for 4.0s"},
+                        {"label": "still armed", "passed": False,
+                         "text": "not evaluated — the procedure stopped earlier"},
+                    ]}},
+    ],
+}
+
+
+def write_claim_run(root) -> None:
+    d = root / RUN_WITH_CLAIMS["run_id"]
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "result.json").write_text(json.dumps(RUN_WITH_CLAIMS), encoding="utf-8")
+
+
+def test_claims_are_reported_per_procedure_criterion_and_mode_change(tmp_path):
+    write_suite(tmp_path, [{"nodeid": node("flyer"), "outcome": "passed",
+                            "markers": ["tier2"]}])
+    write_claim_run(tmp_path)
+
+    row = row_for(status.collect([tmp_path], registry=REGISTRY), "flyer")
+    kinds = [c.kind for c in row.claims]
+    assert status.CLAIM_PROCEDURE in kinds
+    assert status.CLAIM_MODE in kinds
+    assert kinds.count(status.CLAIM_CRITERION) == 3
+    assert all(c.run_id == RUN_WITH_CLAIMS["run_id"] for c in row.claims)
+
+
+def test_a_criterion_that_never_ran_is_not_reported_as_a_failure(tmp_path):
+    """"Not evaluated" is its own word.
+
+    Collapsing it into `failed` would be an invented result pointing the other
+    way from an invented pass, and just as wrong.
+    """
+    write_suite(tmp_path, [{"nodeid": node("flyer"), "outcome": "passed",
+                            "markers": ["tier2"]}])
+    write_claim_run(tmp_path)
+
+    row = row_for(status.collect([tmp_path], registry=REGISTRY), "flyer")
+    by_subject = {c.subject: c.result for c in row.claims}
+    assert by_subject["reached altitude"] == status.CLAIM_PASSED
+    assert by_subject["stayed level"] == status.CLAIM_FAILED
+    assert by_subject["still armed"] == status.CLAIM_UNEVALUATED
+    assert row.claims_passed == 3          # takeoff, the mode change, one criterion
+
+
+def test_a_temporal_criterion_says_which_question_was_asked(tmp_path):
+    """`for 5s` that passed and an instantaneous check that passed are not the
+    same evidence, and the claim has to carry the difference."""
+    write_suite(tmp_path, [{"nodeid": node("flyer"), "outcome": "passed",
+                            "markers": ["tier2"]}])
+    write_claim_run(tmp_path)
+
+    row = row_for(status.collect([tmp_path], registry=REGISTRY), "flyer")
+    claim = next(c for c in row.claims if c.subject == "reached altitude")
+    assert "within" in claim.detail and "20.0s" in claim.detail
+
+
+def test_the_rendered_claims_section_states_what_it_does_not_cover(tmp_path):
+    write_suite(tmp_path, [{"nodeid": node("flyer"), "outcome": "passed",
+                            "markers": ["tier2"]}])
+    write_claim_run(tmp_path)
+
+    text = status.render(status.collect([tmp_path], registry=REGISTRY))
+    assert "## What was actually verified" in text
+    assert "Anything not listed here was not verified" in text
+    assert "mission" in text and "wind" in text
+    assert "`20260803T000000Z_flyer`" in text
+
+
+def test_a_model_that_was_never_flown_makes_no_claims(tmp_path):
+    write_suite(tmp_path, [{"nodeid": node("never_run"), "outcome": "skipped",
+                            "markers": ["tier2"], "reason": "Skipped: no ros2"}])
+    row = row_for(status.collect([tmp_path], registry=REGISTRY), "never_run")
+    assert row.claims == []
+
+
 def test_a_readme_without_markers_is_left_alone(tmp_path):
     write_suite(tmp_path, [])
     readme = tmp_path / "README.md"

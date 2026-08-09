@@ -14,6 +14,7 @@ unearned tick this version was written to remove.
 """
 from __future__ import annotations
 
+import json
 import time
 
 import pytest
@@ -190,12 +191,20 @@ def test_run_directory_is_complete_and_parseable(request, runs_root, frame):
 
     directory = vehicle.recorder.dir
     for name in ("console.log", "mavlink_events.jsonl", "scenario.yaml",
-                 "result.json", "versions.txt"):
+                 "result.json", "versions.txt", "fingerprint.json"):
         assert (directory / name).is_file(), f"{name} is missing from {directory}"
 
-    assert result["schema"] == 2
+    assert result["schema"] == 3
     assert result["status"] in ("passed", "failed", "error")
     assert result["procedures"], "the procedure was not recorded in result.json"
+
+    # The environment manifest is written before the report, so that a session
+    # that produced no dataflash log still says what it ran on.
+    manifest = json.loads((directory / "fingerprint.json").read_text(encoding="utf-8"))
+    assert manifest["procedure_hash"], manifest
+    assert manifest["procedures"] and manifest["procedures"][0]["id"] == takeoff.id
+    for field in ("argaz", "ardupilot", "runtime", "model"):
+        assert manifest[field], f"the fingerprint has no {field} section"
 
     # scenario.yaml has to be the procedure verbatim — that is the single
     # source rule made checkable.

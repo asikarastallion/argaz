@@ -238,6 +238,58 @@ CATALOG: dict[str, dict[str, str]] = {
                           "tr": "tutum yalnizca {measured} sn olculdu, bu kriter "
                                 "{needed} sn istiyor — kararli sayilmadi, "
                                 "olculmemis sayildi"},
+    # Temporal acceptance criteria (schema 2). Every message states the
+    # measured value, the declared limit and how long was observed, because a
+    # verdict without those three is not evidence.
+    "temporal_within_ok": {"en": "became true after {elapsed} of the {limit} "
+                                 "allowed — {seen}",
+                           "tr": "izin verilen {limit} suresinin {elapsed} "
+                                 "sonunda saglandi — {seen}"},
+    "temporal_within_fail": {"en": "did not become true within {limit} "
+                                   "({elapsed} observed) — last seen: {seen}",
+                             "tr": "{limit} icinde saglanmadi ({elapsed} "
+                                   "gozlendi) — son gorulen: {seen}"},
+    "temporal_for_never_started": {"en": "never became true, so it could not be "
+                                         "held for {limit} ({timeout}s allowed to "
+                                         "start) — last seen: {seen}",
+                                   "tr": "hic saglanmadi, bu yuzden {limit} boyunca "
+                                         "korunamadi (baslamasi icin {timeout} sn "
+                                         "taniniyordu) — son gorulen: {seen}"},
+    "temporal_for_lapsed": {"en": "held for only {held} of the {limit} required, "
+                                  "then lapsed — {seen}",
+                            "tr": "gereken {limit} suresinin yalnizca {held} "
+                                  "kadari korundu, sonra bozuldu — {seen}"},
+    "temporal_for_ok":   {"en": "held continuously for {held} (required {limit}, "
+                                "{samples} checks) — {seen}",
+                          "tr": "{held} boyunca kesintisiz korundu (gereken "
+                                "{limit}, {samples} olcum) — {seen}"},
+    "temporal_never_ok": {"en": "not observed once in {observed} of watching "
+                                "({samples} checks) — last seen: {seen}",
+                          "tr": "{observed} boyunca izlendi ve hic gorulmedi "
+                                "({samples} olcum) — son gorulen: {seen}"},
+    "temporal_never_fail": {"en": "occurred after {elapsed} of the {limit} watched "
+                                  "— {seen}",
+                            "tr": "izlenen {limit} suresinin {elapsed} sonunda "
+                                  "gerceklesti — {seen}"},
+    "temporal_stalled":  {"en": " (the vehicle's clock stopped advancing, so this "
+                                "duration was measured on the wall clock)",
+                          "tr": " (aracin saati ilerlemeyi birakti, bu sure duvar "
+                                "saatiyle olculdu)"},
+    "temporal_no_evidence": {"en": "not judged — '{condition}' rests on {signal} "
+                                   "telemetry that never arrived. Nothing was "
+                                   "measured, which is not the same as nothing "
+                                   "being wrong.",
+                             "tr": "degerlendirilmedi — '{condition}' kosulu hic "
+                                   "gelmeyen {signal} telemetrisine dayaniyor. "
+                                   "Hicbir sey olculmedi; bu, hicbir sorun yok "
+                                   "demek degildir."},
+    "temporal_too_few_samples": {"en": "not judged — only {samples} of the "
+                                       "{needed} state readings this window needs "
+                                       "were taken",
+                                 "tr": "degerlendirilmedi — bu pencerenin ihtiyac "
+                                       "duydugu {needed} durum okumasindan yalnizca "
+                                       "{samples} tanesi alinabildi"},
+
     "proc_unknown_step": {"en": "unimplemented step type: {kind}",
                           "tr": "uygulanmamis adim tipi: {kind}"},
     "proc_unknown_enum": {"en": "unknown MAVLink name: {name}",
@@ -308,6 +360,19 @@ CATALOG: dict[str, dict[str, str]] = {
                           "tr": "'{id}' kosusu: ucus raporu {seconds} sn sonra hala "
                                 "uretiliyordu ve daha fazla beklenmedi — kosu "
                                 "klasorunde report.json eksik olabilir"},
+    "run_fingerprint_failed": {"en": "the environment fingerprint could not be "
+                                     "written for this run: {err}. The run is "
+                                     "still archived, but it cannot be compared "
+                                     "against a baseline.",
+                               "tr": "bu kosu icin ortam parmak izi yazilamadi: "
+                                     "{err}. Kosu yine de arsivlendi ama bir "
+                                     "referansla karsilastirilamaz."},
+    "regression_no_baseline": {"en": "there is no earlier run of model '{model}' "
+                                     "with metrics to compare against. Fly it "
+                                     "once more, or name a baseline explicitly.",
+                               "tr": "'{model}' modelinin karsilastirilacak, "
+                                     "metrigi olan daha eski bir kosusu yok. Bir "
+                                     "kez daha ucur ya da referansi acikca belirt."},
     "run_no_file":       {"en": "no such file in this run: {name}",
                           "tr": "bu kosuda boyle bir dosya yok: {name}"},
     "run_bin_copy_failed": {"en": "the dataflash log at {path} could not be copied "

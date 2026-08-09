@@ -18,8 +18,11 @@ from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from . import docs
+from . import metrics as metricslib
 from . import paths
 from . import procedures as procs
+from . import regression
 from . import runs as runlib
 from .i18n import t, set_language, get_language, LANGUAGES
 from .mavlink_link import MavlinkLink, substitute
@@ -623,6 +626,51 @@ def api_run_report_rebuild(run_id: str):
     return JSONResponse(runlib.regenerate_report(run_id))
 
 
+@app.get("/api/runs/{run_id}/compare")
+def api_run_compare(run_id: str, baseline: Optional[str] = None,
+                    ignore_config_drift: bool = False):
+    """Compare a run's metrics against a baseline run of the same model.
+
+    With no `baseline`, the newest earlier run of the same model is used. That
+    is a convenience for the panel and nothing else: CI names its baseline, so
+    that what a comparison was made against is a decision in a file rather than
+    whatever happened to be on disk that day.
+    """
+    directory = runlib.run_dir(run_id)
+    if directory is None:
+        return JSONResponse({"ok": False, "text": t("run_unknown", id=run_id)},
+                            status_code=404)
+    try:
+        current = regression.load_run(directory)
+        if baseline:
+            other = runlib.run_dir(baseline)
+            if other is None:
+                return JSONResponse(
+                    {"ok": False, "text": t("run_unknown", id=baseline)},
+                    status_code=404)
+            reference = regression.load_run(other)
+        else:
+            reference = regression.previous_run_for(current)
+            if reference is None:
+                # 200, not 404. The endpoint exists and answered; the answer is
+                # "this is the first run of this model, so there is nothing to
+                # compare it against". That is an ordinary outcome, and a 404
+                # would make the browser log an error for it — on a page whose
+                # first promise is a clean console.
+                return JSONResponse(
+                    {"ok": False, "text": t("regression_no_baseline",
+                                            model=current["model_id"])})
+    except regression.RunNotReadable as exc:
+        return JSONResponse({"ok": False, "text": str(exc)}, status_code=409)
+
+    comparison = regression.compare(reference, current,
+                                    ignore_config_drift=ignore_config_drift)
+    # Written as well as returned: a comparison a browser made is evidence too,
+    # and it belongs beside the run rather than only in a tab someone closed.
+    regression.write(directory, comparison)
+    return {"ok": True, "comparison": comparison}
+
+
 @app.get("/api/runs/{run_id}/file/{relative:path}")
 def api_run_file(run_id: str, relative: str):
     path = runlib.run_file(run_id, relative)
@@ -635,6 +683,35 @@ def api_run_file(run_id: str, relative: str):
     return FileResponse(path, filename=path.name,
                         headers={"Content-Disposition":
                                  f'{disposition}; filename="{path.name}"'})
+
+
+# --------------------------------------------------------------------------- docs
+# The documentation portal. These endpoints only read files that are already in
+# the repository — see docs.py for why the portal holds no prose of its own.
+@app.get("/api/docs")
+def api_docs():
+    """The navigation tree, with each page's headings for the search box."""
+    return docs.index(get_language())
+
+
+@app.get("/api/docs/{page_id}")
+def api_docs_page(page_id: str):
+    document = docs.read(page_id, get_language())
+    if not document.get("ok"):
+        return JSONResponse(document, status_code=404)
+    return document
+
+
+@app.get("/api/metrics")
+def api_metrics():
+    """The metric catalogue: what each key means, its unit and its source.
+
+    The interface labels a run's metrics from this rather than from a copy of
+    the list, so a metric added to `metrics.py` cannot end up displayed under a
+    name only the front end knows.
+    """
+    return {"schema": metricslib.SCHEMA,
+            "metrics": metricslib.catalogue(get_language())}
 
 
 @app.post("/api/rescan")

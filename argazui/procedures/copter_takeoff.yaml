@@ -10,7 +10,11 @@
 # This is the v1.0 behaviour, which was correct for Copter. It is moved here
 # unchanged so that the button and the regression test share one definition —
 # the point of the move is the single-source rule, not a behaviour change.
-schema: 1
+#
+# Schema 2 (v1.3) added the temporal criteria at the bottom of this file. The
+# steps are untouched: what changed is what the flight has to prove, not what
+# it does.
+schema: 2
 id: copter_takeoff
 name:
   en: Copter takeoff (GUIDED)
@@ -68,14 +72,31 @@ steps:
 
 expect:
   - condition: {alt_above: "{alt*0.9}"}
-    timeout: 20
+    within: 20s
     message:
-      en: reached at least 90% of the requested altitude
-      tr: istenen irtifanin en az %90'ina ulasti
-  - condition: {armed: true}
-    message: {en: still armed, tr: hala armli}
-  - condition: {mode: GUIDED}
-    message: {en: still in GUIDED, tr: hala GUIDED modunda}
+      en: reached at least 90% of the requested altitude within 20 s
+      tr: istenen irtifanin en az %90'ina 20 sn icinde ulasti
+
+  # A takeoff that reaches altitude and then sinks back has still failed, and
+  # an instantaneous check at the end of the climb cannot tell the two apart.
+  # Five seconds of vehicle time is long enough for a collapse to show and
+  # short enough not to lengthen the flight noticeably.
+  - condition: {alt_above: "{alt*0.9}", armed: true, mode: GUIDED}
+    for: 5s
+    message:
+      en: held the altitude, the arm state and GUIDED for 5 s
+      tr: irtifayi, arm durumunu ve GUIDED modunu 5 sn korudu
+
+  # 180°/s is not a tuning target; it is the line past which a multirotor that
+  # is supposed to be holding station is no longer doing anything anyone asked
+  # for. The envelope criterion below judges the whole climb in accumulated
+  # seconds; this one says the aircraft was not seen there even once while it
+  # sat at altitude.
+  - condition: {angular_rate_above: 180}
+    never: 5s
+    message:
+      en: never turned faster than 180°/s while holding altitude
+      tr: irtifayi korurken hicbir an 180°/sn ustunde donmedi
 
   # A GUIDED takeoff is a station-keeping vertical climb: the autopilot holds
   # position, so there is no reason for the airframe to lean. 20° is generous

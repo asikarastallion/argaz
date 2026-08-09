@@ -76,6 +76,12 @@ def _value(key: str, env: str, toml: dict[str, Any], default: Any) -> Any:
     return default
 
 
+def _table(name: str, toml: dict[str, Any]) -> dict[str, Any]:
+    """One `[section]` from argaz.toml, or an empty one."""
+    value = toml.get(name)
+    return value if isinstance(value, dict) else {}
+
+
 def configure(**overrides: Any) -> None:
     """Apply CLI overrides and refresh exported compatibility constants.
 
@@ -110,6 +116,13 @@ def configure(**overrides: Any) -> None:
         # SITL's reusable working directory — see runs.py for why they differ.
         "RUNS_DIR": configured_path("runs_root", "ARGAZ_RUNS_ROOT", root / "runs"),
     })
+    # ------------------------------------------------------- regression (v1.3)
+    # A table rather than flat `regression_*` keys, because it holds a
+    # per-metric map and a flat file with a prefix on every key is the same
+    # nesting written less clearly. Absent means "use the defaults in
+    # regression.py", which are the values documented in docs/regression.md.
+    globals().update({"REGRESSION": _table("regression", toml)})
+
     globals().update({
         "SITL_MODELS_DOCS": SITL_MODELS / "Gazebo" / "docs",
         "SITL_MODELS_CONFIG": SITL_MODELS / "Gazebo" / "config",
@@ -132,6 +145,8 @@ def source_summary() -> dict[str, str]:
         "mavlink_port": str(UI_MAVLINK_PORT),
         "script_mavlink_port": str(SCRIPT_MAVLINK_PORT),
         "plotjuggler_port": str(PLOTJUGGLER_PORT),
+        "regression": ("(defaults)" if not REGRESSION
+                       else ", ".join(sorted(REGRESSION))),
     }
 
 

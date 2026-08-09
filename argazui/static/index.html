@@ -30,6 +30,7 @@
       <button class="langbtn active" data-set-lang="en">EN</button>
       <button class="langbtn" data-set-lang="tr">TR</button>
     </div>
+    <button class="navbtn" id="btn-docs" data-i18n="nav_docs">DOCS</button>
     <button class="navbtn" data-sheet="sheet-help" data-i18n="nav_help">HOW TO USE</button>
     <button class="navbtn" data-sheet="sheet-about" data-i18n="nav_about">CONTACT</button>
   </nav>
@@ -151,6 +152,32 @@
     </div>
   </section>
 </main>
+
+<!-- =============================================================== DOCS PORTAL -->
+<!-- A tree, a search over headings and a deep link — not twenty browser tabs.
+     Every page here is a file in the repository or a named section of one; the
+     footer of each page says which. See argazui/argazui/docs.py for why the
+     portal deliberately holds no prose of its own. -->
+<div class="sheet-backdrop" id="sheet-docs" hidden>
+  <div class="sheet docs">
+    <header>
+      <h2 data-i18n="nav_docs_title">Engineering documentation</h2>
+      <button class="sheet-close" data-close>✕</button>
+    </header>
+    <div class="docs-body">
+      <nav class="docs-nav">
+        <input type="search" id="docs-search" class="docs-search" autocomplete="off">
+        <p class="hint docs-searchhint" id="docs-searchhint"></p>
+        <div class="docs-tree" id="docs-tree"></div>
+      </nav>
+      <article class="docs-page" id="docs-page">
+        <p class="docs-notice" id="docs-notice" hidden></p>
+        <div class="docs-content" id="docs-content"></div>
+        <p class="hint docs-source" id="docs-source"></p>
+      </article>
+    </div>
+  </div>
+</div>
 
 <!-- ============================================================== HOW TO USE -->
 <div class="sheet-backdrop" id="sheet-help" hidden>
@@ -420,8 +447,13 @@
         <button class="btn" id="btn-run-bin" data-i18n="runs_download">↓ dataflash .BIN</button>
         <button class="btn" id="btn-run-mavex" data-i18n="runs_copy_mavexplorer">⧉ copy MAVExplorer command</button>
         <button class="btn link" id="btn-run-rebuild" data-i18n="runs_rebuild">⟳ rebuild report</button>
+        <!-- Compares this run's metrics against the newest earlier run of the
+             same model. The convenience baseline is for reading, not for
+             gating: CI names its baseline (see docs/regression.md). -->
+        <button class="btn link" id="btn-run-compare" data-i18n="runs_compare">⇄ compare with the previous run</button>
         <span class="hint" id="run-action-hint"></span>
       </div>
+      <div id="run-compare" class="run-compare" hidden></div>
       <div id="run-plots" class="run-plots"></div>
       <pre class="report" id="run-report"></pre>
       <p class="hint" id="run-files"></p>

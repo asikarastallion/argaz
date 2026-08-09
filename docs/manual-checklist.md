@@ -119,14 +119,55 @@ pressing OK on that dialog is what kills the stream. See USAGE.md 5d for why.*
 directories. What no test judges is whether five is the right number on your
 screen.*
 
+## 5d. The documentation portal
+
+| | step | expected |
+|---|---|---|
+| ✔ | press **DOCS** | a tree of twenty-two pages, grouped, with the landing index open |
+| ✔ | open a page with tables and code in it | both render, and the footer names the repository file it came from |
+| ✔ | type in the search box | pages *and* headings inside them match; a heading opens its page |
+| ✔ | paste `#docs=regression/exit-codes` into the address bar | that page opens, scrolled to that heading |
+| ✔ | switch to TR, then open a page with no Turkish source | the English text, under a Turkish notice saying why |
+| ✗ | read three pages end to end, in each language | the text is right, current, and reads as engineering rather than as translation |
+| ✗ | open the portal on a narrow screen | the tree stacks above the page and both stay usable |
+
+*The ✔ rows are asserted in `tests/e2e/test_docs_portal.py` against real
+Chromium, including that every page in the tree resolves to a file. **No test
+can read prose.** A page that is well-formed, renders perfectly and says
+something untrue would pass every check in this project — the only thing
+standing between that and a reader is somebody reading it. The narrow-screen
+row is the usual gap: e2e runs at one viewport size.*
+
+## 5e. Comparing runs
+
+| | step | expected |
+|---|---|---|
+| ✔ | open a run with an earlier run behind it, press **⇄ compare with the previous run** | a table of metrics, a verdict per row, and an overall result naming the baseline |
+| ✔ | press it on the *first* run of a model | it says there is nothing to compare against — no error, no empty table |
+| ◐ | compare two runs of *different* models | it refuses and names the model mismatch |
+| ✗ | edit a procedure between two real flights, then compare | it declines as `incomparable` and names the procedure hash |
+| ✗ | rebuild ArduPilot between two real flights, then compare | it declines and names the firmware; `--ignore-config-drift` compares anyway |
+| ✗ | read the numbers against what you saw the aircraft do | the deltas match your judgement of which flight was better |
+
+*The ✔ rows are driven in a real browser by `tests/e2e/test_compare_panel.py`.
+◐: the refusal itself is asserted exhaustively in `tests/test_regression.py`
+and the whole chain on real evidence in `tests/test_tier1_evidence_chain.py`,
+but **no test drives the different-model refusal through the panel**. What no
+test does at all is change the environment between two real flights — the drift
+cases above are produced by editing a fingerprint, not by rebuilding a
+firmware. And no test can say whether a metric that moved 12% describes
+something you would call a regression; that judgement is why the thresholds are
+configurable.*
+
 ## 6. Stopping, and the evidence
 
 | | step | expected |
 |---|---|---|
 | ✔ | press STOP | the vehicle stops, the status bar returns to "not started" |
 | ✔ | look at Flight Runs | the finished run is listed |
-| ✔ | open the run's report | it names the firmware, the parameters the run changed, and any advisories |
-| ✔ | check the run directory | it holds a complete `.BIN`, `result.json`, `report.md`, parameter dumps |
+| ✔ | open the run's report | it names the firmware, the parameters the run changed, any advisories, the metrics and the environment it ran in |
+| ✔ | check the run directory | it holds a complete `.BIN`, `result.json`, `report.md`, `fingerprint.json`, parameter dumps |
+| ✗ | read `fingerprint.json` on **your** machine | every field is either right or `null` with a reason you agree with — nothing is a plausible-looking guess |
 | ✗ | press STOP while Gazebo is mid-crash, or kill the terminal instead | no orphaned `gz sim` or SITL process is left behind |
 
 *Process cleanup is by session and process group and has never been tested

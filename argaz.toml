@@ -22,3 +22,22 @@ script_mavlink_port = 14551
 # protocol JSON). Nothing has to be listening — the datagrams simply go
 # nowhere. Set to 0 to switch the mirror off entirely.
 plotjuggler_port = 14552
+
+# ---------------------------------------------------------------- regression
+# Thresholds for `argazui compare`, which measures a run's metrics against a
+# named baseline. Both values are optional; the defaults below are the ones
+# regression.py applies when nothing is stated here, and docs/regression.md
+# explains where they come from.
+#
+# A metric counts as unchanged when it moved by less than `tolerance` (a
+# fraction of the baseline) OR by less than `floor` (in the metric's own unit).
+# The floor exists because a quantity near zero produces enormous percentages
+# for changes that mean nothing.
+[regression]
+default_tolerance = 0.10
+
+[regression.tolerance]
+# peak_angular_rate = 0.25
+
+[regression.floor]
+# time_to_target_alt = 1.0

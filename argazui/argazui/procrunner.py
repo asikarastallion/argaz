@@ -43,6 +43,14 @@ TWO KINDS OF VERDICT
 Vibration, EKF innovation and attitude-tracking findings are NOT part of this.
 They are advisories produced by flightlog.py from the dataflash log; they are
 recorded and shown, and they never turn a flight into a failure.
+
+CRITERIA HAVE A SHAPE IN TIME
+-----------------------------
+A criterion used to ask one question: is this true now, or does it become true
+before a timeout? That answers "where did the aircraft end up" and nothing
+else. Schema 2 adds three shapes that answer *when* and *for how long* —
+`within`, `for` and `never` — and they are measured on the vehicle's own clock
+so they mean the same thing at speedup 1 and speedup 10. See `_Window`.
 """
 from __future__ import annotations
 
@@ -54,7 +62,7 @@ from pymavlink import mavutil
 
 from .i18n import t
 from .mavlink_link import MavlinkLink, substitute
-from .procedures import Procedure, Step
+from .procedures import Expectation, Procedure, Step, format_duration
 
 # Parameters read once per run to decide which procedure applies. See
 # procedures.py for why this is read from the vehicle instead of models.json.
@@ -126,10 +134,23 @@ class ExpectResult:
     condition: dict
     passed: bool = False
     text: str = ""
+    # The temporal shape this criterion was judged with, and the duration it
+    # named. Recorded so a stored run says which question was asked, not only
+    # what the answer was — a `for 5s` that passed and an instantaneous check
+    # that passed are different evidence.
+    kind: str = "eventually"
+    duration: Optional[float] = None
+    # What was actually measured, on which clock. `observed` is in seconds of
+    # the clock named by `clock`; a criterion that had to fall back to the wall
+    # clock says so rather than implying the vehicle's own.
+    observed: float = 0.0
+    clock: str = "vehicle"
 
     def as_dict(self) -> dict:
         return {"label": self.label, "condition": _plain(self.condition),
-                "passed": self.passed, "text": self.text}
+                "passed": self.passed, "text": self.text,
+                "kind": self.kind, "duration": self.duration,
+                "observed": round(self.observed, 2), "clock": self.clock}
 
 
 def _plain(obj):
@@ -167,6 +188,105 @@ DEFAULT_STABILITY_TOLERANCE = 1.0
 # measured" and "nothing was wrong" are the two answers this project exists to
 # keep apart.
 DEFAULT_STABILITY_MIN_SECONDS = 5.0
+
+# ------------------------------------------------------------ temporal criteria
+# How often a temporal criterion re-reads the vehicle's state, in WALL-CLOCK
+# seconds. It is a wall-clock number on purpose: it is a property of this
+# process's polling loop, not of the flight.
+#
+# The consequence has to be stated rather than hidden: an excursion shorter
+# than one interval of VEHICLE time — this many wall seconds times the SITL
+# speedup — can pass between two samples unseen. `never` is therefore a claim
+# about what was observed at this rate, and `attitude_stable` remains the
+# criterion that weighs every attitude sample the vehicle sent.
+TEMPORAL_SAMPLE_S = 0.2
+
+# The vehicle's clock is the right measure for a duration, and it stops
+# advancing the moment ATTITUDE stops arriving. A criterion waiting on a dead
+# stream is not a criterion, it is a hang — so every window also carries a
+# wall-clock backstop, sized from the measured speedup with room to spare, and
+# says which of the two ended it.
+WALL_BACKSTOP_FACTOR = 3.0
+WALL_BACKSTOP_MARGIN = 15.0
+
+# Fewest samples a `for`/`never` window must collect before its verdict means
+# anything. Two samples cannot describe a duration.
+MIN_TEMPORAL_SAMPLES = 3
+
+# Which conditions rest on which telemetry, and the state flag that says that
+# telemetry has actually been seen. A criterion that claims "the rate never
+# exceeded 90°/s" while no ATTITUDE ever arrived is reporting silence as
+# success, which is the exact failure this project was written to remove.
+CONDITION_EVIDENCE = {
+    "roll_within": "attitude_known", "pitch_within": "attitude_known",
+    "angular_rate_above": "attitude_known", "angular_rate_below": "attitude_known",
+    "attitude_stable": "attitude_known", "prearm_ok": "prearm_known",
+}
+
+
+class _Window:
+    """A bounded observation window, measured on the vehicle's own clock.
+
+    WHY NOT `time.time()`
+    ---------------------
+    A procedure that says `within: 10s` is making a claim about the aircraft,
+    and under SITL speedup ten wall-clock seconds are not ten seconds of
+    flight. Every duration here is therefore counted on `ATTITUDE.time_boot_ms`
+    — the same clock `StabilityWatch` weighs its samples with — so a criterion
+    means the same thing at speedup 1 and speedup 10.
+
+    WHY THERE IS STILL A WALL-CLOCK CEILING
+    ---------------------------------------
+    That clock only advances while telemetry arrives. If the stream dies the
+    window would never close, so the wall clock ends it instead and `stalled`
+    records that the answer came from the fallback. Reporting a wall-clock
+    measurement as though it were vehicle time would quietly make every
+    duration in a run's evidence wrong by the speedup factor.
+    """
+
+    def __init__(self, link: MavlinkLink, budget: float) -> None:
+        self.link = link
+        self.budget = budget
+        self.wall_start = time.time()
+        self.vehicle_start = self._vehicle_now()
+        speedup = max(getattr(link, "speedup", 1.0) or 1.0, 0.1)
+        self.wall_limit = budget / speedup * WALL_BACKSTOP_FACTOR + WALL_BACKSTOP_MARGIN
+        self.samples = 0
+
+    def _vehicle_now(self) -> Optional[float]:
+        clock = getattr(self.link.state, "vehicle_clock_s", 0.0) or 0.0
+        return clock if clock > 0 else None
+
+    @property
+    def stalled(self) -> bool:
+        """Is the vehicle's clock unusable, so the wall clock is doing the work?"""
+        now = self._vehicle_now()
+        return self.vehicle_start is None or now is None or now < self.vehicle_start
+
+    @property
+    def clock(self) -> str:
+        return "wall" if self.stalled else "vehicle"
+
+    @property
+    def elapsed(self) -> float:
+        if self.stalled:
+            return time.time() - self.wall_start
+        return (self._vehicle_now() or 0.0) - (self.vehicle_start or 0.0)
+
+    @property
+    def expired(self) -> bool:
+        return (self.elapsed >= self.budget
+                or (time.time() - self.wall_start) >= self.wall_limit)
+
+    def tick(self) -> None:
+        """One sampling interval, with the link's message pump kept running."""
+        self.samples += 1
+        self.link.submit(_pump_for(TEMPORAL_SAMPLE_S),
+                         timeout=TEMPORAL_SAMPLE_S + 6.0, label="observe")
+
+    def note(self) -> str:
+        """A suffix stating the fallback, or nothing when the clock was fine."""
+        return " " + t("temporal_stalled") if self.stalled else ""
 
 
 def _pump_for(seconds: float):
@@ -229,6 +349,8 @@ class ProcedureRunner:
                             for k, v in raw.items()}
             elif key == "mode_in":
                 out[key] = [str(self._resolve(v, values)) for v in raw]
+            elif key in ("roll_within", "pitch_within"):
+                out[key] = [float(self._resolve(v, values)) for v in raw]
             elif key in ("mode",):
                 out[key] = str(raw)
             elif key in ("armed", "prearm_ok"):
@@ -275,6 +397,20 @@ class ProcedureRunner:
             elif key == "groundspeed_above":
                 ok &= (st.groundspeed > want)
                 seen.append(f"gs={st.groundspeed:.1f}m/s")
+            elif key == "roll_within":
+                low, high = want
+                ok &= (low <= st.roll <= high)
+                seen.append(f"roll={st.roll:.1f}° (band [{low:g},{high:g}])")
+            elif key == "pitch_within":
+                low, high = want
+                ok &= (low <= st.pitch <= high)
+                seen.append(f"pitch={st.pitch:.1f}° (band [{low:g},{high:g}])")
+            elif key == "angular_rate_above":
+                ok &= (st.max_angular_rate > want)
+                seen.append(f"rate={st.max_angular_rate:.0f}°/s (limit {want:g})")
+            elif key == "angular_rate_below":
+                ok &= (st.max_angular_rate < want)
+                seen.append(f"rate={st.max_angular_rate:.0f}°/s (limit {want:g})")
             elif key == "attitude_stable":
                 held, text = self._check_stability(want)
                 ok &= held
@@ -349,6 +485,143 @@ class ProcedureRunner:
                 return True, seen
             self.link.submit(_pump_for(0.4), timeout=6.0, label="wait")
         return False, seen
+
+    # ------------------------------------------------------------------ temporal
+    def _unmeasurable(self, cond: dict) -> str:
+        """Which telemetry this condition needs and has not seen, if any.
+
+        Returns an empty string when everything it rests on has been observed.
+        A `for` or a `never` makes a positive claim about a stretch of time, so
+        it has to be refused outright when the stream backing it never arrived
+        — otherwise silence reads as good behaviour.
+        """
+        state = self.link.state
+        for key in cond:
+            flag = CONDITION_EVIDENCE.get(key)
+            if flag and not getattr(state, flag, False):
+                return t("temporal_no_evidence", condition=key,
+                         signal=flag.replace("_known", ""))
+        return ""
+
+    def _evaluate(self, exp: Expectation, cond: dict) -> ExpectResult:
+        """One acceptance criterion, judged with the shape the procedure asked for."""
+        result = ExpectResult(label=exp.label(self.lang), condition=cond,
+                              kind=exp.kind, duration=exp.duration)
+        if exp.kind == "eventually":
+            result.passed, result.text = self._wait_for(cond, exp.timeout)
+            return result
+        if exp.kind == "within":
+            return self._expect_within(result, cond, exp.within or 0.0)
+        if exp.kind == "for":
+            return self._expect_for(result, cond, exp.hold_for or 0.0, exp.timeout)
+        return self._expect_never(result, cond, exp.never or 0.0)
+
+    def _expect_within(self, result: ExpectResult, cond: dict,
+                       limit: float) -> ExpectResult:
+        """The condition must become true before the window closes."""
+        window = _Window(self.link, limit)
+        seen = ""
+        while True:
+            if self._cancel:
+                raise ProcedureAborted(t("proc_cancelled"))
+            ok, seen = self._check(cond)
+            result.observed, result.clock = window.elapsed, window.clock
+            if ok:
+                result.passed = True
+                result.text = t("temporal_within_ok",
+                                elapsed=format_duration(max(window.elapsed, 0.0)),
+                                limit=format_duration(limit),
+                                seen=seen) + window.note()
+                return result
+            if window.expired:
+                break
+            window.tick()
+        result.observed, result.clock = window.elapsed, window.clock
+        result.text = t("temporal_within_fail", limit=format_duration(limit),
+                        elapsed=format_duration(max(window.elapsed, 0.0)),
+                        seen=seen) + window.note()
+        return result
+
+    def _expect_for(self, result: ExpectResult, cond: dict, hold: float,
+                    timeout: float) -> ExpectResult:
+        """The condition must become true, then hold continuously.
+
+        A lapse inside the hold window FAILS; it does not restart the count. A
+        restarting window would let a condition that flickers on and off pass
+        eventually, which is the opposite of what "continuously" means, and the
+        failure text would no longer describe what the aircraft did.
+        """
+        missing = self._unmeasurable(cond)
+        if missing:
+            result.text = missing
+            return result
+
+        # Phase 1 — acquire. Bounded by `timeout`, which is the schema-1 wait.
+        acquired, seen = self._wait_for(cond, timeout)
+        if not acquired:
+            result.text = t("temporal_for_never_started",
+                            limit=format_duration(hold),
+                            timeout=f"{timeout:g}", seen=seen)
+            return result
+
+        # Phase 2 — hold, on the vehicle's clock.
+        window = _Window(self.link, hold)
+        while not window.expired:
+            if self._cancel:
+                raise ProcedureAborted(t("proc_cancelled"))
+            window.tick()
+            ok, seen = self._check(cond)
+            result.observed, result.clock = window.elapsed, window.clock
+            if not ok:
+                result.text = t("temporal_for_lapsed",
+                                held=format_duration(max(window.elapsed, 0.0)),
+                                limit=format_duration(hold),
+                                seen=seen) + window.note()
+                return result
+        result.observed, result.clock = window.elapsed, window.clock
+        if window.samples < MIN_TEMPORAL_SAMPLES:
+            result.text = t("temporal_too_few_samples", samples=window.samples,
+                            needed=MIN_TEMPORAL_SAMPLES)
+            return result
+        result.passed = True
+        result.text = t("temporal_for_ok",
+                        held=format_duration(max(window.elapsed, 0.0)),
+                        limit=format_duration(hold), samples=window.samples,
+                        seen=seen) + window.note()
+        return result
+
+    def _expect_never(self, result: ExpectResult, cond: dict,
+                      window_s: float) -> ExpectResult:
+        """The condition must not become true at any observed moment."""
+        missing = self._unmeasurable(cond)
+        if missing:
+            result.text = missing
+            return result
+
+        window = _Window(self.link, window_s)
+        seen = ""
+        while not window.expired:
+            if self._cancel:
+                raise ProcedureAborted(t("proc_cancelled"))
+            violated, seen = self._check(cond)
+            result.observed, result.clock = window.elapsed, window.clock
+            if violated:
+                result.text = t("temporal_never_fail",
+                                elapsed=format_duration(max(window.elapsed, 0.0)),
+                                limit=format_duration(window_s),
+                                seen=seen) + window.note()
+                return result
+            window.tick()
+        result.observed, result.clock = window.elapsed, window.clock
+        if window.samples < MIN_TEMPORAL_SAMPLES:
+            result.text = t("temporal_too_few_samples", samples=window.samples,
+                            needed=MIN_TEMPORAL_SAMPLES)
+            return result
+        result.passed = True
+        result.text = t("temporal_never_ok",
+                        observed=format_duration(max(window.elapsed, 0.0)),
+                        samples=window.samples, seen=seen) + window.note()
+        return result
 
     # ------------------------------------------------------------------ steps
     def _run_step(self, step: Step, values: dict, changed_params: dict) -> dict:
@@ -554,9 +827,7 @@ class ProcedureRunner:
             expects = []
             for exp in proc.expect:
                 cond = self._resolve_condition(exp.condition, values)
-                ok, seen = self._wait_for(cond, exp.timeout)
-                er = ExpectResult(label=exp.label(self.lang), condition=cond,
-                                  passed=ok, text=seen)
+                er = self._evaluate(exp, cond)
                 expects.append(er)
                 self._emit("expect", expect=er.as_dict())
 
@@ -609,7 +880,8 @@ class ProcedureRunner:
             if s.status in ("pending", "running"):
                 s.status = "skipped" if s.status == "pending" else "failed"
         return [ExpectResult(label=e.label(self.lang), condition=_plain(e.condition),
-                             passed=False, text=t("proc_not_evaluated"))
+                             passed=False, text=t("proc_not_evaluated"),
+                             kind=e.kind, duration=e.duration)
                 for e in proc.expect]
 
     def _restore(self, changed_params: dict) -> None:
