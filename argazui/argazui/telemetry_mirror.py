@@ -90,7 +90,7 @@ def _numeric(value):
     return None
 
 
-def encode(msg, when: float, namespace: str = "") -> Optional[bytes]:
+def encode(msg, when: float) -> Optional[bytes]:
     """One MAVLink message as one JSON datagram, or None if nothing plottable.
 
     `when` is wall-clock seconds. It is deliberately not the vehicle's own
@@ -101,17 +101,6 @@ def encode(msg, when: float, namespace: str = "") -> Optional[bytes]:
     the axis PlotJuggler uses by default, so a stream plots correctly with no
     options set. Vehicle timestamps are still present as ordinary fields for
     anyone who wants them.
-
-    `namespace` (v1.3) prefixes the message key, so a fleet's N vehicles share
-    one port without their series colliding:
-
-        ""    -> {"t": ..., "ATTITUDE": {...}}       ATTITUDE/roll
-        "v2"  -> {"t": ..., "v2/ATTITUDE": {...}}    v2/ATTITUDE/roll
-
-    Empty by default, so the single-vehicle stream is byte-for-byte what v1.2
-    produced. PlotJuggler's JSON parser splits on `/`, which is why the
-    separator is a slash and not a dot — a dot would leave one flat series
-    name per vehicle instead of a tree that can be expanded and collapsed.
     """
     kind = msg.get_type()
     if kind in SKIP_TYPES:
@@ -123,8 +112,7 @@ def encode(msg, when: float, namespace: str = "") -> Optional[bytes]:
             fields[name] = value
     if not fields:
         return None
-    key = f"{namespace}/{kind}" if namespace else kind
-    return json.dumps({"t": round(when, 6), key: fields},
+    return json.dumps({"t": round(when, 6), kind: fields},
                       separators=(",", ":")).encode("utf-8")
 
 
@@ -137,13 +125,9 @@ class TelemetryMirror:
     """
 
     def __init__(self, port: int = 0, host: str = HOST,
-                 on_log: Optional[Callable[[str], None]] = None,
-                 namespace: str = "") -> None:
+                 on_log: Optional[Callable[[str], None]] = None) -> None:
         self.port = int(port or 0)
         self.host = host
-        # Per-vehicle series prefix for a fleet. Empty for the single-vehicle
-        # path, which therefore emits exactly what v1.2 emitted.
-        self.namespace = namespace or ""
         self.on_log = on_log or (lambda text: None)
         self._sock: Optional[socket.socket] = None
         self._sent = 0
@@ -198,7 +182,7 @@ class TelemetryMirror:
         if sock is None:
             return
         try:
-            payload = encode(msg, time.time(), self.namespace)
+            payload = encode(msg, time.time())
         except Exception:                       # a malformed message is not fatal
             payload = None
         if payload is None:

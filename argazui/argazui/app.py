@@ -27,7 +27,6 @@ from .procrunner import ProcedureRunner, probe_capabilities
 from .runs import RunRecorder
 from .versions import argazui_build, pin_static_digest
 from .session import TerminalSession, build_launch_commands
-from .fleetmanager import FleetManager
 
 app = FastAPI(title="ArgazUI")
 
@@ -486,14 +485,6 @@ class Manager:
 
 mgr = Manager()
 
-# The fleet engine. Deliberately a separate object from `mgr`: v1.3's first
-# rule is that the single-vehicle path does not change, and the surest way to
-# keep that true is for the fleet to own its own supervisor, links and router
-# and to share nothing with the one above.
-fleet = FleetManager(on_log=lambda text: hub.push_log(text),
-                     on_event=lambda event: hub.push_json(
-                         {"type": "fleet_event", "event": event}))
-
 
 # --------------------------------------------------------------------------- API
 class StartReq(BaseModel):
@@ -672,7 +663,6 @@ async def ws_endpoint(ws: WebSocket):
                     "data": base64.b64encode(b"".join(hub.backlog[stream])).decode(),
                 }))
         await ws.send_text(json.dumps({"type": "status", "status": mgr.status()}))
-        await ws.send_text(json.dumps({"type": "fleet", "fleet": fleet.status()}))
         while True:
             msg = json.loads(await ws.receive_text())
             kind = msg.get("type")
@@ -697,7 +687,6 @@ async def _status_pump():
         await asyncio.sleep(1.0)
         if hub.clients:
             hub.push_json({"type": "status", "status": mgr.status()})
-            hub.push_json({"type": "fleet", "fleet": fleet.status()})
 
 
 @app.on_event("startup")
@@ -724,63 +713,6 @@ async def _shutdown():
 
 
 # --------------------------------------------------------------------------- statik
-class FleetStartReq(BaseModel):
-    name: str
-
-
-class FleetCommandReq(BaseModel):
-    command: str
-    # `all` | `selected` | a list of ids | `role:<name>`. Never implicit: a
-    # command whose target cannot be named is the ambiguity explicit
-    # targeting exists to remove.
-    target: object = "all"
-    policy: Optional[str] = None
-
-
-class FleetAttachReq(BaseModel):
-    vehicle: str = ""
-
-
-@app.get("/api/fleets")
-def api_fleets():
-    """Every spec with its validation badge, and the reason when it fails."""
-    return {"fleets": fleet.fleets(), "directory": str(paths.CONFIG_DIR / "fleets")}
-
-
-@app.get("/api/fleet/status")
-def api_fleet_status():
-    return fleet.status()
-
-
-@app.post("/api/fleet/start")
-def api_fleet_start(req: FleetStartReq):
-    return fleet.start(req.name)
-
-
-@app.post("/api/fleet/stop")
-def api_fleet_stop():
-    return fleet.stop()
-
-
-@app.post("/api/fleet/command")
-def api_fleet_command(req: FleetCommandReq):
-    return fleet.command(req.command, req.target, req.policy)
-
-
-@app.post("/api/fleet/attach")
-def api_fleet_attach(req: FleetAttachReq):
-    """Attach the single interactive console to one vehicle, or detach."""
-    if not req.vehicle:
-        return fleet.detach()
-    result = fleet.attach(req.vehicle)
-    if result.get("ok") and result.get("command"):
-        # Typed into the SHELL terminal so it is visible and interactive,
-        # exactly like the single-vehicle launch commands.
-        mgr.ensure_terminal()
-        mgr.shell.run_line(result["command"])
-    return result
-
-
 @app.get("/api/version")
 def api_version():
     """Which ArgazUI is answering, and since when. See versions.argazui_build."""

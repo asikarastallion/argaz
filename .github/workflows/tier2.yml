@@ -68,7 +68,6 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull the tier-2 image
-        id: pull
         run: |
           start=$SECONDS
           if ! docker pull "$IMAGE"; then
@@ -99,43 +98,6 @@ jobs:
           echo "suite_seconds=$((SECONDS - start))" >> "$GITHUB_ENV"
           exit $status
 
-      # The Gazebo fleet tier: three vehicles in one world. Nightly, beside
-      # the model set, because it needs the same image and the same GPU-less
-      # headless Gazebo.
-      #
-      # `fleet_gazebo`, never `tier2`: this flies a registered model in a
-      # FLEET, which proves the fleet engine works with that model — it is not
-      # the single-vehicle verification docs/status.md's model rows are built
-      # from, and conflating them would put an unearned tick in the table.
-      - name: Fly the fleet
-        # WHY THIS RUNS EVEN AFTER A FAILING STEP
-        # ----------------------------------------
-        # This repository deliberately keeps red tests: `sitl_tailsitter` in
-        # tier 1, and three models in tier 2 — so this one never ran at all. Chaining the fleet tier behind
-        # them meant it never ran at all — the step was `skipped` on every
-        # push, and docs/status.md correctly reported "no suite record" for a
-        # tier that had simply never executed.
-        #
-        # `!cancelled()` rather than `always()`: a cancelled workflow should
-        # stop. The `steps.pull` guard is the other half — if the image never
-        # arrived there is nothing to run the fleet in, and starting docker
-        # against a missing image would bury the real error.
-        if: ${{ !cancelled() && steps.pull.conclusion == 'success' }}
-        run: |
-          start=$SECONDS
-          set +e
-          docker run --rm --shm-size=1g \
-            -v "$PWD/argazui:/opt/argaz/argazui" \
-            -v "$PWD/tests:/opt/argaz/tests" \
-            -v "$PWD/pytest.ini:/opt/argaz/pytest.ini" \
-            -v "$PWD/runs:/opt/argaz/runs" \
-            -w /opt/argaz --entrypoint python3 "$IMAGE" \
-            -m pytest tests/ -m fleet_gazebo -q
-          status=$?
-          set -e
-          echo "fleet_seconds=$((SECONDS - start))" >> "$GITHUB_ENV"
-          exit $status
-
       - name: Report timings
         if: always()
         run: |
@@ -146,7 +108,6 @@ jobs:
             echo "|---|---|"
             echo "| pull image | ${pull_seconds:-n/a} |"
             echo "| fly the models | ${suite_seconds:-n/a} |"
-            echo "| fly the fleet | ${fleet_seconds:-n/a} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # Every flight leaves a run directory: dataflash log, parameter dump,

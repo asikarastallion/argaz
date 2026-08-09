@@ -60,24 +60,6 @@ TRANSIENT_ARM_HINTS = (
 ARM_RETRY_WINDOW = 35.0     # saniye
 ARM_RETRY_INTERVAL = 2.5
 
-# How long a vehicle's mode must have been still before a mode command is
-# safe to send. In VEHICLE seconds, per docs/thresholds.md.
-#
-# MEASURED, NOT CHOSEN
-# --------------------
-# ArduPlane reads its flight-mode switch shortly after RC input first becomes
-# valid, and overwrites any mode commanded in that window with no NAK and no
-# STATUSTEXT. Recorded instances of the overwrite:
-#
-#     RC valid 6.75  ->  FBWA commanded 6.85  ->  back to MANUAL 6.99
-#     INITIALISING   ->  FBWA commanded 6.42  ->  back to MANUAL 6.50
-#
-# So the window that matters is ~100-150 ms wide and closes as soon as the
-# switch has been read once. Two seconds is more than an order of magnitude
-# of margin and still shorter than the pre-arm wait a user already sits
-# through, so it costs nothing they will notice.
-MODE_SETTLE_S = 2.0
-
 
 @dataclass
 class VehicleState:
@@ -106,23 +88,6 @@ class VehicleState:
     pitch_rate: float = 0.0
     yaw_rate: float = 0.0
     attitude_known: bool = False
-    # The vehicle's own clock, and when its mode last moved on that clock.
-    # `None` means nothing has been observed yet, which is NOT the same as
-    # "it has been still" — see `mode_settled`.
-    vehicle_clock_s: float = 0.0
-    mode_changed_at_s: Optional[float] = None
-
-    @property
-    def mode_settled(self) -> bool:
-        """Has the mode stopped moving on its own?
-
-        False until a mode change has actually been observed: absence of data
-        is not evidence of stillness, and a vehicle that has never reported a
-        mode is exactly the one in the middle of starting up.
-        """
-        if self.mode_changed_at_s is None or not self.vehicle_clock_s:
-            return False
-        return (self.vehicle_clock_s - self.mode_changed_at_s) >= MODE_SETTLE_S
 
     def as_dict(self) -> dict:
         return {
@@ -143,9 +108,6 @@ class VehicleState:
             # "never heard from the vehicle" are different problems.
             "heartbeat_age": (None if not self.last_heartbeat
                               else round(time.time() - self.last_heartbeat, 1)),
-            # Whether a mode command is safe to send yet. The interface gates
-            # its command buttons on this; see MODE_SETTLE_S.
-            "mode_settled": self.mode_settled,
         }
 
 
@@ -361,7 +323,7 @@ class MavlinkLink:
     def __init__(self, port: int = 14550, on_log: Optional[Callable[[str], None]] = None,
                  connection: Optional[str] = None,
                  on_event: Optional[Callable[[dict], None]] = None,
-                 mirror_port: int = 0, mirror_namespace: str = ""):
+                 mirror_port: int = 0):
         self.port = port
         # Varsayilan: MAVProxy'nin 14550'ye verdigi UDP cikisi (UI yolu).
         # Testler MAVProxy'siz kosarken SITL'in kendi TCP portuna baglanabilsin
@@ -404,11 +366,7 @@ class MavlinkLink:
         # Live telemetry out to a plotting tool. Owned here for the same reason
         # as the stability watch: `_absorb` sees every message exactly once.
         # Its lifetime is this link's — opened by start(), closed by stop().
-        # `mirror_namespace` (v1.3) is how a fleet's N vehicles share one
-        # PlotJuggler port without their series colliding. Empty by default,
-        # so a single-vehicle session mirrors exactly what v1.2 mirrored.
-        self.mirror = TelemetryMirror(port=mirror_port, on_log=self.on_log,
-                                      namespace=mirror_namespace)
+        self.mirror = TelemetryMirror(port=mirror_port, on_log=self.on_log)
 
     def emit(self, kind: str, **payload) -> None:
         """Bir olayi kosu kaydina bildirir; hicbir zaman cagirana hata dondurmez."""
@@ -600,7 +558,6 @@ class MavlinkLink:
             if not was_connected:
                 self.emit("connected", sysid=self.state.sysid, mode=self.state.mode)
             if self.state.mode != was_mode:
-                self._note_mode_change()
                 self.emit("mode", mode=self.state.mode, previous=was_mode,
                           alt=round(self.state.alt, 1))
             if self.state.armed != was_armed:
@@ -649,19 +606,6 @@ class MavlinkLink:
     # windows are dominated by the bursts telemetry arrives in.
     SPEEDUP_WINDOW = 5.0
 
-    def _note_mode_change(self, vehicle_s: Optional[float] = None) -> None:
-        """Record that the mode moved, on the vehicle's own clock.
-
-        Called from `_absorb` whenever a heartbeat reports a different mode —
-        including the ones the vehicle makes on its own during start-up, which
-        is the entire point. `mode_settled` then answers whether it has been
-        still long enough for a mode command to survive.
-        """
-        when = vehicle_s if vehicle_s is not None else self.state.vehicle_clock_s
-        self.state.mode_changed_at_s = when
-        if vehicle_s is not None:
-            self.state.vehicle_clock_s = max(self.state.vehicle_clock_s, vehicle_s)
-
     def _note_vehicle_clock(self, vehicle_s: float) -> None:
         """Measure how fast simulated time runs, from the vehicle's own clock.
 
@@ -672,7 +616,6 @@ class MavlinkLink:
         """
         if vehicle_s <= 0:
             return
-        self.state.vehicle_clock_s = vehicle_s
         now = time.time()
         if self._clock_ref is None:
             self._clock_ref = (now, vehicle_s)

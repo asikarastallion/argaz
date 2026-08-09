@@ -17,20 +17,10 @@ from . import paths
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="ArgazUI — ArduPilot SITL + Gazebo control panel")
     ap.add_argument("command", nargs="?",
-                    choices=("serve", "doctor", "runs", "report", "status", "fleet"),
+                    choices=("serve", "doctor", "runs", "report", "status"),
                     default="serve")
-    # WHY A THIRD POSITIONAL AND NOT SUBPARSERS
-    # -----------------------------------------
-    # `fleet` is the first command here that takes a verb of its own, and the
-    # obvious move is to convert the whole parser to subparsers. That would
-    # rewrite the interface of every existing command to add one — v1.3 is a
-    # fleet release, not a CLI redesign. The flat parser stays and `fleet`
-    # dispatches its own verb.
     ap.add_argument("target", nargs="?",
-                    help="report: a run directory or a .BIN dataflash log; "
-                         "fleet: the verb (validate | list)")
-    ap.add_argument("extra", nargs="?",
-                    help="fleet validate: which fleet spec to check")
+                    help="report: a run directory or a .BIN dataflash log")
     ap.add_argument("--argaz-root", help="simulation root (overrides ARGAZ_ROOT / argaz.toml)")
     ap.add_argument("--ardupilot-root", help="ArduPilot root")
     ap.add_argument("--sitl-models-root", help="SITL_Models root")
@@ -70,9 +60,6 @@ def main(argv=None) -> int:
 
     if args.command == "report":
         return _make_report(args.target, args.as_json)
-
-    if args.command == "fleet":
-        return _fleet(args.target, args.extra, args.as_json, args.runs)
 
     if args.command == "status":
         from pathlib import Path
@@ -150,75 +137,6 @@ def main(argv=None) -> int:
     uvicorn.run("argazui.app:app", host="127.0.0.1", port=paths.HTTP_PORT,
                 reload=args.reload, log_level="warning", ws="wsproto")
     return 0
-
-
-def _fleet(verb: str, name: str, as_json: bool, runs: list) -> int:
-    """`argazui fleet list` and `argazui fleet validate <name>`.
-
-    The point of `validate` is that it starts NOTHING. It reads the spec, the
-    model registry and the most recent tier-2 record, and answers before a
-    single process exists — which is what makes it usable as CI's first gate
-    and as the badge beside the fleet picker.
-    """
-    from pathlib import Path
-
-    from .fleet import spec as fleetspec
-
-    if verb in (None, "", "list"):
-        names = fleetspec.available()
-        if as_json:
-            print(json.dumps({"directory": str(fleetspec.FLEETS_DIR),
-                              "fleets": names}, indent=2))
-            return 0
-        if not names:
-            print(f"No fleet specs in {fleetspec.FLEETS_DIR}.")
-            return 0
-        print(f"Fleet specs in {fleetspec.FLEETS_DIR}:")
-        for entry in names:
-            print(f"  {entry}")
-        return 0
-
-    if verb != "validate":
-        print(f"unknown fleet verb {verb!r}; expected 'validate' or 'list'",
-              file=sys.stderr)
-        return 2
-
-    if not name:
-        print("usage: argazui fleet validate <name>", file=sys.stderr)
-        known = fleetspec.available()
-        if known:
-            print(f"       available: {', '.join(known)}", file=sys.stderr)
-        return 2
-
-    roots = [Path(r) for r in runs] if runs else None
-    try:
-        result = fleetspec.validate_by_name(name, runs_roots=roots)
-    except fleetspec.FleetSpecError as exc:
-        if as_json:
-            print(json.dumps({"ok": False, "errors": [str(exc)],
-                              "warnings": [], "notes": [], "fleet": None},
-                             indent=2))
-        else:
-            print(f"FAILED  {name}\n  - {exc}", file=sys.stderr)
-        return 1
-
-    if as_json:
-        print(json.dumps(result.as_dict(), indent=2))
-        return 0 if result.ok else 1
-
-    fleet = result.spec
-    where = "Gazebo" if fleet.gazebo else "SITL only"
-    print(f"{'OK     ' if result.ok else 'FAILED '}{fleet.name}  "
-          f"({fleet.count} vehicles, {where}, formation {fleet.formation})")
-    for error in result.errors:
-        print(f"  ERROR   {error}")
-    for warning in result.warnings:
-        print(f"  WARNING {warning}")
-    for note in result.notes:
-        print(f"  note    {note}")
-    if fleet.allow_unverified and fleet.unverified_reason:
-        print(f"  UNVERIFIED MODELS ALLOWED: {fleet.unverified_reason}")
-    return 0 if result.ok else 1
 
 
 def _list_runs(as_json: bool) -> int:
