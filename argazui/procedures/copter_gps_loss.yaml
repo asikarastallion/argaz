@@ -1,0 +1,157 @@
+# Copter GPS loss — an off-nominal scenario, schema 3 (v1.4).
+#
+# WHAT THIS ASKS
+#   Every other procedure in this directory asks "does the aircraft do what it
+#   was told". This one asks "what does it do when something is wrong", which
+#   is a different question and needs a different kind of evidence: what was
+#   injected, what the aircraft did, what counts as acceptable, and only then a
+#   verdict.
+#
+# WHY GPS AND WHY LOSS RATHER THAN DEGRADATION
+#   Losing the position source is the failure a multirotor in GUIDED is least
+#   able to ignore: GUIDED is a position-controlled mode, so the autopilot has
+#   to do something about it. ArduCopter's answer is the EKF failsafe
+#   (FS_EKF_ACTION, default "switch to Land mode if the current mode requires
+#   position" — ArduCopter/Parameters.cpp), which is a mode change this run can
+#   watch happen.
+#
+# WHAT IS DELIBERATELY NOT ASSERTED
+#   The criteria below do NOT require a particular failsafe mode. FS_EKF_ACTION
+#   is a parameter, a model may ship any value of it, and a criterion that
+#   demanded LAND would be testing this repository's assumption rather than the
+#   aircraft. What IS required is the part that is true whatever the parameter
+#   says: an airborne vehicle that loses GPS must not disarm and must not
+#   tumble. The mode it chooses is recorded as evidence, in the run's mode
+#   timeline, for a person to read.
+#
+# Sources:
+#   https://ardupilot.org/copter/docs/ekf-inav-failsafe.html
+#   https://ardupilot.org/dev/docs/using-sitl-for-ardupilot-testing.html
+schema: 3
+id: copter_gps_loss
+name:
+  en: Copter GPS loss in a hover (scenario)
+  tr: Copter askidayken GPS kaybi (senaryo)
+description:
+  en: >-
+    Climbs to a hover in GUIDED, switches the simulated GPS receiver off for a
+    declared window, and judges what the aircraft did about it. The GPS is
+    restored before the run ends, whether the scenario passed or failed.
+  tr: >-
+    GUIDED modunda askiya tirmanir, simule GPS alicisini beyan edilen bir
+    pencere boyunca kapatir ve aracin buna ne yaptigina hukum verir. Senaryo
+    gecse de kalsa da GPS, kosu bitmeden geri acilir.
+sources:
+  - https://ardupilot.org/copter/docs/ekf-inav-failsafe.html
+  - https://ardupilot.org/dev/docs/using-sitl-for-ardupilot-testing.html
+
+applies_to:
+  role: scenario
+  autopilot: ArduCopter
+
+inputs:
+  - name: alt
+    label: {en: "hover altitude (m)", tr: "aski irtifasi (m)"}
+    type: number
+    default: 25
+    min: 10
+    max: 120
+
+timeout: 420
+
+steps:
+  - name: {en: Switch to GUIDED, tr: GUIDED moduna gec}
+    set_mode: GUIDED
+    timeout: 10
+
+  - name: {en: Arm the motors, tr: Motorlari kur}
+    arm: {recover: true}
+    timeout: 70
+
+  - name: {en: Send the takeoff command, tr: Kalkis komutunu gonder}
+    send_command:
+      command: MAV_CMD_NAV_TAKEOFF
+      type: long
+      params: {p7: "{alt}"}
+    timeout: 15
+
+  - name: {en: Confirm the vehicle is actually climbing, tr: Aracin gercekten tirmandigini dogrula}
+    wait_for: {alt_above: 1.0, climb_rate_above: 0.3}
+    timeout: 30
+
+  - name: {en: Settle into the hover, tr: Askiya otur}
+    wait_for: {alt_above: "{alt*0.9}"}
+    timeout: 150
+
+failures:
+  - id: gps_off_in_hover
+    fault: gps_loss
+    target: gps1
+
+    # Injection point: after the climb, never during it. A vehicle losing its
+    # position source part way up would confound "what does GPS loss do" with
+    # "what does GPS loss do to a climb", and this scenario is asking the first.
+    inject_after_step: 5
+
+    # Start condition. The injection waits for the state the scenario is about
+    # — an actual hover — instead of assuming the step above left one behind.
+    start:
+      condition: {alt_above: "{alt*0.85}", armed: true}
+      within: 60s
+
+    duration: 12s
+
+    expected:
+      en: >-
+        The EKF loses its absolute position source. ArduCopter raises an EKF
+        failsafe and, with the stock FS_EKF_ACTION, changes to a mode that does
+        not need position. Whatever mode it picks, the aircraft stays armed and
+        stays the right way up: an airborne multirotor that disarms or tumbles
+        on GPS loss has failed, and one that lands under control has not.
+      tr: >-
+        EKF mutlak konum kaynagini kaybeder. ArduCopter bir EKF failsafe'i
+        baslatir ve fabrika FS_EKF_ACTION degeriyle konum gerektirmeyen bir moda
+        gecer. Hangi modu secerse secsin arac armli kalir ve dogru tarafi yukari
+        durur: GPS kaybinda disarm eden ya da takla atan bir cok rotorlu arac
+        basarisizdir, kontrollu inen degildir.
+
+    # Judged WHILE the GPS is off. Both are claims about the degraded aircraft
+    # and neither would mean the same thing measured after the fix.
+    expect:
+      - condition: {armed: true}
+        for: 8s
+        message:
+          en: stayed armed for 8 s with no position source
+          tr: konum kaynagi yokken 8 sn boyunca armli kaldi
+      - condition: {angular_rate_above: 150}
+        never: 8s
+        message:
+          en: never turned faster than 150°/s while the GPS was off
+          tr: GPS kapaliyken hicbir an 150°/sn ustunde donmedi
+
+    # Judged AFTER the GPS is restored. "It survived the fault" and "it is
+    # flyable again" are two results, and a scenario that only checked the
+    # first would pass an aircraft left oscillating.
+    recovery:
+      - condition: {angular_rate_above: 150}
+        never: 5s
+        message:
+          en: settled without a rate excursion once the GPS returned
+          tr: GPS geri geldiginde hiz sicramasi olmadan kararli kaldi
+
+    # The verdict rests on attitude telemetry. Without it the two criteria
+    # above would read 0°/s for a tumbling aircraft, so the run reports "not
+    # judged" rather than a pass.
+    evidence: [attitude]
+
+expect:
+  # Over the whole scenario, including the degraded window. Deliberately more
+  # generous than a nominal takeoff's envelope: this aircraft was made to fly
+  # without a position source, and some attitude excursion is the correct
+  # response rather than a defect. What is not acceptable is sustained loss of
+  # control, which is what accumulated seconds above the rate measures.
+  - condition:
+      attitude_stable: {max_rate: 150, tolerance: 3}
+    message:
+      en: never spent more than 3 s turning faster than 150°/s
+      tr: 150°/sn ustunde donerek toplam 3 sn'den fazla vakit gecirmedi

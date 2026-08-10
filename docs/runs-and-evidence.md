@@ -21,6 +21,29 @@ afterwards what happened.
 | `versions.txt` | ArduPilot SHA, Gazebo, ArgazUI, interpreter |
 | `plots/` | altitude and attitude-tracking PNGs, when matplotlib is installed |
 
+Two fields of `result.json` are worth naming separately, both added in v1.4:
+
+- **`failure`** — why the run did not pass, as one of seven categories rather
+  than as a sentence. `null` on a passing run, and deliberately never
+  `"category": "none"`. See
+  [Failure classification](failure-classification.md).
+- **`campaign`** — the repeatability campaign this run is one iteration of, or
+  `null`. It is stamped into the run rather than kept in an index file, so a
+  campaign is found by reading its runs and a run that was copied still says
+  what it belonged to. See [Campaigns](campaigns.md).
+
+A run that injected a fault also carries, per procedure, a **`faults`** list
+holding four separate things: the mechanism exactly as applied (which
+parameters, to what, and what they were before), the response (how long it was
+actually held, on which clock, and which evidence arrived), the criteria, and
+the verdict. None is derived from another, because *a fault that was
+successfully injected is not a pass*. See
+[Fault injection](fault-injection.md).
+
+A campaign writes one directory of its own,
+`runs/campaigns/<campaign-id>/campaign.json` and `.md`. It is an aggregation
+over N ordinary runs and adds no fact that cannot be recomputed from them.
+
 ## Why the YAML is stored verbatim
 
 That is the single-source rule made checkable. `scenario.yaml` is

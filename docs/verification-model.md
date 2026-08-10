@@ -42,6 +42,39 @@ A run's own status adds a fourth, `no-procedure`: the model was started and
 stopped without running anything, so nothing was asserted. It is reported as
 `untested`, never as a pass.
 
+Since v1.4 a failed run also carries **one category saying which kind of
+failure it was** — of which only `acceptance` is a verdict about the aircraft.
+The outcome above says whether the flight passed; the category says who should
+look at it. See [Failure classification](failure-classification.md).
+
+## An off-nominal result is four facts, not one
+
+A scenario injects a fault ([Fault injection](fault-injection.md)). Its record
+keeps four things apart, and none is derived from another:
+
+| | |
+|---|---|
+| the injected condition | what was actually done to the simulator |
+| the vehicle response | what the aircraft did while it was done |
+| the criteria | what the procedure said counts as acceptable |
+| the verdict | whether they held |
+
+**A fault that was successfully injected is not a pass.** The verdict comes
+from the criteria and from nothing else — and a fault whose evidence never
+arrived is reported as *not judged*, which is neither a pass nor a claim that
+the aircraft misbehaved.
+
+## One run is not a repeatability claim
+
+A green run says a flight met its criteria once. It does not say the procedure
+works, and this project has a case of its own where the difference mattered:
+`tailsitter_takeoff` passed three times at 24.9 m, 23.6 m and 18.3 m. Each run
+was green; the spread was the evidence.
+
+A [campaign](campaigns.md) is where that claim can be made, and it is still
+bounded: five runs is five runs, so the document reports counts and a spread
+with the sample size beside them and computes no confidence interval from it.
+
 ## Two tiers, and only one of them may name a model
 
 **Tier 1** flies SITL's own generic frames with no Gazebo. It verifies that the

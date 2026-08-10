@@ -1,0 +1,151 @@
+# Copter ground-station link loss — an off-nominal scenario, schema 3 (v1.4).
+#
+# WHY EVERY CRITERION HERE IS A `recovery:` ONE
+#   A full MAVLink interruption is the one fault whose verdict CANNOT be
+#   measured while it is happening. ArgazUI stops receiving, so any criterion
+#   evaluated inside the window would be judged against the last state that
+#   arrived before the blackout — an aircraft frozen in amber, which would pass
+#   anything. The evidence rule catches that (`heartbeat` is listed below and
+#   is unobtainable mid-fault), but the honest design is to ask the question
+#   after the link returns, and that is what this file does.
+#
+#   This is not a limitation of the mechanism. It is what a lost link IS: the
+#   ground station finds out what happened afterwards, or not at all.
+#
+# WHAT THE STOCK AIRCRAFT ACTUALLY DOES
+#   Nothing. ArduCopter ships FS_GCS_ENABLE = 0 — "Disabled/NoAction"
+#   (ArduCopter/Parameters.cpp) — so losing the ground station is not a
+#   failsafe condition on a default model at all, and the correct expected
+#   behaviour is that the aircraft carries on exactly as instructed. That is
+#   worth verifying rather than assuming: it is the difference between "the
+#   link dropped and nothing bad happened" and "the link dropped and nobody
+#   looked".
+#
+#   A model whose parameter file enables the GCS failsafe will fail the mode
+#   criterion below, and that is the right outcome — it will have behaved
+#   differently, and the run should say so rather than accommodate both.
+#
+# Sources:
+#   https://ardupilot.org/copter/docs/gcs-failsafe.html
+#   https://ardupilot.org/dev/docs/mavlink-basics.html
+schema: 3
+id: copter_link_loss
+name:
+  en: Copter ground-station link loss (scenario)
+  tr: Copter yer istasyonu baglanti kaybi (senaryo)
+description:
+  en: >-
+    Climbs to a hover in GUIDED, then silences the link between ArgazUI and the
+    aircraft for a declared window — nothing sent, nothing received — and judges
+    what is found when it comes back.
+  tr: >-
+    GUIDED modunda askiya tirmanir, sonra ArgazUI ile arac arasindaki baglantiyi
+    beyan edilen bir pencere boyunca susturur — hicbir sey gonderilmez, hicbir
+    sey alinmaz — ve baglanti geri geldiginde neyle karsilasildigina hukum
+    verir.
+sources:
+  - https://ardupilot.org/copter/docs/gcs-failsafe.html
+  - https://ardupilot.org/dev/docs/mavlink-basics.html
+
+applies_to:
+  role: scenario
+  autopilot: ArduCopter
+
+inputs:
+  - name: alt
+    label: {en: "hover altitude (m)", tr: "aski irtifasi (m)"}
+    type: number
+    default: 20
+    min: 10
+    max: 120
+
+timeout: 420
+
+steps:
+  - name: {en: Switch to GUIDED, tr: GUIDED moduna gec}
+    set_mode: GUIDED
+    timeout: 10
+
+  - name: {en: Arm the motors, tr: Motorlari kur}
+    arm: {recover: true}
+    timeout: 70
+
+  - name: {en: Send the takeoff command, tr: Kalkis komutunu gonder}
+    send_command:
+      command: MAV_CMD_NAV_TAKEOFF
+      type: long
+      params: {p7: "{alt}"}
+    timeout: 15
+
+  - name: {en: Confirm the vehicle is actually climbing, tr: Aracin gercekten tirmandigini dogrula}
+    wait_for: {alt_above: 1.0, climb_rate_above: 0.3}
+    timeout: 30
+
+  - name: {en: Settle into the hover, tr: Askiya otur}
+    wait_for: {alt_above: "{alt*0.9}"}
+    timeout: 150
+
+failures:
+  - id: gcs_link_silent
+    fault: mavlink_interrupt
+    target: gcs_link
+    inject_after_step: 5
+
+    start:
+      condition: {alt_above: "{alt*0.85}", armed: true}
+      within: 60s
+
+    # Longer than ArduPilot's 5-second ground-station timeout, so a model that
+    # DOES enable the GCS failsafe has time to act on it. A window shorter than
+    # the timeout would pass every aircraft, including one whose failsafe is
+    # misconfigured.
+    duration: 10s
+
+    expected:
+      en: >-
+        ArgazUI stops sending its ground-station heartbeat and discards
+        everything it receives. On a stock ArduCopter, FS_GCS_ENABLE is 0, so
+        the aircraft treats the silence as nothing at all and holds the hover it
+        was left in. When the link returns, the vehicle should still be armed,
+        still in GUIDED, and steady — and ArgazUI should hear it again rather
+        than sit on a dead socket.
+      tr: >-
+        ArgazUI yer istasyonu heartbeat'ini gondermeyi birakir ve aldigi her
+        seyi atar. Fabrika ArduCopter'da FS_GCS_ENABLE 0'dir; arac bu sessizligi
+        hicbir sey saymaz ve birakildigi askida kalir. Baglanti geri
+        geldiginde arac hala armli, hala GUIDED modunda ve kararli olmali —
+        ArgazUI de olu bir sokete bakmak yerine onu yeniden duymalidir.
+
+    # Nothing under `expect:` on purpose. See the header: there is no telemetry
+    # during a full interruption, so there is nothing to judge from.
+
+    recovery:
+      - condition: {armed: true}
+        within: 15s
+        message:
+          en: still armed when the link came back
+          tr: baglanti geri geldiginde hala armli
+      - condition: {mode: GUIDED}
+        within: 15s
+        message:
+          en: still in the mode it was left in — this model raises no GCS failsafe
+          tr: birakildigi modda kaldi — bu model GCS failsafe'i baslatmiyor
+      - condition: {angular_rate_above: 120}
+        never: 5s
+        message:
+          en: steady after the link returned
+          tr: baglanti geri geldikten sonra kararli
+
+    # `heartbeat` is the point of this scenario: the verdict is only worth
+    # anything if ArgazUI actually heard the aircraft again. A run where the
+    # link never recovered reports the criteria as not judged rather than
+    # judging them against a state nothing wrote to.
+    evidence: [heartbeat, attitude]
+
+expect:
+  - condition:
+      attitude_stable: {roll: [-25, 25], pitch: [-25, 25], max_rate: 120,
+                        tolerance: 3}
+    message:
+      en: stayed level and unhurried across the whole scenario
+      tr: senaryo boyunca seviyede ve sakin kaldi

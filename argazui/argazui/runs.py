@@ -39,6 +39,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from . import failures as failurelib
 from . import fingerprint as fp
 from . import metrics as metricslib
 from . import paths
@@ -53,7 +54,10 @@ from .versions import environment
 #   schema 2 moved or changed meaning, so a reader of the older shape still
 #   works — the version moves because the document now carries more, and a
 #   comparison layer has to be able to tell which shape it is looking at.
-RESULT_SCHEMA = 3
+# 4 (v1.4): `failure` — the classified reason a run did not pass — and
+#   `campaign`, the repeatability campaign this run belongs to. Both are null
+#   on an ordinary passing run, and again nothing that existed moved.
+RESULT_SCHEMA = 4
 
 # What a run's acceptance verdict can be. Health findings live in
 # `advisory_count` and never appear here.
@@ -135,8 +139,14 @@ class RunRecorder:
     def __init__(self, model: dict, root: Optional[Path] = None,
                  launch_commands: Optional[list[str]] = None,
                  work_dir: Optional[Path] = None,
-                 on_log: Optional[Callable[[str], None]] = None) -> None:
+                 on_log: Optional[Callable[[str], None]] = None,
+                 campaign: Optional[dict] = None) -> None:
         self.model = model
+        # The repeatability campaign this run is one iteration of, or None.
+        # Stamped into result.json rather than kept in an index file: a
+        # campaign is found by reading its runs, so a run that was moved or
+        # copied still says what it belonged to.
+        self.campaign = dict(campaign) if campaign else None
         self.started = datetime.now(timezone.utc)
         self.started_monotonic = self.started.timestamp()
         self.on_log = on_log or (lambda text: None)
@@ -240,7 +250,9 @@ class RunRecorder:
             self._procedures.append(entry)
             self._procedure_sources[procedure.id] = {
                 "id": procedure.id, "schema": getattr(procedure, "schema", 1),
-                "file": procedure.path.name, "text": procedure.raw_text}
+                "file": procedure.path.name, "text": procedure.raw_text,
+                "faults": [f.as_dict("en")
+                           for f in getattr(procedure, "failures", [])]}
             self._scenarios.append(
                 f"{SCENARIO_FENCE}\n"
                 f"# executed {entry['started_utc']} — {procedure.id} ({procedure.role})\n"
@@ -347,7 +359,9 @@ class RunRecorder:
         """
         manifest = fp.capture(model=self.model_record(),
                               procedures=list(self._procedure_sources.values()),
-                              firmware=firmware)
+                              firmware=firmware,
+                              scenario=declared_faults(
+                                  list(self._procedure_sources.values())))
         try:
             fp.write(self.dir, manifest)
         except OSError as exc:
@@ -432,7 +446,7 @@ class RunRecorder:
         status = aggregate_status(self._procedures)
 
         from . import __version__
-        return {
+        record = {
             "schema": RESULT_SCHEMA,
             "run_id": self.run_id,
             "argazui_version": __version__,
@@ -440,6 +454,7 @@ class RunRecorder:
             "finished_utc": _iso(finished),
             "seconds": round(finished.timestamp() - self.started_monotonic, 1),
             "status": status,
+            "campaign": self.campaign,
             "advisory_count": None,
             # Both stay None until the flight report has been produced. "not
             # computed yet" and "nothing to report" are different answers and
@@ -465,6 +480,12 @@ class RunRecorder:
                 "dataflash_absent_reason": self._dataflash_absent or None,
             },
         }
+        # Classified from the finished document, so the answer covers the
+        # evidence as well as the flying: a run whose procedures all passed and
+        # whose dataflash log is missing has still failed, on `evidence`.
+        failure = failurelib.classify_run(record)
+        record["failure"] = failure.as_dict() if failure else None
+        return record
 
     def _make_report(self, dataflash: Path, result: dict) -> None:
         meta = {
@@ -475,6 +496,8 @@ class RunRecorder:
             "procedures": [entry["procedure"] for entry in self._procedures],
             "status": result["status"],
             "overrides": result.get("overrides") or [],
+            "faults": injected_faults(result),
+            "failure": result.get("failure"),
             # The firmware string only exists once the log has been parsed, so
             # the manifest is taken inside `analyse()` rather than handed to
             # it. What is handed over is the part the log cannot know.
@@ -485,6 +508,8 @@ class RunRecorder:
                 # compared with each other. See MODEL_RECORD_KEYS.
                 "model": self.model_record(),
                 "procedures": list(self._procedure_sources.values()),
+                "scenario": declared_faults(
+                    list(self._procedure_sources.values())),
             },
             # What the procedures asked for. The log knows what the aircraft
             # did and nothing about what it was told to do.
@@ -522,6 +547,50 @@ class RunRecorder:
         return {"run_id": self.run_id, "status": "running"}
 
 
+def injected_faults(result: dict) -> list[dict]:
+    """Every fault a stored run actually injected, flattened across procedures.
+
+    Distinct from `declared_faults`, which is what the procedures *asked* for.
+    A scenario whose fault could not be applied has one and not the other, and
+    that difference is the whole point of the fail-closed rule.
+    """
+    out: list[dict] = []
+    for entry in result.get("procedures") or []:
+        for fault in (entry.get("result") or {}).get("faults") or []:
+            out.append({"procedure": entry.get("procedure"), **fault})
+    return out
+
+
+def declared_faults(procedure_sources: list[dict]) -> list[dict]:
+    """The faults the executed procedures declared, for the fingerprint.
+
+    Prefers the list the recorder captured from the parsed procedure objects
+    and falls back to parsing the archived YAML, so a report regenerated months
+    later describes the same scenario the flight ran. Failure to parse yields
+    an empty list rather than an exception: this section is descriptive, and
+    losing a run's report over its own manifest would be the wrong trade.
+    """
+    out: list[dict] = []
+    for entry in sorted(procedure_sources, key=lambda p: (p.get("id") or "")):
+        faults = entry.get("faults")
+        if faults is None:
+            faults = _faults_from_text(entry.get("id") or "", entry.get("text") or "")
+        for fault in faults or []:
+            out.append({"procedure": entry.get("id"), **fault})
+    return out
+
+
+def _faults_from_text(procedure_id: str, text: str) -> list[dict]:
+    from . import procedures as procs
+    if not text or "failures:" not in text:
+        return []
+    try:
+        parsed = procs.parse(text, Path(f"{procedure_id}.yaml"))
+    except Exception:
+        return []
+    return [f.as_dict("en") for f in parsed.failures]
+
+
 # --------------------------------------------------------------------------- browsing
 def attach_report(directory: Path, report: dict) -> None:
     """Folds the report's advisory count and build record back into result.json.
@@ -548,8 +617,11 @@ def attach_report(directory: Path, report: dict) -> None:
     if report.get("fingerprint"):
         result["fingerprint"] = report["fingerprint"]
     # A run recorded before v1.3 and re-analysed now genuinely becomes a
-    # schema-3 document: it carries the fields schema 3 defines. Leaving the
+    # schema-4 document: it carries the fields schema 4 defines. Leaving the
     # old number on it would make the version say less than the file does.
+    result.setdefault("campaign", None)
+    failure = failurelib.classify_run(result)
+    result["failure"] = failure.as_dict() if failure else None
     result["schema"] = RESULT_SCHEMA
     path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n",
                     encoding="utf-8")
@@ -648,7 +720,12 @@ def describe_run(directory: Path) -> dict:
 
     procedures = [
         {"id": entry.get("procedure"), "role": entry.get("role"),
-         "outcome": _outcome_of(entry)}
+         "outcome": _outcome_of(entry),
+         # Faults are listed on the row so a scenario run is distinguishable
+         # from a nominal one without opening the directory.
+         "faults": [{"id": f.get("id"), "fault": f.get("fault"),
+                     "applied": f.get("applied"), "passed": f.get("passed")}
+                    for f in ((entry.get("result") or {}).get("faults") or [])]}
         for entry in result.get("procedures", [])
     ]
     # None means "the report has not been produced yet", which is not the same
@@ -660,10 +737,21 @@ def describe_run(directory: Path) -> dict:
     run_metrics = result.get("metrics")
     manifest = result.get("fingerprint") or fp.read(directory)
 
+    # Classified on the way out rather than only read: a run recorded before
+    # v1.4 has no `failure` key, and answering "unclassified" for it when the
+    # document says exactly why it failed would be a worse answer than the one
+    # available.
+    failure = result.get("failure")
+    if failure is None and result:
+        classified = failurelib.classify_run(result)
+        failure = classified.as_dict() if classified else None
+
     return {
         "run_id": result.get("run_id") or directory.name,
         "dir": str(directory),
         "status": result.get("status", "incomplete") if result else "incomplete",
+        "failure": failure,
+        "campaign": result.get("campaign"),
         "metrics": run_metrics,
         "fingerprint": manifest,
         "started_utc": result.get("started_utc"),
@@ -724,6 +812,7 @@ def regenerate_report(run_id: str, root: Optional[Path] = None) -> dict:
             result = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             result = {}
+    recorded = _recorded_procedures(base, result)
     meta = {
         "run_id": result.get("run_id", base.name),
         "argazui_version": result.get("argazui_version", ""),
@@ -732,12 +821,15 @@ def regenerate_report(run_id: str, root: Optional[Path] = None) -> dict:
         "procedures": [entry.get("procedure") for entry in result.get("procedures", [])],
         "status": result.get("status"),
         "overrides": overrides_of(result),
+        "faults": injected_faults(result),
+        "failure": result.get("failure"),
         "fingerprint_context": {
             "model": result.get("model") or {},
             # The YAML is read back out of the run's own scenario.yaml, so a
             # regenerated report hashes what the flight actually executed and
             # not whatever the procedure file says today.
-            "procedures": _recorded_procedures(base, result),
+            "procedures": recorded,
+            "scenario": declared_faults(recorded),
         },
         "metrics_context": metricslib.context_from_result(result),
     }

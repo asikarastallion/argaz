@@ -157,3 +157,69 @@ def test_model_takes_off_changes_mode_and_lands(request, tier2_runs_root, model)
     landed = _run_procedure(recorder, sim, landing, {})
     assert landed["outcome"] == "passed", _explain(landed)
     assert not sim.link.state.armed, "still armed after a passing landing"
+
+
+# --------------------------------------------------------------- off-nominal
+# WHY ONE MODEL AND NOT ALL OF THEM
+# ---------------------------------
+# A scenario is a second full flight per model, and tier 2 already costs a
+# Gazebo boot each. The claim this test makes is narrow on purpose: that fault
+# injection works against the real model set in Gazebo, not only against SITL's
+# generic frames — which is the one thing tier 1 cannot show.
+#
+# It is a Copter because both shipped scenarios are Copter scenarios, and a
+# scenario is chosen by name rather than by capability. A VTOL or Plane
+# equivalent needs a procedure written for it first; inventing criteria for an
+# airframe nobody has watched respond would be the unearned claim this project
+# exists to remove.
+SCENARIO_MODELS = [m for m in MODELS if m.get("vehicle") == "ArduCopter"]
+
+
+@pytest.mark.skipif(not SCENARIO_MODELS,
+                    reason="no ArduCopter model in models.json to fly a "
+                           "scenario on; recorded as unverified, not passed")
+@pytest.mark.parametrize("model", SCENARIO_MODELS[:1], ids=_ids)
+def test_a_model_survives_a_gps_loss_in_the_hover(request, tier2_runs_root, model):
+    """One off-nominal scenario, flown on a real airframe in Gazebo."""
+    if model.get("method") == "ros2_launch":
+        pytest.skip(f"{model['id']} launches through ros2, which needs a built "
+                    f"ardupilot_gz workspace")
+
+    scenario = procs.get("copter_gps_loss")
+    assert scenario is not None, "copter_gps_loss is missing from procedures/"
+
+    work_dir = paths.RUN_DIR / model["id"]
+    recorder = RunRecorder(model=model, root=tier2_runs_root, work_dir=work_dir,
+                           launch_commands=gazebo.launch_commands(model))
+    try:
+        sim = gazebo.start(model, log_dir=work_dir, on_event=recorder.event,
+                           on_log=lambda text: recorder.console(text.encode()))
+    except gazebo.GazeboUnavailable as exc:
+        recorder.event({"kind": "skipped", "reason": str(exc)})
+        recorder.finish(report=False)
+        pytest.skip(str(exc))
+
+    request.addfinalizer(lambda: (sim.stop(), recorder.finish(wait=True)))
+    assert sim.wait_prearm(), (
+        f"{model['id']} never passed pre-arm checks\n{sim.tail()}")
+
+    caps = probe_capabilities(sim.link, vehicle=model.get("vehicle"))
+    if not scenario.matches(caps):
+        pytest.skip(f"{model['id']}: copter_gps_loss does not apply to its "
+                    f"probed capabilities {caps} — recorded as untested")
+
+    result = _run_procedure(recorder, sim, scenario, scenario.default_values())
+
+    # Fail closed: a scenario that ran without its fault is a nominal flight
+    # under an off-nominal name, and asserting the outcome without checking
+    # this would let that pass.
+    assert result["faults"], f"no fault was injected\n{_explain(result)}"
+    fault = result["faults"][0]
+    assert fault["applied"] is True, _explain(result)
+    assert fault["cleared"] is True, (
+        f"the GPS was left degraded on {model['id']}\n{_explain(result)}")
+    assert not fault["evidence_missing"], (
+        f"the criteria rest on telemetry that never arrived, so the verdict "
+        f"means nothing\n{_explain(result)}")
+
+    assert result["outcome"] == "passed", _explain(result)

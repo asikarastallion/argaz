@@ -95,14 +95,22 @@ recorded, and which firmware it was.
   reaches altitude and then sinks back is a different result from one that
   holds it, and an instantaneous check cannot tell them apart. See
   [docs/acceptance-criteria.md](docs/acceptance-criteria.md).
+- **Controlled fault injection**, in the same YAML and through the same runner:
+  a scenario switches the simulated GPS off, or silences the link to the
+  aircraft, for a declared window and judges what the aircraft did about it. It
+  is simulation-only, restored from a `finally`, and **fails closed** — a
+  scenario whose fault cannot be injected does not fly at all, because a
+  nominal flight under an off-nominal name would report a pass for a behaviour
+  nobody exercised: [docs/fault-injection.md](docs/fault-injection.md).
 - The **button and the regression test execute the same file**, so a passing
   test means a working button.
 - Two test tiers with a hard line between them: application-level verification
   and model-level flight verification are never conflated.
 - Support status generated from test output into [`docs/status.md`](docs/status.md),
   including **claim-scoped verification**: every procedure, confirmed mode
-  change and acceptance criterion listed separately with the run that proves
-  it, under a heading that says anything unlisted was not verified.
+  change, acceptance criterion and injected-fault response listed separately
+  with the run that proves it, under a heading that says anything unlisted was
+  not verified.
 
 ### Evidence and analysis
 
@@ -124,6 +132,16 @@ recorded, and which firmware it was.
 - **Run-to-run regression comparison** with configurable thresholds and CI exit
   codes, which refuses to compare two runs whose fingerprints disagree unless
   told to in so many words: [docs/regression.md](docs/regression.md).
+- **Repeatability campaigns**: the same procedure, the same model, the same
+  configuration, N times, reported as a distribution rather than a verdict —
+  counts, a clean pass rate, and the mean, spread and range of every metric,
+  with the sample size stated beside each. No confidence interval is computed
+  from five runs: [docs/campaigns.md](docs/campaigns.md).
+- **One machine-readable failure category per failed run**, because `failed`
+  plus a sentence does not say whether the aircraft misbehaved, the simulator
+  never started, or the evidence was lost — and those are three different
+  investigations:
+  [docs/failure-classification.md](docs/failure-classification.md).
 
 ### Operations and reliability
 
@@ -193,9 +211,9 @@ Tier 1 can prove the first. Only tier 2 can prove the second.
 | Runs | every push and pull request | nightly, plus manual dispatch |
 | Vehicle | ArduPilot SITL's own generic frames | the real `SITL_Models` set in Gazebo |
 | Gazebo | no | yes, headless |
-| Verifies | procedure logic, capability probing, acceptance evaluation, the HTTP/WebSocket API, the page in a real browser, the live telemetry mirror, `start.sh`, the status generator | that a specific airframe takes off, changes mode in flight and lands |
+| Verifies | procedure logic, capability probing, acceptance evaluation, fault injection and its fail-closed rule, campaign aggregation, failure classification, the HTTP/WebSocket API, the page in a real browser, the live telemetry mirror, `start.sh`, the status generator | that a specific airframe takes off, changes mode in flight and lands — and, for one Copter, survives a GPS loss in the hover |
 | Claims about a model | **none** | this is the only tier that may claim one |
-| Size | 74 tests | 11 models |
+| Size | 292 tests | 11 models, plus one off-nominal scenario |
 
 ### Tier 1
 
@@ -240,9 +258,19 @@ One directory per START…STOP, under `runs/<UTC-time>_<model_id>/`:
 | `<NNNNNNNN>.BIN` | **What the autopilot recorded** — its own dataflash log |
 | `params_full.txt` / `params_diff.txt` | **Configuration state** — everything, and what differs from firmware default |
 | `report.md` / `report.json` / `plots/` | **Post-flight interpretation**, including the metrics |
-| `fingerprint.json` | **What produced this result** — commits, firmware identity, simulator versions, and content hashes of the procedures and the model configuration |
+| `fingerprint.json` | **What produced this result** — commits, firmware identity, simulator versions, content hashes of the procedures and the model configuration, and the faults the run was configured to inject |
 | `regression.json` / `regression.md` | **How it compares to a baseline**, once compared |
 | `versions.txt` | **Reproducibility context** — ArduPilot SHA, Gazebo, ArgazUI, interpreter |
+
+`result.json` also carries **why a run did not pass**, as one of seven
+categories rather than as a sentence — and, for a scenario, **what was injected
+and what the aircraft did about it** as four separate records: the mechanism as
+applied, the response, the criteria, and the verdict. A fault that was
+successfully injected is not a pass.
+
+A campaign adds one directory of its own,
+`runs/campaigns/<campaign-id>/campaign.json` and `.md`, which is an aggregation
+over N ordinary runs and holds no fact that cannot be recomputed from them.
 
 The report is built from the dataflash log rather than from telemetry, so it
 reflects what the autopilot itself recorded at full rate. It contains a mode
@@ -287,6 +315,10 @@ python3 -m argazui status --runs runs      # regenerate docs/status.md
 # compare a run's metrics against a baseline: exit 0 clean, 1 regression,
 # 2 the two runs could not be compared
 python3 -m argazui compare runs/<current> --baseline runs/<baseline>
+
+# repeatability campaigns: list them, then aggregate one into campaign.md
+python3 -m argazui campaign
+python3 -m argazui campaign <campaign-id>
 ```
 
 `runs/` is gitignored — it is the output of flying, not source. Point
@@ -572,11 +604,15 @@ it does not copy them — so there is exactly one place to edit any of it.
 | Document | Contents |
 |---|---|
 | [`argazui/USAGE.md`](argazui/USAGE.md) | The full guide: every panel, launch methods, adding models/buttons/scripts. Also in-app under **HOW TO USE**, in English and Turkish. |
-| [`argazui/procedures/SCHEMA.md`](argazui/procedures/SCHEMA.md) | The procedure format: steps, conditions, acceptance criteria, declared overrides, temporal criteria |
+| [`argazui/procedures/SCHEMA.md`](argazui/procedures/SCHEMA.md) | The procedure format: steps, conditions, acceptance criteria, declared overrides, temporal criteria, and the `failures:` block |
 | [`docs/verification-model.md`](docs/verification-model.md) | What a green result claims — and, at greater length, what it does not |
 | [`docs/acceptance-criteria.md`](docs/acceptance-criteria.md) | Conditions and the temporal shapes `within` / `for` / `never` |
 | [`docs/metrics.md`](docs/metrics.md) | The metric catalogue: units, scopes and source signals |
 | [`docs/regression.md`](docs/regression.md) | Baseline versus current, thresholds, and the CI contract |
+| [`docs/campaigns.md`](docs/campaigns.md) | The same flight N times, and what a spread is worth |
+| [`docs/fault-injection.md`](docs/fault-injection.md) | The two faults, their mechanisms, and the five rules they obey |
+| [`docs/failure-classification.md`](docs/failure-classification.md) | Seven categories, and why only one is about the aircraft |
+| [`docs/failure-investigation.md`](docs/failure-investigation.md) | A failed run, from its category to the file that explains it |
 | [`docs/reproducibility.md`](docs/reproducibility.md) | The environment fingerprint, field by field |
 | [`docs/runs-and-evidence.md`](docs/runs-and-evidence.md) | What a run directory contains and why each file is in it |
 | [`docs/lifecycle.md`](docs/lifecycle.md) | START to STOP: what is launched and how it is shut down |
@@ -598,6 +634,15 @@ exists to avoid.
 ---
 
 ## Scope
+
+### Implemented in v1.4
+
+Repeatability campaigns — the same procedure, model and configuration flown N
+times, reported as a distribution with its sample size stated; a closed
+seven-category failure classification carried in every run, report and status
+table; and minimal controlled fault injection through the `failures:` block of
+procedure schema 3, covering GPS loss/degradation and MAVLink
+interruption/degradation, with two Copter scenarios that use it.
 
 ### Implemented in v1.3
 
@@ -629,9 +674,12 @@ These are listed so they are not mistaken for features:
 
 - multi-vehicle / swarm simulation
 - HITL (a bridge to real hardware)
-- scenario execution — the `mission:` and `failures:` keys are *reserved* in
-  the procedure schema and rejected at load time until a version implements them
-- failure injection (wind, GPS loss, motor failure through `SIM_*`)
+- mission execution — the `mission:` key is *reserved* in the procedure schema
+  and rejected at load time until a version implements it
+- fault injection beyond the two families v1.4 implements: **wind, motor
+  failure and arbitrary sensor corruption are deliberately absent**, and so is
+  a general fault DSL. They will exist when there is a scenario somebody wants
+  to run and a criterion somebody can defend, not because the list looks short
 - authentication, remote access, graphical mission planning, telemetry
   dashboards (MAVProxy's map and console cover part of the last two; ArgazUI
   mirrors live telemetry for PlotJuggler rather than plotting it itself)

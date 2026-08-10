@@ -7,6 +7,8 @@
     python3 -m argazui report runs/20260802T120000Z_skywalker_x8
     python3 -m argazui compare runs/20260803T101500Z_skywalker_x8 \\
             --baseline runs/20260802T120000Z_skywalker_x8
+    python3 -m argazui campaign                     # list repeatability campaigns
+    python3 -m argazui campaign 20260810T124500Z_iris.copter_takeoff
 """
 import argparse
 import json
@@ -21,11 +23,12 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="ArgazUI — ArduPilot SITL + Gazebo control panel")
     ap.add_argument("command", nargs="?",
                     choices=("serve", "doctor", "runs", "report", "status",
-                             "compare"),
+                             "compare", "campaign"),
                     default="serve")
     ap.add_argument("target", nargs="?",
                     help="report: a run directory or a .BIN dataflash log; "
-                         "compare: the current run directory")
+                         "compare: the current run directory; "
+                         "campaign: a campaign id (omit to list them)")
     ap.add_argument("--argaz-root", help="simulation root (overrides ARGAZ_ROOT / argaz.toml)")
     ap.add_argument("--ardupilot-root", help="ArduPilot root")
     ap.add_argument("--sitl-models-root", help="SITL_Models root")
@@ -42,8 +45,10 @@ def main(argv=None) -> int:
                     help="doctor profile (default: full)")
     ap.add_argument("--runs", action="append", default=None,
                     help="status: a directory holding suite.json and run "
-                         "directories; repeat for more than one")
-    ap.add_argument("--out", help="status: where to write the generated table")
+                         "directories; repeat for more than one. "
+                         "campaign: the runs root to search")
+    ap.add_argument("--out", help="status: where to write the generated table; "
+                                  "campaign: a directory for campaign.json/.md")
     ap.add_argument("--workflow", default="", help="status: which workflow produced this")
     ap.add_argument("--run-url", default="", help="status: link to that workflow run")
     ap.add_argument("--baseline",
@@ -76,6 +81,9 @@ def main(argv=None) -> int:
     if args.command == "compare":
         return _compare(args.target, args.baseline, args.as_json,
                         args.ignore_config_drift, args.out)
+
+    if args.command == "campaign":
+        return _campaign(args.target, args.as_json, args.runs, args.out)
 
     if args.command == "status":
         from pathlib import Path
@@ -240,6 +248,78 @@ def _compare(target: Optional[str], baseline: Optional[str], as_json: bool,
     if comparison["verdict"] == NOT_COMPARABLE:
         return 2
     return 1 if comparison["verdict"] == REGRESSED else 0
+
+
+def _campaign(target: Optional[str], as_json: bool, roots: Optional[list],
+              out: Optional[str]) -> int:
+    """`argazui campaign [<id>]` — aggregate a repeatability campaign.
+
+    With no id it lists the campaigns in the runs root. With one it recomputes
+    the whole document from the run directories and writes `campaign.json` and
+    `campaign.md` beside them.
+
+    EXIT CODES
+    ----------
+        0  the campaign was aggregated, whatever its runs did
+        1  the campaign exists and one or more of its runs did not pass
+        2  no such campaign, or nothing to aggregate
+
+    1 rather than 0 for a campaign with failures because this is meant for CI,
+    and 2 is kept separate for the same reason `compare` keeps it: "there is no
+    such campaign" is a different piece of news from "the aircraft failed".
+    """
+    from . import campaign as campaignlib
+
+    root = Path(roots[0]) if roots else paths.RUNS_DIR
+
+    if not target:
+        found = campaignlib.list_campaigns(root)
+        if as_json:
+            print(json.dumps({"root": str(root), "campaigns": found}, indent=2))
+            return 0 if found else 2
+        if not found:
+            print(f"No campaigns recorded under {root}.")
+            return 2
+        print(f"{'campaign':52s} {'model':20s} {'procedure':22s} runs")
+        for entry in found:
+            declared = entry.get("declared_runs")
+            print(f"{entry['id']:52s} {str(entry['model_id'] or '-'):20s} "
+                  f"{str(entry['procedure_id'] or '-'):22s} "
+                  f"{entry['recorded_runs']}"
+                  + (f"/{declared}" if declared else ""))
+        print(f"\n{len(found)} campaign(s) under {root}")
+        return 0
+
+    document = campaignlib.aggregate(target, root)
+    if not document["runs_recorded"]:
+        print(f"ERROR: no run under {root} carries the campaign id "
+              f"'{target}'.", file=sys.stderr)
+        return 2
+
+    directory = Path(out) if out else None
+    as_json_path, as_text_path = campaignlib.write(
+        target, document, root if directory is None else directory.parent)
+    if directory is not None:
+        # An explicit --out writes the pair there instead, so a CI job can
+        # collect them without reaching into the runs tree.
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "campaign.json").write_text(
+            json.dumps(document, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8")
+        (directory / "campaign.md").write_text(campaignlib.render(document),
+                                               encoding="utf-8")
+        as_json_path, as_text_path = (directory / "campaign.json",
+                                      directory / "campaign.md")
+
+    if as_json:
+        print(json.dumps(document, indent=2, ensure_ascii=False))
+    else:
+        print(campaignlib.render(document))
+    print(f"wrote {as_json_path}\n      {as_text_path}", file=sys.stderr)
+
+    counts = document["counts"]
+    unclean = counts["failed"] + counts["flaky"] + counts["incomplete"]
+    return 1 if unclean else 0
 
 
 def _make_report(target: str, as_json: bool) -> int:

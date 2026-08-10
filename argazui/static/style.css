@@ -533,6 +533,32 @@ pre.report {
 /* ------------------------------------------------------ failure visibility */
 /* A panel that could not load says so in its own place, and the rest of the
    page keeps working. Silence was the v1.1 regression. */
+/* ------------------------------------------------- scenarios & campaigns (v1.4) */
+.scen-list { display: flex; flex-direction: column; gap: 10px; }
+.scen {
+  border: 1px solid var(--line, #2a3340); border-radius: 6px;
+  padding: 8px 10px; display: flex; flex-direction: column; gap: 4px;
+}
+.scen-head { display: flex; gap: 10px; align-items: baseline; }
+.scen-id { font-family: monospace; font-size: 11px; opacity: .65; }
+.scen-what { font-size: 12px; opacity: .85; }
+.scen-faults { font-family: monospace; font-size: 11px; opacity: .7; }
+.scen .btn.small { align-self: flex-start; }
+.camp-n { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+.camp-n input { width: 64px; }
+/* The classified reason a run did not pass, beside its verdict chip. */
+.runs-why {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+  padding: 1px 5px; margin-left: 6px; border-radius: 3px;
+  border: 1px solid currentColor; opacity: .85;
+}
+.runs-why.acceptance { color: #e0603a; }
+.runs-why.vehicle_readiness { color: #d8a13a; }
+.runs-why.environment, .runs-why.infrastructure { color: #8f9bb0; }
+.runs-why.evidence, .runs-why.regression { color: #b07fd0; }
+.expect.sub { padding-left: 22px; opacity: .9; }
+.expect.running .mark { opacity: .7; }
+
 .panel-error {
   margin: 8px 0 0; padding: 8px 10px; font-size: 12px;
   color: #ffd9d4; background: #3a1a17; border: 1px solid #7a3129;

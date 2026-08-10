@@ -21,6 +21,8 @@ CI job runs them.
 """
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from argazui import procedures as procs
@@ -215,6 +217,51 @@ def test_a_stalled_vehicle_clock_falls_back_to_the_wall_clock_and_says_so(monkey
     assert not result.passed
     assert result.clock == "wall"
     assert "wall clock" in result.text, result.text
+
+
+def test_a_clock_that_freezes_mid_window_is_detected(monkeypatch):
+    """The case v1.3 could not see, and v1.4's link fault makes routine.
+
+    `time_boot_ms` keeps its last value when telemetry stops — it does not go
+    backwards and it does not go to zero. A window that only checked for those
+    two measured `now - start` = 0 for its whole duration and then reported
+    `clock: "vehicle"`: a dead stream described as a healthy measurement of no
+    seconds at all.
+    """
+    monkeypatch.setattr("argazui.procrunner.STALL_AFTER_WALL_S", 0.15)
+
+    def freeze(link, tick):
+        if tick >= 2:
+            link._advance = False     # the stream dies part way through
+
+    link = FakeLink(script=freeze, speedup=5.0)
+    window = _Window(link, budget=10.0)
+    assert not window.stalled, "a healthy clock must not read as stalled"
+
+    for _ in range(6):
+        window.tick()
+        time.sleep(0.05)
+
+    assert window.stalled, "a frozen clock was still believed"
+    assert window.clock == "wall"
+    # And the duration is not zero: wall seconds converted with the speedup the
+    # window opened with, so the number still means vehicle time.
+    assert window.elapsed > 0.5, window.elapsed
+    assert window.note(), "the fallback has to be stated in the result text"
+
+
+def test_the_fallback_is_sticky_once_it_has_been_used(monkeypatch):
+    """A duration whose unit changed half way through is not a measurement."""
+    monkeypatch.setattr("argazui.procrunner.STALL_AFTER_WALL_S", 0.1)
+
+    link = FakeLink(advance=False)
+    window = _Window(link, budget=10.0)
+    time.sleep(0.15)
+    assert window.stalled
+
+    link.state.vehicle_clock_s += 50.0        # telemetry comes back
+    assert window.stalled, "the window switched clocks mid-measurement"
+    assert window.clock == "wall"
 
 
 def test_the_wall_backstop_is_sized_from_the_measured_speedup():

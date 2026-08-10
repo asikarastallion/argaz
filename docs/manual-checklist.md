@@ -159,6 +159,49 @@ firmware. And no test can say whether a metric that moved 12% describes
 something you would call a regression; that judgement is why the thresholds are
 configurable.*
 
+## 5f. Scenarios (fault injection)
+
+| | step | expected |
+|---|---|---|
+| ✔ | open the page with nothing running | the SCENARIOS panel says a vehicle has to be started, and states that a scenario degrades the **simulated** vehicle only |
+| ✔ | start a Copter, run `copter_gps_loss` | the terminal announces the injection with its mechanism, the fault is held, the parameter is restored, and the verdict comes from the criteria |
+| ✔ | run `copter_link_loss` | the status bar goes quiet for the window and recovers; the criteria are judged afterwards |
+| ✗ | watch the **Gazebo window** during a GPS loss | the aircraft does what the report says it did |
+| ✗ | run a scenario on an ArduPilot without `SIM_GPS1_*` | the procedure aborts before arming and the run is recorded `environment` / `fault-not-applied` |
+| ✗ | kill ArgazUI *while* a fault is injected | the next session finds a vehicle in its normal configuration |
+
+*The ✔ rows are flown against real SITL by `tests/test_tier1_faults.py` and one
+is flown in Gazebo by `tests/test_tier2_models.py`. **No test has looked at a
+rendered frame of an aircraft losing its GPS** — the models are flown headless,
+so what the report says and what the aircraft looked like have never been
+compared by anyone but a person. And nothing tests the fail-closed path on a
+firmware that genuinely lacks the parameter: the unit test simulates that
+firmware, it does not run on one.*
+
+*The last row matters more than it looks. The injector restores from a
+`finally`, the runner clears the link fault from a second one and
+`MavlinkLink.stop()` from a third — but a `SIGKILL` bypasses all three, and the
+simulated vehicle's parameters live in `argazui/run/<model_id>/eeprom.bin`. A
+scenario killed at exactly the wrong moment is the one case where a `SIM_*`
+value could outlive its run.*
+
+## 5g. Repeatability campaigns
+
+| | step | expected |
+|---|---|---|
+| ✔ | open the page with nothing running | the campaign panel lists nothing, says so, and its start button is disabled |
+| ✔ | run a 2-run campaign from the shell suite | two independent run directories, both stamped with the campaign, one aggregate document |
+| ◐ | run a 5-run campaign from the browser on a real model | five START…STOP cycles, progress in the terminal, a summary at the end |
+| ✗ | cancel a campaign half way | the runs already flown keep their evidence and the document covers them |
+| ✗ | edit the procedure between two iterations of a running campaign | the document reports the iterations as not identical |
+| ✗ | read a spread of five real flights | the numbers match what you saw the aircraft do |
+
+*◐: `tests/test_tier1_campaign.py` flies two iterations through the same
+executor, and `tests/e2e/test_scenarios_and_campaigns.py` drives the panel — but
+**no test runs a campaign through the browser against a real model**, which is
+the path a user actually takes. Cancellation is unit-tested against a fake
+launcher and has never been exercised against a live Gazebo session.*
+
 ## 6. Stopping, and the evidence
 
 | | step | expected |

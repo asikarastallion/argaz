@@ -8,6 +8,7 @@ import asyncio
 import base64
 import json
 import threading
+import time
 from html import escape as html_escape
 from pathlib import Path
 from typing import Callable, Optional
@@ -18,7 +19,10 @@ from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from . import campaign as campaignlib
 from . import docs
+from . import failures as failurelib
+from . import faults as faultlib
 from . import metrics as metricslib
 from . import paths
 from . import procedures as procs
@@ -137,6 +141,12 @@ class Manager:
         self.last_result: Optional[dict] = None
         # Aktif kosu kaydi (runs.py). START ile acilir, STOP ile kapanir.
         self.run: Optional[RunRecorder] = None
+        # Repeatability campaign state (v1.4). A campaign owns START and STOP
+        # for as long as it runs, which is why it is tracked here beside them
+        # rather than in a module of its own.
+        self.campaign: Optional[campaignlib.CampaignRunner] = None
+        self.campaign_thread: Optional[threading.Thread] = None
+        self.last_campaign: Optional[str] = None
         hub.console_sink = self._record_console
 
     def session(self, stream: str) -> TerminalSession:
@@ -225,7 +235,8 @@ class Manager:
             self.shell.start()
 
     # -- eylemler --
-    def start_model(self, model_id: str) -> dict:
+    def start_model(self, model_id: str,
+                    campaign: Optional[dict] = None) -> dict:
         with self.lock:
             model = self.find_model(model_id)
             if model is None:
@@ -250,7 +261,8 @@ class Manager:
                 self.run = RunRecorder(model=model, root=paths.RUNS_DIR,
                                        launch_commands=commands,
                                        work_dir=paths.RUN_DIR / model["id"],
-                                       on_log=hub.push_log)
+                                       on_log=hub.push_log,
+                                       campaign=campaign)
                 hub.push_log(t("run_started", id=self.run.run_id))
             except OSError as exc:
                 # Artefakt toplayamamak ucusu engellememeli; ama sessiz de
@@ -351,11 +363,15 @@ class Manager:
         """UI icin: hangi prosedur secildi, hangi alternatifler var."""
         lang = get_language()
         caps = self.capabilities()
-        out = {"capabilities": caps, "roles": {}, "last_result": self.last_result,
+        out = {"capabilities": caps, "roles": {}, "scenarios": [],
+               "last_result": self.last_result,
                "running": bool(self.proc_thread and self.proc_thread.is_alive())}
         if caps is None:
             return out
-        for role in procs.ROLES:
+        # Only takeoff and land are auto-selected. A scenario injects a fault,
+        # and a fault must never start because a capability heuristic thought
+        # it applied — see procedures.scenarios().
+        for role in procs.AUTO_ROLES:
             try:
                 chosen = procs.select(role, caps, self.active_model)
                 options = procs.candidates(role, caps)
@@ -366,6 +382,10 @@ class Manager:
                 "selected": chosen.id if chosen else None,
                 "options": [p.as_dict(lang) for p in options],
             }
+        try:
+            out["scenarios"] = [p.as_dict(lang) for p in procs.scenarios(caps)]
+        except procs.ProcedureError as exc:
+            out["scenarios_error"] = str(exc)
         return out
 
     def resolve_procedure(self, procedure_id: Optional[str], role: Optional[str]):
@@ -399,25 +419,35 @@ class Manager:
             return {"ok": False, "text": err}
 
         lang = get_language()
-        hub.push_log(t("proc_selected", role=proc.role, id=proc.id,
-                       name=proc.label(lang)))
-        self.runner = ProcedureRunner(self.mav, on_event=self._on_proc_event, lang=lang)
-
-        def _go() -> None:
-            hub.push_log(t("proc_running", name=proc.label(lang)))
-            result = self.runner.run(proc, values or {})
-            self.last_result = result
-            # Ayni YAML hem butonu hem testi suruyor; kosu dizinine giren de
-            # bu dosyanin kendisi oluyor (bkz. runs.RunRecorder.add_procedure).
-            run = self.run
-            if run is not None:
-                run.add_procedure(proc, result, values=values or {})
-            hub.push_log(result["text"])
-
-        self.proc_thread = threading.Thread(target=_go, name="procedure", daemon=True)
+        self.proc_thread = threading.Thread(
+            target=self.execute_procedure, args=(proc, values or {}),
+            name="procedure", daemon=True)
         self.proc_thread.start()
         return {"ok": True, "started": proc.id, "name": proc.label(lang),
                 "text": t("proc_running", name=proc.label(lang))}
+
+    def execute_procedure(self, proc, values: dict) -> dict:
+        """Runs a procedure on the CALLING thread and records it.
+
+        Split out of `run_procedure` so a campaign can drive it in sequence
+        without a second implementation. The browser path still gets a thread;
+        what both share is this body, for the same reason the button and the
+        regression test share `ProcedureRunner` — a second copy would drift.
+        """
+        lang = get_language()
+        hub.push_log(t("proc_selected", role=proc.role, id=proc.id,
+                       name=proc.label(lang)))
+        self.runner = ProcedureRunner(self.mav, on_event=self._on_proc_event, lang=lang)
+        hub.push_log(t("proc_running", name=proc.label(lang)))
+        result = self.runner.run(proc, values or {})
+        self.last_result = result
+        # Ayni YAML hem butonu hem testi suruyor; kosu dizinine giren de
+        # bu dosyanin kendisi oluyor (bkz. runs.RunRecorder.add_procedure).
+        run = self.run
+        if run is not None:
+            run.add_procedure(proc, result, values=values or {})
+        hub.push_log(result["text"])
+        return result
 
     def _on_proc_event(self, event: dict) -> None:
         """Runner olaylarini hem WebSocket'e hem terminale yansitir."""
@@ -444,6 +474,121 @@ class Manager:
             ovr = event.get("override") or {}
             hub.push_log(t("proc_restore_failed", name=ovr.get("param"),
                            value=ovr.get("restore_to")))
+        elif kind == "fault":
+            # An injected fault is announced in the terminal with its mechanism,
+            # so the operator watching the console sees the same declaration the
+            # run directory records — never a silent degradation.
+            fault = event.get("fault") or {}
+            if event.get("state") == "injected":
+                hub.push_log(t("fault_injected", label=fault.get("label"),
+                               target=fault.get("target"),
+                               mechanism=fault.get("mechanism") or "—"))
+            elif event.get("state") == "cleared":
+                hub.push_log(t("fault_cleared", label=fault.get("label"),
+                               target=fault.get("target")))
+        elif kind == "fault_done":
+            fault = event.get("fault") or {}
+            hub.push_log(f"  fault [{'OK' if fault.get('passed') else 'FAIL'}] "
+                         f"{fault.get('id')} — {fault.get('text')}")
+        elif kind in ("fault_expect", "fault_recovery"):
+            exp = event.get("expect") or {}
+            mark = "OK" if exp.get("passed") else "FAIL"
+            hub.push_log(f"  {kind.split('_')[1]} [{mark}] {exp.get('label')} "
+                         f"— {exp.get('text')}")
+
+    # -- repeatability campaigns ------------------------------------------
+    # A campaign is N ordinary runs of one procedure on one model, linked by a
+    # campaign id. It owns START and STOP while it runs, because "each run gets
+    # independent evidence" means a real launch and a real shutdown per
+    # iteration — not one session with the procedure sent five times.
+    CAMPAIGN_MAX_RUNS = 50
+    CAMPAIGN_READY_TIMEOUT = 300.0
+    CAMPAIGN_PREARM_TIMEOUT = 240.0
+
+    def start_campaign(self, model_id: str, procedure_id: str, runs: int,
+                       values: Optional[dict] = None, note: str = "") -> dict:
+        if self.campaign_thread and self.campaign_thread.is_alive():
+            return {"ok": False, "text": t("campaign_busy")}
+        if self.find_model(model_id) is None:
+            return {"ok": False, "text": t("campaign_no_model", id=model_id)}
+        if procs.get(procedure_id) is None:
+            return {"ok": False, "text": t("proc_not_found", id=procedure_id)}
+        if not 2 <= int(runs) <= self.CAMPAIGN_MAX_RUNS:
+            return {"ok": False,
+                    "text": t("campaign_bad_runs", max=self.CAMPAIGN_MAX_RUNS)}
+
+        definition = campaignlib.Definition(
+            id=campaignlib.campaign_id(model_id, procedure_id),
+            model_id=model_id, procedure_id=procedure_id, runs=int(runs),
+            values=dict(values or {}), note=note)
+        self.campaign = campaignlib.CampaignRunner(
+            definition, launch=lambda index: _CampaignIteration(self, definition, index),
+            on_progress=self._on_campaign_event)
+        self.campaign_thread = threading.Thread(
+            target=self._campaign_loop, args=(definition,),
+            name=f"campaign-{definition.id}", daemon=True)
+        self.campaign_thread.start()
+        hub.push_log(t("campaign_started", id=definition.id, model=model_id,
+                       procedure=procedure_id, runs=definition.runs))
+        return {"ok": True, "campaign": definition.as_dict(),
+                "text": t("campaign_started", id=definition.id, model=model_id,
+                          procedure=procedure_id, runs=definition.runs)}
+
+    def _campaign_loop(self, definition: campaignlib.Definition) -> None:
+        runner = self.campaign
+        try:
+            runner.run()
+        finally:
+            # The document is written whether the campaign finished, failed or
+            # was cancelled. A campaign that stopped after three of five is a
+            # result about three runs, and it belongs on disk.
+            document = campaignlib.aggregate(definition.id, paths.RUNS_DIR,
+                                             definition=definition)
+            as_json, _ = campaignlib.write(definition.id, document, paths.RUNS_DIR)
+            self.last_campaign = definition.id
+            counts = document["counts"]
+            hub.push_log(t("campaign_finished", id=definition.id,
+                           passed=counts["passed"], failed=counts["failed"],
+                           flaky=counts["flaky"], total=document["runs_recorded"],
+                           path=str(as_json.parent)))
+            hub.push_json({"type": "campaign", "event": "written",
+                           "campaign": definition.id, "document": document})
+
+    def _on_campaign_event(self, event: dict) -> None:
+        hub.push_json(event)
+        kind = event.get("event")
+        if kind == "iteration_start":
+            hub.push_log(t("campaign_iteration", id=event["campaign"],
+                           index=event["index"], total=event["of"]))
+        elif kind == "iteration_done":
+            row = event.get("row") or {}
+            failure = row.get("failure") or {}
+            # An iteration that never started is announced rather than left to
+            # be discovered in the summary: it is a fact about repeatability,
+            # and the operator watching the terminal is the one who can act on
+            # it while the campaign is still running.
+            if failure.get("code") == "iteration-launch-failed":
+                hub.push_log(t("campaign_launch_failed", id=event["campaign"],
+                               index=row.get("index"),
+                               err=row.get("text") or failure.get("detail", "")))
+
+    def cancel_campaign(self) -> dict:
+        if not (self.campaign_thread and self.campaign_thread.is_alive()):
+            return {"ok": False, "text": t("campaign_none")}
+        self.campaign.cancel()
+        done = len(self.campaign.iterations)
+        return {"ok": True, "text": t("campaign_cancelled",
+                                      id=self.campaign.definition.id, done=done)}
+
+    def campaign_status(self) -> dict:
+        runner = self.campaign
+        running = bool(self.campaign_thread and self.campaign_thread.is_alive())
+        if runner is None:
+            return {"running": False, "last": self.last_campaign}
+        return {"running": running, "last": self.last_campaign,
+                "definition": runner.definition.as_dict(),
+                "done": len(runner.iterations),
+                "iterations": runner.iterations}
 
     def cancel_procedure(self) -> dict:
         if self.runner and self.proc_thread and self.proc_thread.is_alive():
@@ -482,8 +627,60 @@ class Manager:
             # going out of it. The message count is there so the panel can
             # show the stream working rather than assert that it does.
             "plotjuggler": self.mav.mirror.info(),
+            # Whether a link fault is being injected right now. The interface
+            # shows it, because a status bar reporting "no telemetry" during a
+            # deliberate blackout would otherwise look like a broken tool.
+            "link_fault": self.mav.link_fault,
+            "campaign": self.campaign_status(),
             "lang": get_language(),
         }
+
+
+class _CampaignIteration:
+    """One iteration of a campaign, driven through the ordinary START/STOP path.
+
+    WHY IT REUSES START AND STOP RATHER THAN A LIGHTER LAUNCH
+    --------------------------------------------------------
+    A campaign's claim is that it repeated *the thing the button does*. Booting
+    the vehicle some cheaper way would make it a claim about a code path nobody
+    uses, and the run directories it produced would not be comparable with the
+    ones a person's flight leaves behind.
+    """
+
+    def __init__(self, manager: "Manager", definition: campaignlib.Definition,
+                 index: int) -> None:
+        self.manager = manager
+        res = manager.start_model(definition.model_id,
+                                  campaign=definition.stamp(index))
+        if not res.get("ok"):
+            raise RuntimeError(res.get("text", "the model could not be started"))
+        if not manager.mav.wait_ready(timeout=manager.CAMPAIGN_READY_TIMEOUT):
+            raise RuntimeError(
+                f"no MAVLink heartbeat within "
+                f"{manager.CAMPAIGN_READY_TIMEOUT:.0f}s of starting "
+                f"{definition.model_id}")
+        # Pre-arm is waited for here rather than left to the `arm` step's own
+        # retry window: a cold Gazebo boot regularly needs longer than 35 s,
+        # and a campaign that recorded that as a vehicle-readiness failure
+        # would be measuring how fast the machine is.
+        deadline = time.time() + manager.CAMPAIGN_PREARM_TIMEOUT
+        while time.time() < deadline:
+            state = manager.mav.state
+            if state.prearm_known and state.prearm_ok:
+                break
+            time.sleep(1.0)
+
+    def run(self, procedure_id: str, values: dict) -> tuple[dict, Optional[Path]]:
+        proc = procs.get(procedure_id)
+        if proc is None:
+            raise RuntimeError(f"there is no procedure named '{procedure_id}'")
+        self.manager.execute_procedure(proc, values)
+        run = self.manager.run
+        return ({"run_id": run.run_id if run else None},
+                run.dir if run else None)
+
+    def close(self) -> None:
+        self.manager.stop()
 
 
 mgr = Manager()
@@ -581,6 +778,71 @@ def api_procedure(req: ProcedureReq):
 @app.post("/api/procedure/cancel")
 def api_procedure_cancel():
     return JSONResponse(mgr.cancel_procedure())
+
+
+# --------------------------------------------------------------------- v1.4
+class CampaignReq(BaseModel):
+    model_id: str
+    procedure_id: str
+    runs: int = campaignlib.DEFAULT_RUNS
+    values: dict = {}
+    note: str = ""
+
+
+@app.post("/api/campaign")
+def api_campaign(req: CampaignReq):
+    """Fly one procedure N times, each with its own run directory and evidence."""
+    return JSONResponse(mgr.start_campaign(req.model_id, req.procedure_id,
+                                           req.runs, req.values, req.note))
+
+
+@app.post("/api/campaign/cancel")
+def api_campaign_cancel():
+    return JSONResponse(mgr.cancel_campaign())
+
+
+@app.get("/api/campaigns")
+def api_campaigns():
+    """Every campaign the runs root holds, plus the one running now if any."""
+    return {"schema": campaignlib.SCHEMA, "root": str(paths.RUNS_DIR),
+            "default_runs": campaignlib.DEFAULT_RUNS,
+            "max_runs": Manager.CAMPAIGN_MAX_RUNS,
+            "active": mgr.campaign_status(),
+            "campaigns": campaignlib.list_campaigns()}
+
+
+@app.get("/api/campaigns/{campaign_id}")
+def api_campaign_detail(campaign_id: str):
+    """The aggregate for one campaign, recomputed from its runs every time."""
+    if not campaignlib.CAMPAIGN_ID_PATTERN.match(campaign_id):
+        return JSONResponse({"ok": False, "text": t("campaign_unknown",
+                                                    id=campaign_id)},
+                            status_code=404)
+    document = campaignlib.aggregate(campaign_id)
+    if not document["runs_recorded"]:
+        return JSONResponse({"ok": False, "text": t("campaign_unknown",
+                                                    id=campaign_id)},
+                            status_code=404)
+    return {"ok": True, "campaign": document,
+            "markdown": campaignlib.render(document)}
+
+
+@app.get("/api/faults")
+def api_faults():
+    """The fault catalogue: what each one does, how, and what to watch for.
+
+    Served from `faults.py` rather than duplicated in the interface, for the
+    same reason the metric catalogue is: a fault added to the module must not
+    be able to appear under a name only the front end knows.
+    """
+    return {"schema": faultlib.SCHEMA, "faults": faultlib.catalogue(get_language())}
+
+
+@app.get("/api/failure-categories")
+def api_failure_categories():
+    """The failure taxonomy, with what each category means and where to look."""
+    return {"schema": failurelib.SCHEMA,
+            "categories": failurelib.catalogue(get_language())}
 
 
 # --------------------------------------------------------------------------- runs

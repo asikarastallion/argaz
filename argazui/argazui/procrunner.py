@@ -51,6 +51,23 @@ before a timeout? That answers "where did the aircraft end up" and nothing
 else. Schema 2 adds three shapes that answer *when* and *for how long* —
 `within`, `for` and `never` — and they are measured on the vehicle's own clock
 so they mean the same thing at speedup 1 and speedup 10. See `_Window`.
+
+OFF-NOMINAL FLOWS
+-----------------
+Schema 3 adds `failures:` — a declared fault, injected at a stated point in the
+flow, held for a stated duration, and cleared. Four things are kept strictly
+apart in the record it leaves, because collapsing any two of them is how a
+fault-injection test comes to pass for the wrong reason:
+
+    the injected condition   what was actually done to the simulator
+    the vehicle response     what the aircraft did while it was done
+    the criteria             what the procedure said counts as acceptable
+    the verdict              whether they held
+
+**A fault that was successfully injected is not a pass.** The verdict comes
+from the criteria and from nothing else, and a fault whose criteria could not
+be judged — because the telemetry they rest on never arrived — is reported as
+not judged rather than as satisfied.
 """
 from __future__ import annotations
 
@@ -60,9 +77,11 @@ from typing import Callable, Optional
 
 from pymavlink import mavutil
 
+from . import failures as failurelib
+from . import faults as faultlib
 from .i18n import t
 from .mavlink_link import MavlinkLink, substitute
-from .procedures import Expectation, Procedure, Step, format_duration
+from .procedures import Expectation, Fault, Procedure, Step, format_duration
 
 # Parameters read once per run to decide which procedure applies. See
 # procedures.py for why this is read from the vehicle instead of models.json.
@@ -153,6 +172,64 @@ class ExpectResult:
                 "observed": round(self.observed, 2), "clock": self.clock}
 
 
+@dataclass
+class FaultResult:
+    """What one injected fault did, and what the aircraft did about it.
+
+    The four fields the architecture insists on distinguishing are four fields
+    here: `injected` (the condition), `observed` (the response, as the seconds
+    it was actually held and the evidence that arrived), `expect`/`recovery`
+    (the criteria) and `passed` (the verdict). None of them is derived from
+    another.
+    """
+
+    id: str
+    kind: str
+    target: str
+    label: str
+    expected: str = ""
+    declared_s: float = 0.0
+    # The mechanism, exactly as applied: which parameters were written to what,
+    # and what they were before. A scenario that cannot be reproduced from its
+    # own record is a story about a flight rather than evidence of one.
+    mechanism: str = ""
+    changed: dict = field(default_factory=dict)
+    applied: bool = False
+    cleared: Optional[bool] = None
+    text: str = ""
+    injected_at_s: Optional[float] = None
+    held_s: float = 0.0
+    clock: str = "vehicle"
+    evidence_required: list = field(default_factory=list)
+    evidence_seen: list = field(default_factory=list)
+    expect: list = field(default_factory=list)
+    recovery: list = field(default_factory=list)
+    passed: bool = False
+
+    @property
+    def evidence_missing(self) -> list:
+        return [s for s in self.evidence_required if s not in self.evidence_seen]
+
+    def as_dict(self) -> dict:
+        return {
+            "id": self.id, "fault": self.kind, "target": self.target,
+            "label": self.label, "expected": self.expected,
+            "declared_s": round(self.declared_s, 2),
+            "mechanism": self.mechanism, "changed": _plain(self.changed),
+            "applied": self.applied, "cleared": self.cleared,
+            "text": self.text,
+            "injected_at_s": (None if self.injected_at_s is None
+                              else round(self.injected_at_s, 2)),
+            "held_s": round(self.held_s, 2), "clock": self.clock,
+            "evidence_required": list(self.evidence_required),
+            "evidence_seen": sorted(self.evidence_seen),
+            "evidence_missing": sorted(self.evidence_missing),
+            "expect": [e.as_dict() for e in self.expect],
+            "recovery": [e.as_dict() for e in self.recovery],
+            "passed": self.passed,
+        }
+
+
 def _plain(obj):
     """JSON-safe copy (conditions may hold placeholder strings or numbers)."""
     if isinstance(obj, dict):
@@ -209,6 +286,24 @@ TEMPORAL_SAMPLE_S = 0.2
 WALL_BACKSTOP_FACTOR = 3.0
 WALL_BACKSTOP_MARGIN = 15.0
 
+# How long the vehicle's clock may stand still before the window stops
+# believing it, in WALL seconds.
+#
+# WHY A STOPPED CLOCK NEEDS DETECTING AT ALL
+# ------------------------------------------
+# v1.3 only asked whether the clock had gone backwards or never started. That
+# covers a link that was never up; it does not cover one that dies mid-window,
+# where `time_boot_ms` simply keeps its last value. The window then measured
+# `now - start` = 0 for its whole duration and reported `clock: "vehicle"` —
+# a stalled stream described as a healthy measurement of zero seconds. v1.4's
+# `mavlink_interrupt` makes that case routine rather than theoretical, which is
+# why it is fixed here rather than worked around in the fault.
+#
+# Two seconds is far past due at any speedup this project runs: ATTITUDE is
+# requested at 10 Hz of VEHICLE time (ATTITUDE_STREAM_HZ), so a sample is owed
+# every 0.1 s at speedup 1 and every 0.02 s at speedup 5.
+STALL_AFTER_WALL_S = 2.0
+
 # Fewest samples a `for`/`never` window must collect before its verdict means
 # anything. Two samples cannot describe a duration.
 MIN_TEMPORAL_SAMPLES = 3
@@ -241,27 +336,56 @@ class _Window:
     window would never close, so the wall clock ends it instead and `stalled`
     records that the answer came from the fallback. Reporting a wall-clock
     measurement as though it were vehicle time would quietly make every
-    duration in a run's evidence wrong by the speedup factor.
+    duration in a run's evidence wrong by the speedup factor — so when the
+    fallback is in use, wall seconds are converted with the LAST MEASURED
+    speedup and the result still means what the procedure asked for.
+
+    THE FALLBACK IS STICKY
+    ----------------------
+    Once a window has fallen back it stays fallen back, even if telemetry
+    returns. Switching measures half way through would produce a duration that
+    is neither one clock nor the other, and this project has no use for a
+    number whose unit changed mid-measurement.
     """
 
     def __init__(self, link: MavlinkLink, budget: float) -> None:
         self.link = link
         self.budget = budget
         self.wall_start = time.time()
-        self.vehicle_start = self._vehicle_now()
-        speedup = max(getattr(link, "speedup", 1.0) or 1.0, 0.1)
-        self.wall_limit = budget / speedup * WALL_BACKSTOP_FACTOR + WALL_BACKSTOP_MARGIN
+        self.vehicle_start = self._read_clock()
+        # Frozen at construction: the measurement itself is what stops the
+        # link's estimate from updating, so a window must not use a speedup
+        # that its own stall prevented from being refreshed.
+        self.speedup = max(getattr(link, "speedup", 1.0) or 1.0, 0.1)
+        self.wall_limit = (budget / self.speedup * WALL_BACKSTOP_FACTOR
+                           + WALL_BACKSTOP_MARGIN)
         self.samples = 0
+        self._seen = self.vehicle_start
+        self._moved_at = self.wall_start
+        self._stalled = self.vehicle_start is None
 
-    def _vehicle_now(self) -> Optional[float]:
+    def _read_clock(self) -> Optional[float]:
         clock = getattr(self.link.state, "vehicle_clock_s", 0.0) or 0.0
         return clock if clock > 0 else None
+
+    def _observe(self) -> Optional[float]:
+        """Reads the vehicle clock and remembers when it last moved."""
+        now = self._read_clock()
+        if now is not None and (self._seen is None or now > self._seen):
+            self._seen, self._moved_at = now, time.time()
+        return now
 
     @property
     def stalled(self) -> bool:
         """Is the vehicle's clock unusable, so the wall clock is doing the work?"""
-        now = self._vehicle_now()
-        return self.vehicle_start is None or now is None or now < self.vehicle_start
+        if self._stalled:
+            return True
+        now = self._observe()
+        if now is None or self.vehicle_start is None or now < self.vehicle_start:
+            self._stalled = True
+        elif (time.time() - self._moved_at) >= STALL_AFTER_WALL_S:
+            self._stalled = True
+        return self._stalled
 
     @property
     def clock(self) -> str:
@@ -270,8 +394,11 @@ class _Window:
     @property
     def elapsed(self) -> float:
         if self.stalled:
-            return time.time() - self.wall_start
-        return (self._vehicle_now() or 0.0) - (self.vehicle_start or 0.0)
+            # Wall seconds scaled by the speedup this window opened with, so
+            # the number stays a statement about the aircraft's time rather
+            # than about this process's.
+            return (time.time() - self.wall_start) * self.speedup
+        return (self._observe() or 0.0) - (self.vehicle_start or 0.0)
 
     @property
     def expired(self) -> bool:
@@ -283,6 +410,12 @@ class _Window:
         self.samples += 1
         self.link.submit(_pump_for(TEMPORAL_SAMPLE_S),
                          timeout=TEMPORAL_SAMPLE_S + 6.0, label="observe")
+        # Sampled here and not only when a property is read. `_observe` records
+        # WHEN the clock last moved, and a reader that arrives after a long
+        # silence would otherwise see one late advance and reset that stamp to
+        # now — reporting a dead stream as healthy because it had a pulse at
+        # some point since the last look.
+        self._observe()
 
     def note(self) -> str:
         """A suffix stating the fallback, or nothing when the clock was fine."""
@@ -623,6 +756,194 @@ class ProcedureRunner:
                         samples=window.samples, seen=seen) + window.note()
         return result
 
+    # ------------------------------------------------------------------ faults
+    def _prepare_faults(self, proc: Procedure) -> dict:
+        """Ask the simulator whether every declared fault can be injected.
+
+        Runs before the first step and before any override, so a scenario whose
+        mechanism is missing costs nothing and changes nothing. This is the
+        fail-closed rule: the alternative is a flight that looks off-nominal in
+        the run listing and was nominal in the air.
+        """
+        prepared: dict[str, faultlib.Injector] = {}
+        for fault in proc.failures:
+            injector = faultlib.injector_for(fault.kind, fault.target, fault.options)
+            try:
+                injector.probe(self.link)
+            except faultlib.FaultUnavailable as exc:
+                raise ProcedureAborted(
+                    t("fault_unavailable", id=fault.id,
+                      kind=faultlib.label_for(fault.kind, self.lang),
+                      err=exc)) from exc
+            prepared[fault.id] = injector
+            self._emit("fault_ready", fault=fault.as_dict(self.lang),
+                       mechanism=injector.mechanism_text)
+        return prepared
+
+    def _faults_at(self, proc: Procedure, injectors: dict, after_step: int,
+                   values: dict, out: list) -> None:
+        """Runs any fault declared for this point in the flow."""
+        for fault in proc.failures:
+            if fault.inject_after_step != after_step:
+                continue
+            self._emit("fault_start", fault=fault.as_dict(self.lang))
+            result = self._inject_fault(fault, injectors[fault.id], values)
+            out.append(result)
+            self._emit("fault_done", fault=result.as_dict())
+
+    # How long to wait for telemetry to resume after a fault is cleared, in
+    # WALL seconds. It is a property of this process's patience rather than of
+    # the flight, so it is not on the vehicle's clock — which is precisely the
+    # thing that is not running when this matters.
+    RESYNC_TIMEOUT_S = 20.0
+
+    def _resync(self, timeout: float = RESYNC_TIMEOUT_S) -> bool:
+        """Waits for fresh telemetry after a fault. Returns whether it arrived.
+
+        WHY A CLEARED FAULT IS NOT THE SAME AS A RECOVERED ONE
+        ------------------------------------------------------
+        `recovery:` criteria are claims about the aircraft *after* the fault.
+        The moment the fault is lifted, every field of `link.state` still holds
+        what arrived before it — so `{armed: true} within: 15s` passed "after
+        0 ms" against a reading the blackout itself had frozen. That is silence
+        reported as success, which is the one thing this project exists to
+        remove.
+
+        It also breaks the window after it. The vehicle's clock resumes with a
+        jump of however long the fault lasted, so the first sample of the next
+        window can put it straight past its budget — a `never: 5s` that
+        collected one reading and honestly reported that it could not judge
+        anything from it.
+
+        Both are fixed here rather than in either scenario, because both follow
+        from what a fault IS and not from which fault it was.
+        """
+        before = getattr(self.link.state, "vehicle_clock_s", 0.0) or 0.0
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self._cancel:
+                raise ProcedureAborted(t("proc_cancelled"))
+            self.link.submit(_pump_for(TEMPORAL_SAMPLE_S),
+                             timeout=TEMPORAL_SAMPLE_S + 6.0, label="resync")
+            now = getattr(self.link.state, "vehicle_clock_s", 0.0) or 0.0
+            if now > before:
+                return True
+        return False
+
+    def _evidence_seen(self, required: list, seen: set) -> None:
+        """Records which of the required signals have actually been observed."""
+        for signal in required:
+            flag = faultlib.EVIDENCE_SIGNALS.get(signal)
+            if flag and getattr(self.link.state, flag, False):
+                seen.add(signal)
+
+    def _inject_fault(self, fault: Fault, injector: faultlib.Injector,
+                      values: dict) -> FaultResult:
+        """Injects one declared fault, holds it, clears it, and judges it.
+
+        Order matters and is the order of the record: wait for the state the
+        scenario names, degrade, watch, restore, then ask whether the aircraft
+        did what the procedure said it must. The restore is in a `finally`, so
+        an aborted or cancelled scenario cannot leave the simulated vehicle
+        degraded for whatever runs next.
+        """
+        result = FaultResult(
+            id=fault.id, kind=fault.kind, target=fault.target,
+            label=fault.label(self.lang), expected=fault.expected_text(self.lang),
+            declared_s=fault.duration, mechanism=injector.mechanism_text,
+            evidence_required=list(fault.evidence))
+        seen: set = set()
+
+        # ---------------------------------------------------------- start
+        if fault.start_condition:
+            cond = self._resolve_condition(fault.start_condition, values)
+            holds, observed = self._wait_for(cond, fault.start_within)
+            if not holds:
+                raise ProcedureAborted(
+                    t("fault_start_missed", id=fault.id,
+                      limit=format_duration(fault.start_within), seen=observed))
+
+        # --------------------------------------------------------- inject
+        try:
+            injector.apply(self.link)
+        except faultlib.FaultRefused as exc:
+            result.text = str(exc)
+            self._emit("fault", fault=result.as_dict())
+            raise ProcedureAborted(
+                t("fault_refused", id=fault.id, err=exc)) from exc
+        result.applied = True
+        result.injected_at_s = getattr(self.link.state, "vehicle_clock_s", 0.0) or None
+        result.changed = dict(injector.changed)
+        self._emit("fault", fault=result.as_dict(), state="injected")
+
+        window = _Window(self.link, fault.duration)
+        try:
+            # Criteria first, inside the hold window. They are the reason the
+            # fault exists, and evaluating them here is what makes them a
+            # statement about the degraded aircraft rather than the recovered
+            # one.
+            for exp in fault.expect:
+                cond = self._resolve_condition(exp.condition, values)
+                judged = self._evaluate(exp, cond)
+                result.expect.append(judged)
+                self._evidence_seen(result.evidence_required, seen)
+                self._emit("fault_expect", fault=fault.id, expect=judged.as_dict())
+
+            # `duration` is a MINIMUM hold. If the criteria above finished
+            # early the remainder is still held, so the aircraft spends the
+            # time the scenario declared in the degraded state; if they
+            # overran it, the fault was held longer and the record says so
+            # rather than the declaration being taken as what happened.
+            while not window.expired:
+                if self._cancel:
+                    raise ProcedureAborted(t("proc_cancelled"))
+                window.tick()
+                self._evidence_seen(result.evidence_required, seen)
+            result.held_s, result.clock = window.elapsed, window.clock
+        finally:
+            result.cleared = injector.clear(self.link)
+            result.changed = dict(injector.changed)
+            self._emit("fault", fault=result.as_dict(), state="cleared")
+
+        if not result.cleared:
+            # Not a verdict about the aircraft, and it must not be reported as
+            # one: the simulator is still degraded, so nothing measured after
+            # this point means what it says.
+            result.text = t("fault_not_cleared", id=fault.id)
+            return result
+
+        # ------------------------------------------------------- recovery
+        # Fresh telemetry first. Everything below is a claim about the aircraft
+        # after the fault, and the state it would otherwise be judged against
+        # is the state the fault stopped from being updated.
+        if not self._resync():
+            result.text = t("fault_no_resync", id=fault.id,
+                            seconds=f"{self.RESYNC_TIMEOUT_S:g}")
+            result.evidence_seen = sorted(seen)
+            return result
+        self._evidence_seen(result.evidence_required, seen)
+
+        for exp in fault.recovery:
+            cond = self._resolve_condition(exp.condition, values)
+            judged = self._evaluate(exp, cond)
+            result.recovery.append(judged)
+            self._evidence_seen(result.evidence_required, seen)
+            self._emit("fault_recovery", fault=fault.id, expect=judged.as_dict())
+
+        result.evidence_seen = sorted(seen)
+        judged_all = result.expect + result.recovery
+        if result.evidence_missing:
+            # Silence is not success. The criteria may all have "held" against
+            # a state nothing ever wrote to.
+            result.text = t("fault_no_evidence", id=fault.id,
+                            signals=", ".join(result.evidence_missing))
+            return result
+        result.passed = all(e.passed for e in judged_all)
+        result.text = t("fault_passed" if result.passed else "fault_failed",
+                        id=fault.id, held=format_duration(max(result.held_s, 0.0)),
+                        criteria=len(judged_all))
+        return result
+
     # ------------------------------------------------------------------ steps
     def _run_step(self, step: Step, values: dict, changed_params: dict) -> dict:
         kind, raw = step.kind, step.value
@@ -779,21 +1100,29 @@ class ProcedureRunner:
         steps = [StepResult(index=i, kind=s.kind, label=s.label(self.lang))
                  for i, s in enumerate(proc.steps)]
         changed_params: dict = {}
+        fault_results: list[FaultResult] = []
         started = time.time()
         aborted_text = ""
         outcome = OUTCOME_PASSED
 
         self._emit("start", procedure=proc.id, name=proc.label(self.lang),
                    values=_plain(values), steps=[s.as_dict() for s in steps],
-                   overrides=[o.as_dict(self.lang) for o in proc.overrides])
+                   overrides=[o.as_dict(self.lang) for o in proc.overrides],
+                   failures=[f.as_dict(self.lang) for f in proc.failures])
 
         try:
+            # Before anything is written to the vehicle: a scenario whose fault
+            # mechanism is not on this firmware must not fly at all.
+            injectors = self._prepare_faults(proc)
             self._apply_overrides(proc, values, changed_params)
             # From here to the last acceptance check, how the aircraft behaves
             # is on the record. Reset after the overrides so the parameter
             # writes — during which the vehicle is still sitting on the ground
             # — are not counted as flight.
             self.link.stability.reset()
+
+            # A fault may be declared for the point before the first step.
+            self._faults_at(proc, injectors, 0, values, fault_results)
 
             for step, result in zip(proc.steps, steps):
                 if self._cancel:
@@ -823,6 +1152,11 @@ class ProcedureRunner:
                 if not res.get("ok") and step.on_fail == "abort":
                     raise ProcedureAborted(result.text)
 
+                # Injection points are counted in completed steps, so
+                # `inject_after_step: 3` means "after the third step has run".
+                self._faults_at(proc, injectors, result.index + 1, values,
+                                fault_results)
+
             # ---------------------------------------------------- acceptance
             expects = []
             for exp in proc.expect:
@@ -831,8 +1165,13 @@ class ProcedureRunner:
                 expects.append(er)
                 self._emit("expect", expect=er.as_dict())
 
-            passed = all(e.passed for e in expects) and \
-                all(s.status in ("passed", "skipped") for s in steps)
+            passed = (all(e.passed for e in expects)
+                      and all(s.status in ("passed", "skipped") for s in steps)
+                      # A declared fault whose criteria did not hold fails the
+                      # procedure exactly as an `expect:` entry does. Anything
+                      # else would make an off-nominal scenario a report rather
+                      # than a test.
+                      and all(f.passed for f in fault_results))
             outcome = OUTCOME_PASSED if passed else OUTCOME_FAILED
 
         except ProcedureAborted as exc:
@@ -850,6 +1189,10 @@ class ProcedureRunner:
             expects = self._unevaluated(proc, steps)
         finally:
             self._restore(changed_params)
+            # Second guarantee, after the injector's own `finally`: a scenario
+            # that died between `apply` and `clear` must not leave this
+            # process's link degraded for whatever runs next.
+            self.link.clear_link_fault()
 
         passed = outcome == OUTCOME_PASSED
         result = {
@@ -861,6 +1204,9 @@ class ProcedureRunner:
             "values": _plain(values),
             "steps": [s.as_dict() for s in steps],
             "expect": [e.as_dict() for e in expects],
+            # What was done to the simulator, and what the aircraft did about
+            # it. Empty for every nominal procedure, which is most of them.
+            "faults": [f.as_dict() for f in fault_results],
             # The measured envelope, recorded whether or not any criterion
             # asked about it. A procedure that declares no attitude limit still
             # leaves the evidence behind for whoever reads the run later.
@@ -871,6 +1217,16 @@ class ProcedureRunner:
                                      if passed else
                                      t("proc_failed", name=proc.label(self.lang))),
         }
+        # WHY THE CLASSIFICATION IS COMPUTED HERE AND NOT BY THE READER
+        # -------------------------------------------------------------
+        # Everything it rests on — which step failed, whether an override took,
+        # whether a fault could be injected — is in this document. Working it
+        # out again later means writing a second implementation of the same
+        # judgement, and the two would disagree the first time a step type was
+        # added. The category is stored, so `docs/status.md`, the run listing
+        # and the report all read one answer.
+        failure = failurelib.classify_procedure(result)
+        result["failure"] = failure.as_dict() if failure else None
         self._emit("done", result=result)
         return result
 

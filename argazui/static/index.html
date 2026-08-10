@@ -104,8 +104,40 @@
         <small id="proc-name"></small>
         <button class="btn link" id="btn-proc-cancel" data-i18n="proc_cancel">✕ cancel</button></h2>
     <ol id="proc-steps" class="proc-steps"></ol>
+    <!-- Injected faults sit ABOVE the acceptance criteria for the same reason
+         the flight report puts them above the measurements: every verdict
+         below was reached on an aircraft something was deliberately done to. -->
+    <div id="proc-faults" class="proc-expect"></div>
     <div id="proc-expect" class="proc-expect"></div>
     <p class="hint" id="proc-hint"></p>
+  </section>
+
+  <!-- ------------------------------------------------- scenarios (v1.4) -->
+  <!-- Off-nominal flows. Never auto-selected: a fault must not start because
+       a capability heuristic decided it applied. -->
+  <section class="panel" id="scen-panel">
+    <h2><span data-i18n="scen_title">Scenarios (fault injection)</span></h2>
+    <p class="hint" data-i18n="scen_warn"></p>
+    <div id="scen-list" class="scen-list"></div>
+    <p class="hint" id="scen-hint"></p>
+  </section>
+
+  <!-- ------------------------------------------------- campaigns (v1.4) -->
+  <section class="panel" id="camp-panel">
+    <h2><span data-i18n="camp_title">Repeatability campaign</span>
+        <button class="btn link" id="btn-camp-cancel" data-i18n="camp_cancel"
+                hidden>✕ cancel campaign</button></h2>
+    <div class="row">
+      <select id="camp-procedure"></select>
+      <label class="camp-n"><span data-i18n="camp_runs">Runs</span>
+        <input type="number" id="camp-runs" min="2" max="50" value="5"></label>
+      <button class="btn" id="btn-camp-start" data-i18n="camp_start">▶ RUN CAMPAIGN</button>
+    </div>
+    <p class="hint" data-i18n="camp_hint"></p>
+    <p class="panel-error" id="err-camp" hidden></p>
+    <p class="hint" id="camp-active"></p>
+    <div class="runs-wrap"><table class="runs" id="camp-table"><tbody></tbody></table></div>
+    <div id="camp-detail" class="cmp" hidden></div>
   </section>
 
   <!-- -------------------------------------------------------------- run list -->
@@ -256,6 +288,34 @@
             <td>They activate when a vehicle is running <i>and</i> MAVLink is connected.</td></tr>
       </table>
 
+      <h3>Scenarios and campaigns</h3>
+      <table class="tbl">
+        <tr><th>Scenario</th>
+            <td>A flight with one thing deliberately broken — the GPS switched
+                off, or this program's own link to the aircraft silenced — held
+                for a stated time and then judged. It is <b>simulation only</b>:
+                a scenario writes a <code>SIM_*</code> parameter or changes
+                ArgazUI's socket handling, nothing has a path to hardware, and
+                everything it changed is restored when the run ends. Started by
+                name from the SCENARIOS panel, never bound to a button.</td></tr>
+        <tr><th>A fault that cannot be injected</th>
+            <td>The procedure is aborted before the aircraft leaves the ground
+                and the run is recorded as an <code>environment</code> failure.
+                Flying it nominally would report a pass for a behaviour nobody
+                exercised.</td></tr>
+        <tr><th>Campaign</th>
+            <td>The same procedure on the same model, N times, each with its own
+                run directory. It reports the spread — counts, pass rate, and
+                the mean and range of each metric — rather than a verdict. A run
+                that passed on a retry is <i>flaky</i> and is not in the pass
+                rate.</td></tr>
+        <tr><th>Why a run failed</th>
+            <td>Each failed run shows one category beside its verdict. Only
+                <b>acceptance criterion</b> is a statement about the aircraft;
+                the others say the simulation, the tooling or the evidence went
+                wrong.</td></tr>
+      </table>
+
       <p class="note">For more detail (adding models, buttons and scripts,
         troubleshooting) see <code>argazui/USAGE.md</code> in the project folder.</p>
     </div>
@@ -329,6 +389,35 @@
                 altyapı yoktur; panel bunu "RViz/DDS: yok" diye belirtir.</td></tr>
         <tr><th>Butonlar soluk</th>
             <td>Bir araç çalışıyor <i>ve</i> MAVLink bağlıyken aktifleşirler.</td></tr>
+      </table>
+
+      <h3>Senaryolar ve kampanyalar</h3>
+      <table class="tbl">
+        <tr><th>Senaryo</th>
+            <td>Bir şeyin bilerek bozulduğu uçuş — GPS kapatılır ya da bu
+                programın araca olan bağlantısı susturulur — belirtilen süre
+                boyunca uygulanır ve sonra hüküm verilir. <b>Yalnızca
+                simülasyondur</b>: senaryo bir <code>SIM_*</code> parametresi
+                yazar ya da ArgazUI'nin soket davranışını değiştirir; hiçbirinin
+                donanıma giden yolu yoktur ve değiştirdiği her şey koşu bitince
+                geri alınır. SENARYOLAR panelinden adıyla başlatılır, hiçbir
+                butona bağlanmaz.</td></tr>
+        <tr><th>Enjekte edilemeyen arıza</th>
+            <td>Prosedür, araç yerden kalkmadan durdurulur ve koşu
+                <code>environment</code> arızası olarak kaydedilir. Nominal
+                olarak uçurmak, kimsenin denemediği bir davranış için "geçti"
+                raporlamak olurdu.</td></tr>
+        <tr><th>Kampanya</th>
+            <td>Aynı prosedür, aynı model üzerinde, N kez; her koşu kendi
+                dizinini alır. Tek bir hüküm yerine dağılımı raporlar: sayılar,
+                geçiş oranı, her metriğin ortalaması ve aralığı. Yeniden
+                denemede geçen bir koşu <i>kararsız</i> sayılır ve geçiş oranına
+                girmez.</td></tr>
+        <tr><th>Koşu neden düştü</th>
+            <td>Başarısız her koşu, hükmünün yanında tek bir kategori gösterir.
+                Yalnızca <b>kabul kriteri</b> araç hakkında bir ifadedir;
+                diğerleri simülasyonun, araçların ya da kanıtın bozulduğunu
+                söyler.</td></tr>
       </table>
 
       <p class="note">Daha ayrıntılı bilgi (yeni model/buton/script ekleme, sorun

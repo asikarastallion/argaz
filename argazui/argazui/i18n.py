@@ -272,9 +272,11 @@ CATALOG: dict[str, dict[str, str]] = {
                             "tr": "izlenen {limit} suresinin {elapsed} sonunda "
                                   "gerceklesti — {seen}"},
     "temporal_stalled":  {"en": " (the vehicle's clock stopped advancing, so this "
-                                "duration was measured on the wall clock)",
-                          "tr": " (aracin saati ilerlemeyi birakti, bu sure duvar "
-                                "saatiyle olculdu)"},
+                                "duration was measured on the wall clock and "
+                                "converted with the last measured speedup)",
+                          "tr": " (aracin saati ilerlemeyi birakti; bu sure duvar "
+                                "saatiyle olculup son olculen hiz carpaniyla "
+                                "cevrildi)"},
     "temporal_no_evidence": {"en": "not judged — '{condition}' rests on {signal} "
                                    "telemetry that never arrived. Nothing was "
                                    "measured, which is not the same as nothing "
@@ -330,6 +332,113 @@ CATALOG: dict[str, dict[str, str]] = {
                             "tr": "prosedur degerlendirilemedi (bu ArgazUI ya da "
                                   "baglantidaki bir arizadir, arac hakkinda bir hukum "
                                   "degildir): {err}"},
+
+    # -------------------------------------------------- fault injection (v1.4)
+    # Every message here distinguishes the four things a fault test must never
+    # merge: what was injected, what the aircraft did, what the criteria asked
+    # for, and the verdict.
+    "fault_unavailable": {"en": "SCENARIO NOT RUN — the fault '{id}' ({kind}) "
+                                "cannot be injected on this firmware: {err} "
+                                "The procedure is aborted rather than flown "
+                                "nominally, because a scenario whose fault "
+                                "never happened is not the scenario.",
+                          "tr": "SENARYO KOSULMADI — '{id}' arizasi ({kind}) bu "
+                                "yazilimda enjekte edilemiyor: {err} Prosedur, "
+                                "nominal olarak ucurulmak yerine durduruldu; "
+                                "arizasi hic gerceklesmemis bir senaryo o "
+                                "senaryo degildir."},
+    "fault_refused":     {"en": "the vehicle refused the fault '{id}': {err}",
+                          "tr": "arac '{id}' arizasini kabul etmedi: {err}"},
+    "fault_start_missed": {"en": "the fault '{id}' was never injected — its "
+                                 "start condition did not hold within {limit} "
+                                 "(last seen: {seen})",
+                           "tr": "'{id}' arizasi hic enjekte edilmedi — baslama "
+                                 "kosulu {limit} icinde saglanmadi "
+                                 "(son gorulen: {seen})"},
+    "fault_not_cleared": {"en": "WARNING: the fault '{id}' could not be cleared. "
+                                "The simulated vehicle may still be degraded, so "
+                                "nothing measured after this point means what it "
+                                "says.",
+                          "tr": "UYARI: '{id}' arizasi geri alinamadi. Simule "
+                                "arac hala bozulmus olabilir; bu noktadan sonra "
+                                "olculen hicbir sey soyledigi anlama gelmez."},
+    "fault_no_evidence": {"en": "not judged — the fault '{id}' was injected but "
+                                "the telemetry its criteria rest on never "
+                                "arrived ({signals}). Nothing was measured, "
+                                "which is not the same as nothing being wrong.",
+                          "tr": "degerlendirilmedi — '{id}' arizasi enjekte "
+                                "edildi ama kriterlerinin dayandigi telemetri "
+                                "hic gelmedi ({signals}). Hicbir sey olculmedi; "
+                                "bu, hicbir sorun yok demek degildir."},
+    "fault_no_resync":   {"en": "not judged — the fault '{id}' was cleared but no "
+                                "fresh telemetry arrived within {seconds}s, so "
+                                "every recovery criterion would have been "
+                                "judged against the state the fault itself "
+                                "froze.",
+                          "tr": "degerlendirilmedi — '{id}' arizasi geri alindi "
+                                "ama {seconds} sn icinde yeni telemetri gelmedi; "
+                                "her toparlanma kriteri, arizanin kendisinin "
+                                "dondurdugu duruma karsi degerlendirilmis "
+                                "olurdu."},
+    "fault_passed":      {"en": "fault '{id}' held for {held}: all {criteria} "
+                                "criterion(s) about the aircraft's response held",
+                          "tr": "'{id}' arizasi {held} boyunca uygulandi: aracin "
+                                "tepkisine dair {criteria} kriterin tumu saglandi"},
+    "fault_failed":      {"en": "fault '{id}' held for {held}: the aircraft's "
+                                "response did not meet all {criteria} declared "
+                                "criterion(s)",
+                          "tr": "'{id}' arizasi {held} boyunca uygulandi: aracin "
+                                "tepkisi beyan edilen {criteria} kriterin "
+                                "tumunu karsilamadi"},
+    "fault_injected":    {"en": "FAULT INJECTED: {label} on {target} — {mechanism}",
+                          "tr": "ARIZA ENJEKTE EDILDI: {label}, hedef {target} "
+                                "— {mechanism}"},
+    "fault_cleared":     {"en": "fault cleared: {label} ({target})",
+                          "tr": "ariza geri alindi: {label} ({target})"},
+
+    # -------------------------------------------------- campaigns (v1.4)
+    "campaign_started":  {"en": "CAMPAIGN {id}: flying '{procedure}' on "
+                                "'{model}' {runs} time(s). Each iteration gets "
+                                "its own run directory and its own evidence.",
+                          "tr": "KAMPANYA {id}: '{model}' uzerinde '{procedure}' "
+                                "{runs} kez ucurulacak. Her yineleme kendi kosu "
+                                "dizinini ve kendi kanitini alir."},
+    "campaign_iteration": {"en": "CAMPAIGN {id}: run {index} of {total}",
+                           "tr": "KAMPANYA {id}: {total} kosudan {index}."},
+    "campaign_finished": {"en": "CAMPAIGN {id} finished: {passed} passed, "
+                                "{failed} failed, {flaky} flaky of {total}. "
+                                "Summary written to {path}",
+                          "tr": "KAMPANYA {id} bitti: {total} kosudan {passed} "
+                                "gecti, {failed} kaldi, {flaky} kararsiz. Ozet "
+                                "{path} dosyasina yazildi"},
+    "campaign_cancelled": {"en": "CAMPAIGN {id} cancelled after {done} run(s). "
+                                 "The runs already flown keep their evidence.",
+                           "tr": "KAMPANYA {id}, {done} kosudan sonra iptal "
+                                 "edildi. Ucurulmus kosular kanitlarini korur."},
+    "campaign_busy":     {"en": "a campaign is already running",
+                          "tr": "zaten calisan bir kampanya var"},
+    "campaign_none":     {"en": "no campaign is running",
+                          "tr": "calisan bir kampanya yok"},
+    "campaign_unknown":  {"en": "there is no campaign named '{id}'",
+                          "tr": "'{id}' adinda bir kampanya yok"},
+    "campaign_bad_runs": {"en": "a campaign needs between 2 and {max} runs — one "
+                                "run is not a repeatability measurement",
+                          "tr": "bir kampanya 2 ile {max} arasinda kosu ister — "
+                                "tek kosu tekrarlanabilirlik olcumu degildir"},
+    "campaign_no_model": {"en": "'{id}' is not in the registry, so no campaign "
+                                "can be flown on it",
+                          "tr": "'{id}' kayit defterinde yok, uzerinde kampanya "
+                                "ucurulamaz"},
+    "campaign_launch_failed": {"en": "CAMPAIGN {id}: run {index} could not be "
+                                     "started ({err}). Recorded as an "
+                                     "environment failure and the campaign "
+                                     "continues — how often a start fails is "
+                                     "itself a repeatability result.",
+                               "tr": "KAMPANYA {id}: {index}. kosu baslatilamadi "
+                                     "({err}). Ortam arizasi olarak kaydedildi "
+                                     "ve kampanya devam ediyor — baslatmanin ne "
+                                     "siklikta basarisiz oldugu da bir "
+                                     "tekrarlanabilirlik sonucudur."},
 
     # -------------------------------------------------- run artefacts
     "run_started":       {"en": "Recording this session as run '{id}' "

@@ -44,6 +44,40 @@ Koşunun kendi durumu dördüncüyü ekler, `no-procedure`: model başlatılıp
 durduruldu, hiçbir şey çalıştırılmadı, dolayısıyla hiçbir iddia ortaya
 atılmadı. Bu, `untested` olarak raporlanır; asla geçti sayılmaz.
 
+v1.4'ten beri başarısız bir koşu ayrıca **arızanın hangi türden olduğunu
+söyleyen tek bir kategori** taşır; bunlardan yalnızca `acceptance` araç
+hakkında bir hükümdür. Yukarıdaki sonuç uçuşun geçip geçmediğini, kategori ise
+kimin bakması gerektiğini söyler. Bkz.
+[Arıza sınıflandırması](failure-classification.tr.md).
+
+## Nominal-dışı bir sonuç tek bir olgu değil, dörttür
+
+Senaryo bir arıza enjekte eder ([Arıza enjeksiyonu](fault-injection.tr.md)).
+Kaydı dört şeyi ayrı tutar ve hiçbiri diğerinden türetilmez:
+
+| | |
+|---|---|
+| enjekte edilen koşul | simülatöre gerçekte ne yapıldı |
+| aracın tepkisi | bu yapılırken araç ne yaptı |
+| kriterler | prosedürün kabul edilebilir saydığı şey |
+| hüküm | kriterlerin sağlanıp sağlanmadığı |
+
+**Başarıyla enjekte edilmiş bir arıza geçiş değildir.** Hüküm yalnızca
+kriterlerden gelir — ve kanıtı hiç gelmemiş bir arıza *değerlendirilmedi*
+olarak raporlanır; bu ne bir geçiştir ne de aracın yanlış davrandığı
+iddiasıdır.
+
+## Tek koşu bir tekrarlanabilirlik iddiası değildir
+
+Yeşil bir koşu, bir uçuşun kriterlerini bir kez sağladığını söyler.
+Prosedürün çalıştığını söylemez ve bu projenin farkın önem kazandığı kendi
+vakası var: `tailsitter_takeoff` üç kez geçti — 24,9 m, 23,6 m ve 18,3 m. Her
+koşu yeşildi; kanıt dağılımdı.
+
+Bu iddianın kurulabileceği yer bir [kampanyadır](campaigns.tr.md) ve orası da
+sınırlıdır: beş koşu beş koşudur, bu yüzden belge sayıları ve dağılımı örneklem
+büyüklüğüyle birlikte raporlar, ondan güven aralığı hesaplamaz.
+
 ## İki katman, ve yalnızca biri bir modelin adını anabilir
 
 **Katman 1**, Gazebo olmadan SITL'in kendi genel gövdelerini uçurur. Yetenek

@@ -194,8 +194,11 @@ def test_run_directory_is_complete_and_parseable(request, runs_root, frame):
                  "result.json", "versions.txt", "fingerprint.json"):
         assert (directory / name).is_file(), f"{name} is missing from {directory}"
 
-    assert result["schema"] == 3
+    assert result["schema"] == 4
     assert result["status"] in ("passed", "failed", "error")
+    # A nominal procedure declares no fault, and the field says so with an
+    # empty list rather than by being absent.
+    assert result["procedures"][0]["result"]["faults"] == []
     assert result["procedures"], "the procedure was not recorded in result.json"
 
     # The environment manifest is written before the report, so that a session

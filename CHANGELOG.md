@@ -1,5 +1,284 @@
 # Changelog
 
+## v1.4.0 — 2026-08-10
+
+### What this release is about
+
+v1.3 made a single run measurable and comparable. This one is about the two
+things a single nominal run still cannot tell you:
+
+1. **Does it work, or did it work once?** Every layer up to now judges one
+   flight. A procedure that works four times in five is neither a working
+   procedure nor a broken one, and neither a green run nor a red one says
+   which. This project already has the case: `tailsitter_takeoff` passed three
+   times at 24.9 m, 23.6 m and 18.3 m — each run met its criteria, and the
+   *spread* was the evidence.
+2. **What happens when something is wrong?** Every procedure in the repository
+   asks whether the aircraft does what it was told. None of them asks what it
+   does when the GPS goes away.
+
+And one thing that made both harder to act on: a failed run said `failed` plus
+a sentence, which does not distinguish a misbehaving aircraft from a simulator
+that never started from a dataflash log that was lost — three different
+investigations.
+
+Nothing in the existing architecture was replaced. `models.json` → launch →
+MAVLink → `ProcedureRunner` → `result.json` → run evidence → DataFlash report →
+regression → CI/status is the same path; each piece below hangs off a point on
+it.
+
+### Repeatability campaigns
+
+A campaign flies **the same procedure, on the same model, in the same
+configuration, N times** and reports the distribution rather than a verdict.
+
+Structurally it is a campaign id stamped into N ordinary run directories. There
+is no new storage format and no database: each iteration produces exactly the
+evidence a single flight produces, and the campaign document is an aggregation
+over them that is recomputed from the runs every time it is asked for. A
+summary that could not be recomputed from the runs would be a fourth kind of
+claim with no evidence underneath it.
+
+```bash
+python3 -m argazui campaign                    # list the campaigns on disk
+python3 -m argazui campaign <campaign-id>      # 0 clean, 1 unclean, 2 no such campaign
+```
+
+In the browser it is a panel: pick a procedure, pick a count, press RUN
+CAMPAIGN. The campaign owns START and STOP while it runs, because "each run
+gets independent evidence" means a real launch and a real shutdown per
+iteration — not one session with the procedure sent five times.
+
+**What it refuses to say** is as much of the design as what it reports. Counts,
+a clean pass rate, and the mean, standard deviation, minimum and maximum of
+every metric — each with its sample size beside it. No confidence interval, no
+p-value, no reliability figure, because none of them means anything at n=5 and
+all of them would read as though it did. A standard deviation is printed only
+from three measured values upwards; below that the cell is `—`, which means
+*not enough runs to say* and not *no variation*.
+
+A run that passed only on a retry is `flaky` and is not in the pass rate — the
+same rule `docs/status.md` has. A pass rate that quietly included retries would
+be measuring the harness's patience rather than the aircraft.
+
+A campaign also **checks its own premise**. Every run carries a fingerprint, so
+the document compares them and says so when the model configuration, the
+procedure text, the ArduPilot commit or the firmware moved between iterations:
+a spread caused by an edit half way through is not a spread caused by the
+aircraft.
+
+An iteration that could not be started is recorded as an `environment` failure
+and the campaign continues. "Three of five starts failed" is a repeatability
+result, and stopping at the first one would hide exactly what the campaign was
+run to measure.
+
+### Failure classification — seven categories, and only one is about the aircraft
+
+Every failure now carries one machine-readable category, stored in the run
+rather than worked out by whoever reads it:
+
+| | |
+|---|---|
+| `environment` | the simulation never got into the state the run needed |
+| `vehicle_readiness` | the aircraft would not be made ready — pre-arm, arming |
+| `procedure` | a step of the flow did not do what it asked |
+| `acceptance` | the flow ran and a declared criterion did not hold |
+| `evidence` | it flew, and the proof of what happened is missing |
+| `regression` | nothing failed; a measured quantity got worse |
+| `infrastructure` | ArgazUI, the link or CI broke |
+
+**Only `acceptance` is a verdict about an aircraft.** The other six say the
+simulation, the tooling or the evidence went wrong, and conflating them is how
+a broken harness comes to be reported as a broken aircraft — the same class of
+untruth as an unearned tick, pointed the other way.
+
+The set is closed on purpose. A taxonomy that grows a category whenever
+something new goes wrong stops being a diagnosis and becomes a second copy of
+the error message.
+
+Two decisions worth stating:
+
+- **The first thing that went wrong is what gets classified.** A run that could
+  not arm never reached its criteria, so reporting the unevaluated criteria
+  would name a symptom and hide the cause.
+- **A run whose procedures all passed can still fail**, on `evidence`. A flight
+  nobody can prove happened is worth what one that did not is.
+
+`failures.py` is the only implementation; `procrunner`, `runs`, `regression`,
+`status` and `campaign` all call into it. A second implementation would
+disagree with the first the moment a step type was added.
+
+The category appears in `result.json`, in a **Why** column in
+`docs/status.md`, at the top of `report.md`, on a chip in the Flight Runs
+panel, and counted per campaign.
+
+### Controlled fault injection — procedure schema 3
+
+`failures:` left the reserved list. A scenario declares a fault, an injection
+point, a start condition, a duration, what should be observed *in words*, the
+criteria that decide the verdict, and the telemetry the verdict rests on.
+
+```yaml
+schema: 3
+
+failures:
+  - id: gps_off_in_hover
+    fault: gps_loss
+    target: gps1
+    inject_after_step: 5
+    start: {condition: {alt_above: 20, armed: true}, within: 60s}
+    duration: 12s
+    expected: {en: "The EKF loses its position source and …", tr: "…"}
+    expect:    [{condition: {armed: true}, for: 8s}]      # while it is held
+    recovery:  [{condition: {angular_rate_above: 150}, never: 5s}]  # after
+    evidence:  [attitude]
+```
+
+Four faults in two families, and no more: `gps_loss`, `gps_degradation`,
+`mavlink_interrupt`, `mavlink_degradation`. **Wind, motor failure, arbitrary
+sensor corruption and a general fault DSL are deliberately absent.** A DSL
+would take a week and produce scenarios nobody has watched a vehicle respond
+to; these two families each have a mechanism ArduPilot's SITL already provides
+or that ArgazUI genuinely owns, an observable that is measured rather than
+assumed, and a failure mode that occurs in real flying.
+
+Five rules, each because its opposite is dangerous:
+
+1. **Simulation only.** Every mechanism writes a `SIM_*` parameter or changes
+   ArgazUI's own socket behaviour. Nothing has a path to hardware, and nothing
+   is *conditional* on being in a simulator — the mechanisms do not exist
+   outside one, which is stronger than a flag.
+2. **Declared in the procedure**, so it is in `scenario.yaml` verbatim and
+   inside the text `procedure_hash` covers. A run cannot have been degraded by
+   something the archived document does not mention.
+3. **Fail closed.** The mechanism is probed before the first step. If this
+   ArduPilot has no such parameter the procedure is **aborted** and the
+   aircraft never leaves the ground. A scenario whose fault never happened is a
+   nominal test wearing the wrong name, and it would report a pass for a
+   behaviour nobody exercised.
+4. **Cleaned up**, from a `finally`, on failure, error and cancellation alike —
+   and whether the restore succeeded is recorded, not assumed. A fault that
+   could not be cleared is a classified failure of its own, because the
+   simulator is still degraded and nothing measured afterwards means what it
+   says.
+5. **Deterministic.** Packet loss drops one in N by count rather than by
+   chance. `drop_one_in: 1` is refused: that is an interruption, and the record
+   should say which of the two happened.
+
+**A fault that was successfully injected is not a pass.** The record keeps four
+things apart — the injected condition, the vehicle's response, the criteria and
+the verdict — and none is derived from another. A fault whose declared
+`evidence:` never arrived is reported as *not judged*.
+
+The MAVLink fault is not a `SIM_` parameter, and should not be: ArduPilot has
+no parameter for "the ground station went away" because the ground station is
+this program. Suppressing ArgazUI's heartbeat is a *complete* model of the
+condition rather than an approximation — ArduPilot's GCS failsafe keys on
+`sysid_mygcs_seen`, called from exactly `HEARTBEAT`, `RC_CHANNELS_OVERRIDE` and
+`MANUAL_CONTROL`, of which ArgazUI sends the first two and the fault withholds
+both.
+
+Two Copter scenarios ship with it, in the new `scenario` role — listed by name,
+never bound to a button, never auto-selected, because injecting a fault must
+not happen because a capability heuristic decided it applied:
+
+| | |
+|---|---|
+| `copter_gps_loss` | hover in GUIDED, GPS off for 12 s, judged during and after |
+| `copter_link_loss` | hover in GUIDED, link silent for 10 s, judged only *after* |
+
+`copter_link_loss` has no criteria for the blackout window and that is the
+point: during a full interruption there is no telemetry, so any criterion
+judged inside it would be judged against the last state that arrived before it
+— an aircraft frozen in amber, which passes anything. A ground station finds
+out what happened afterwards, or not at all.
+
+`copter_gps_loss` deliberately does **not** require a particular failsafe mode.
+`FS_EKF_ACTION` is a parameter, a model may ship any value of it, and a
+criterion demanding `LAND` would test this repository's assumption rather than
+the aircraft. What it requires is true whatever the parameter says: an airborne
+vehicle that loses GPS must not disarm and must not tumble.
+
+### Two timing defects the fault work exposed and fixed
+
+Both were latent in v1.3 and only became routine once a fault could stop
+telemetry on purpose.
+
+**A clock that freezes was not detected.** `_Window` asked whether the vehicle's
+clock had gone backwards or never started. `time_boot_ms` does neither when
+telemetry stops — it keeps its last value. So a window measured `now - start` =
+0 for its whole duration and then reported `clock: "vehicle"`: a dead stream
+described as a healthy measurement of no seconds at all. A window now notices a
+clock that has not moved for two wall-clock seconds, falls back to the wall
+clock **scaled by the speedup it opened with** so the number still means
+vehicle time, says so in the result text, and keeps the fallback for the rest
+of the window — a duration whose unit changed half way through is not a
+measurement.
+
+**A cleared fault is not a recovered one.** The moment a fault is lifted, every
+field of the vehicle state still holds what arrived before it, so
+`{armed: true} within: 15s` passed "after 0 ms" against a reading the blackout
+itself had frozen. That is silence reported as success. The vehicle's clock
+also resumes with a jump of however long the fault lasted, which could put the
+first sample of the next window straight past its budget — producing a
+`never: 5s` that collected one reading and honestly reported it could not judge
+anything from it. The runner now waits for fresh telemetry before evaluating
+any `recovery:` criterion, and reports *not judged* if none arrives.
+
+Both are fixed in the runner rather than in either scenario, because both
+follow from what a fault is and not from which fault it was.
+
+### Schemas
+
+| | from | to | added |
+|---|---|---|---|
+| procedure | 2 | **3** | `failures:`, the `scenario` role |
+| `result.json` | 3 | **4** | `failure`, `campaign`, and `faults` per procedure |
+| `docs/status.md` | 2 | **3** | the failure category per row, fault-response claims |
+
+Older documents load and behave exactly as before, and a file that uses a
+feature from a later schema than it declares is refused at load time with a
+message saying so. `fingerprint.json` gains a `scenario` section listing the
+declared faults — descriptive, and explicitly **not** a second identity field,
+because the `failures:` block is already inside the text `procedure_hash`
+covers and a second hash over the same content could only ever disagree with
+the first.
+
+### Documentation
+
+Four new pages, each with a Turkish twin, plus a new section of `SCHEMA.md`:
+[campaigns](docs/campaigns.md), [fault
+injection](docs/fault-injection.md), [failure
+classification](docs/failure-classification.md) and [failure
+investigation](docs/failure-investigation.md) — the last of which is the path
+from a red run to the file that explains it, category by category.
+
+### Known limits
+
+- **Two faults, and a scenario for one airframe class.** Both shipped scenarios
+  are Copter scenarios. A VTOL or Plane equivalent needs criteria written for
+  it, and inventing them for an airframe nobody has watched respond would be
+  the unearned claim this project exists to remove.
+- **`gps_degradation` and `mavlink_degradation` are implemented and unflown.**
+  Their mechanisms are unit-tested and no shipped scenario uses them, so
+  nothing in `docs/status.md` claims an aircraft's response to either.
+- **Only the primary GPS.** ArduPilot's SITL simulates a second receiver only
+  when `SIM_GPS2_ENABLE` is set, so degrading it on a normal model would be a
+  silent no-op — which is what the fail-closed rule exists to prevent.
+- **A fault window is a minimum, not an exact duration.** Criteria are
+  evaluated inside it, and a criterion that takes longer holds the fault longer.
+  The record states what actually happened rather than repeating the
+  declaration.
+- **Campaign statistics are descriptive only.** Mean, standard deviation and
+  range over N runs, with N stated. Nothing here supports a reliability claim,
+  and the document says so in as many words.
+- **A campaign is one model and one procedure.** A campaign over two different
+  things has no meaningful spread, so it is not offered.
+- The tier-1 campaign test flies two iterations, not five. It shows the runs are
+  independent; it is not a repeatability measurement.
+- Nothing here changes what tier 2 can claim about the nominal flights it
+  already covers, and no new model was added.
+
 ## v1.3.0 — 2026-08-10
 
 ### What this release is about

@@ -179,6 +179,64 @@
                              "procedure, so nothing was asserted.",
       runs_files: "Files in this run: {files}",
 
+      // ------------------------------------------------- v1.4: why it failed
+      // The classified category, never the raw message. "acceptance" and
+      // "environment" send a reader to two different files, which is the whole
+      // reason the category exists.
+      fail_title: "Why it did not pass",
+      fail_environment: "environment", fail_vehicle_readiness: "vehicle readiness",
+      fail_procedure: "procedure", fail_acceptance: "acceptance criterion",
+      fail_evidence: "evidence", fail_regression: "regression",
+      fail_infrastructure: "infrastructure",
+      fail_note: "Only “acceptance criterion” is a verdict about the aircraft. " +
+                 "The others say the simulation, the tooling or the evidence " +
+                 "went wrong.",
+
+      // ------------------------------------------------ v1.4: scenarios
+      scen_title: "Scenarios (fault injection)",
+      scen_none: "No scenario matches the connected vehicle. Scenarios live in " +
+                 "argazui/procedures/ with role: scenario.",
+      scen_idle: "Start a vehicle to see which scenarios apply to it.",
+      scen_run: "▶ RUN SCENARIO",
+      scen_faults: "{n} declared fault(s)",
+      scen_warn: "A scenario deliberately degrades the SIMULATED vehicle — the " +
+                 "GPS, or this program's own link to it. Everything it changes " +
+                 "is restored when the run ends, and nothing here can reach " +
+                 "hardware.",
+      scen_fault_line: "{fault} on {target}, held {duration}, injected after " +
+                       "step {step}",
+      proc_faults: "Injected faults",
+      fault_injected: "injected",
+      fault_cleared: "cleared",
+      fault_not_judged: "not judged",
+      link_fault_on: "LINK FAULT ACTIVE — telemetry is being discarded on purpose",
+
+      // ------------------------------------------------ v1.4: campaigns
+      camp_title: "Repeatability campaign",
+      camp_model: "Model", camp_procedure: "Procedure", camp_runs: "Runs",
+      camp_start: "▶ RUN CAMPAIGN", camp_cancel: "✕ cancel campaign",
+      camp_hint: "Flies the same procedure on the same model N times, each with " +
+                 "its own run directory and its own evidence, and reports the " +
+                 "spread rather than a verdict.",
+      camp_running: "Campaign {id}: run {index} of {total}",
+      camp_idle: "No campaign is running.",
+      camp_none: "No campaign has been recorded yet.",
+      camp_failed: "The campaign could not be started: {error}",
+      camp_started: "Campaign {id} started: {runs} run(s) of {procedure}.",
+      camp_open: "open",
+      camp_col_id: "Campaign", camp_col_model: "Model",
+      camp_col_procedure: "Procedure", camp_col_runs: "Runs",
+      camp_result: "{passed} passed, {failed} failed, {flaky} flaky of {total}",
+      camp_rate: "clean pass rate {rate}%",
+      camp_sample: "{n} run(s) is {n} run(s). No confidence interval or " +
+                   "reliability figure is computed from a sample this size.",
+      camp_metric: "Metric", camp_n: "n", camp_mean: "Mean", camp_sd: "Std dev",
+      camp_min: "Min", camp_max: "Max",
+      camp_sd_none: "— (fewer than 3 measured values: not enough runs to say, " +
+                    "which is not the same as no variation)",
+      camp_drift: "The iterations were not identical, so any spread below " +
+                  "measures the difference as much as it measures the aircraft.",
+
       // Failure states. A blank readout with no explanation is not acceptable
       // in a panel someone flies from.
       panel_failed: "{panel} could not be loaded: {error}. The rest of the page " +
@@ -419,6 +477,61 @@
                              "çalıştırılmadı; hiçbir şey iddia edilmedi.",
       runs_files: "Bu koşudaki dosyalar: {files}",
 
+      // ------------------------------------------------- v1.4: neden geçmedi
+      fail_title: "Neden geçmedi",
+      fail_environment: "ortam", fail_vehicle_readiness: "araç hazır değil",
+      fail_procedure: "prosedür", fail_acceptance: "kabul kriteri",
+      fail_evidence: "kanıt", fail_regression: "regresyon",
+      fail_infrastructure: "altyapı",
+      fail_note: "Yalnızca “kabul kriteri” araç hakkında bir hükümdür. " +
+                 "Diğerleri simülasyonun, araçların ya da kanıtın bozulduğunu " +
+                 "söyler.",
+
+      // ------------------------------------------------ v1.4: senaryolar
+      scen_title: "Senaryolar (arıza enjeksiyonu)",
+      scen_none: "Bağlı araca uyan senaryo yok. Senaryolar argazui/procedures/ " +
+                 "altında role: scenario ile tanımlanır.",
+      scen_idle: "Hangi senaryoların uyduğunu görmek için bir araç başlat.",
+      scen_run: "▶ SENARYOYU ÇALIŞTIR",
+      scen_faults: "{n} beyan edilmiş arıza",
+      scen_warn: "Senaryo, SİMÜLE aracı bilerek bozar — GPS'i ya da bu programın " +
+                 "araca olan bağlantısını. Değiştirdiği her şey koşu bitince " +
+                 "geri alınır ve buradaki hiçbir şey donanıma ulaşamaz.",
+      scen_fault_line: "{fault}, hedef {target}, {duration} uygulanır, {step}. " +
+                       "adımdan sonra enjekte edilir",
+      proc_faults: "Enjekte edilen arızalar",
+      fault_injected: "enjekte edildi",
+      fault_cleared: "geri alındı",
+      fault_not_judged: "değerlendirilmedi",
+      link_fault_on: "BAĞLANTI ARIZASI ETKİN — telemetri bilerek atılıyor",
+
+      // ------------------------------------------------ v1.4: kampanyalar
+      camp_title: "Tekrarlanabilirlik kampanyası",
+      camp_model: "Model", camp_procedure: "Prosedür", camp_runs: "Koşu",
+      camp_start: "▶ KAMPANYAYI BAŞLAT", camp_cancel: "✕ kampanyayı iptal et",
+      camp_hint: "Aynı prosedürü aynı model üzerinde N kez uçurur; her koşu " +
+                 "kendi dizinini ve kendi kanıtını alır. Tek bir hüküm yerine " +
+                 "dağılımı raporlar.",
+      camp_running: "Kampanya {id}: {total} koşudan {index}.",
+      camp_idle: "Çalışan kampanya yok.",
+      camp_none: "Henüz kaydedilmiş kampanya yok.",
+      camp_failed: "Kampanya başlatılamadı: {error}",
+      camp_started: "Kampanya {id} başladı: {procedure} prosedürü {runs} kez.",
+      camp_open: "aç",
+      camp_col_id: "Kampanya", camp_col_model: "Model",
+      camp_col_procedure: "Prosedür", camp_col_runs: "Koşu",
+      camp_result: "{total} koşudan {passed} geçti, {failed} kaldı, " +
+                   "{flaky} kararsız",
+      camp_rate: "temiz geçiş oranı %{rate}",
+      camp_sample: "{n} koşu, {n} koşudur. Bu büyüklükte bir örneklemden güven " +
+                   "aralığı ya da güvenilirlik değeri hesaplanmaz.",
+      camp_metric: "Metrik", camp_n: "n", camp_mean: "Ortalama",
+      camp_sd: "Std sapma", camp_min: "En az", camp_max: "En çok",
+      camp_sd_none: "— (3'ten az ölçülmüş değer: söylemeye yetecek kadar koşu " +
+                    "yok; bu, değişim yok demek değildir)",
+      camp_drift: "Yinelemeler birbirinin aynısı değildi; aşağıdaki dağılım " +
+                  "aracı ölçtüğü kadar bu farkı da ölçüyor.",
+
       panel_failed: "{panel} yüklenemedi: {error}. Sayfanın geri kalanı çalışmaya " +
                     "devam ediyor; tam hata için tarayıcı konsoluna bak.",
       panel_models: "Model listesi", panel_commands: "Hızlı Komutlar",
@@ -535,6 +648,11 @@
     renderModelLists();
     renderScripts();
     renderRuns();
+    // These two write their own text rather than carrying data-i18n, because
+    // both say different things depending on what is running. A language
+    // switch has to reach them or they keep the previous language's sentence.
+    renderScenarios();
+    renderCampaigns();
     if (lastStatus) { $("buttons").dataset.key = ""; applyStatus(lastStatus); }
 
     const search = $("docs-search");
@@ -652,6 +770,8 @@
           applyStatus(msg.status);
         } else if (msg.type === "procedure") {
           applyProcedureEvent(msg);
+        } else if (msg.type === "campaign") {
+          applyCampaignEvent(msg);
         }
       } catch (e) {
         console.error("ArgazUI: failed to handle a WebSocket message", msg && msg.type, e);
@@ -1233,7 +1353,7 @@
   // A button carrying `procedure_role` does not have its own command list.
   // The steps, the inputs and the acceptance criteria all come from the YAML
   // in argazui/procedures/ — the same file the regression tests run.
-  let PROCS = { capabilities: null, roles: {} };
+  let PROCS = { capabilities: null, roles: {}, scenarios: [] };
   let procsError = "";
 
   async function loadProcedures() {
@@ -1244,10 +1364,12 @@
       procsError = "";
     } catch (e) {
       console.error("ArgazUI: /api/procedures failed", e);
-      PROCS = { capabilities: null, roles: {} };
+      PROCS = { capabilities: null, roles: {}, scenarios: [] };
       procsError = String(e.message || e);
     }
     $("buttons").dataset.key = "";     // force a re-render with the new inputs
+    renderScenarios();
+    renderCampaigns();
     if (lastStatus) applyStatus(lastStatus);
   }
 
@@ -1275,9 +1397,43 @@
 
   function resetProcedurePanel() {
     $("proc-steps").innerHTML = "";
+    $("proc-faults").innerHTML = "";
     $("proc-expect").innerHTML = "";
     $("proc-hint").textContent = "";
     $("proc-panel").hidden = false;
+  }
+
+  // One row per injected fault, showing the four things a scenario must keep
+  // apart: what was injected, how long it was held, whether it was cleared,
+  // and the verdict on the aircraft's response.
+  function renderFault(fault, state) {
+    const box = $("proc-faults");
+    if (!box.childElementCount) {
+      const head = document.createElement("div");
+      head.className = "expect-head";
+      head.textContent = t("proc_faults");
+      box.append(head);
+    }
+    const id = "proc-fault-" + fault.id;
+    let row = $(id);
+    if (!row) {
+      row = document.createElement("div");
+      row.id = id;
+      box.append(row);
+    }
+    const judged = state === "done" && !((fault.evidence_missing || []).length);
+    const mark = state !== "done" ? "▸" : judged ? (fault.passed ? "✓" : "✕") : "?";
+    const verdict = state !== "done"
+      ? t("fault_injected")
+      : judged ? "" : t("fault_not_judged");
+    row.className = "expect " + (state !== "done" ? "running"
+      : judged && fault.passed ? "passed" : "failed");
+    row.innerHTML = `<span class="mark">${mark}</span>`
+      + `<span class="what">${esc(fault.label || fault.id)}</span>`
+      + `<span class="detail">${esc(fault.mechanism || "")}`
+      + (fault.held_s ? ` — ${fault.held_s}s` : "")
+      + (verdict ? ` [${esc(verdict)}]` : "")
+      + (fault.text ? ` ${esc(fault.text)}` : "") + `</span>`;
   }
 
   const STEP_MARK = { pending: "·", running: "▸", passed: "✓", failed: "✕", skipped: "–" };
@@ -1319,6 +1475,18 @@
         $("proc-expect").append(h);
       }
       $("proc-expect").append(row);
+    } else if (msg.event === "fault") {
+      renderFault(msg.fault || {}, msg.state || "injected");
+    } else if (msg.event === "fault_done") {
+      renderFault(msg.fault || {}, "done");
+    } else if (msg.event === "fault_expect" || msg.event === "fault_recovery") {
+      const e = msg.expect || {};
+      const row = document.createElement("div");
+      row.className = "expect sub " + (e.passed ? "passed" : "failed");
+      row.innerHTML = `<span class="mark">${e.passed ? "✓" : "✕"}</span>`
+        + `<span class="what">${esc(e.label)}</span>`
+        + `<span class="detail">${esc(e.text || "")}</span>`;
+      $("proc-faults").append(row);
     } else if (msg.event === "done") {
       const r = msg.result;
       $("proc-name").textContent = `${r.name} — `
@@ -1330,6 +1498,216 @@
   }
 
   $("btn-proc-cancel").onclick = () => fetch("/api/procedure/cancel", { method: "POST" });
+
+  // ------------------------------------------------------ scenarios (v1.4)
+  // Off-nominal flows. They are listed and started by name and are never bound
+  // to a quick-command button: injecting a fault must be something a person
+  // asked for, not something a capability match decided.
+  function renderScenarios() {
+    const list = $("scen-list");
+    list.innerHTML = "";
+    const found = (PROCS && PROCS.scenarios) || [];
+    if (!linked) {
+      $("scen-hint").textContent = t("scen_idle");
+      return;
+    }
+    if (!found.length) {
+      $("scen-hint").textContent = t("scen_none");
+      return;
+    }
+    $("scen-hint").textContent = "";
+    for (const scen of found) {
+      const row = document.createElement("div");
+      row.className = "scen";
+      const faults = (scen.failures || []).map((f) =>
+        t("scen_fault_line", { fault: f.fault, target: f.target,
+                               duration: f.duration_text,
+                               step: f.inject_after_step })).join("; ");
+      row.innerHTML = `<div class="scen-head"><b>${esc(scen.name)}</b>`
+        + `<span class="scen-id">${esc(scen.id)}</span></div>`
+        + `<div class="scen-what">${esc(scen.description || "")}</div>`
+        + `<div class="scen-faults">${esc(faults)}</div>`;
+      const go = document.createElement("button");
+      go.className = "btn small";
+      go.textContent = t("scen_run");
+      go.onclick = () => runProcedure(scen.id, null, defaultsOf(scen));
+      row.append(go);
+      list.append(row);
+    }
+  }
+
+  function defaultsOf(proc) {
+    const values = {};
+    for (const input of proc.inputs || []) values[input.name] = input.default;
+    return values;
+  }
+
+  // ------------------------------------------------------ campaigns (v1.4)
+  let CAMPAIGNS = { campaigns: [], active: { running: false } };
+
+  async function loadCampaigns() {
+    CAMPAIGNS = await getJSON("/api/campaigns",
+                              (b) => Array.isArray(b && b.campaigns));
+    renderCampaigns();
+  }
+
+  function campaignProcedureOptions() {
+    // Every procedure the connected vehicle can run, scenarios included: a
+    // repeatability campaign over an off-nominal flow is the more interesting
+    // one, because that is where a result of "four times in five" lives.
+    const out = [];
+    for (const role of Object.keys((PROCS && PROCS.roles) || {})) {
+      for (const p of (PROCS.roles[role].options || [])) out.push(p);
+    }
+    for (const p of (PROCS && PROCS.scenarios) || []) out.push(p);
+    const seen = new Set();
+    return out.filter((p) => !seen.has(p.id) && seen.add(p.id));
+  }
+
+  function renderCampaigns() {
+    const select = $("camp-procedure");
+    const chosen = select.value;
+    select.innerHTML = "";
+    for (const proc of campaignProcedureOptions()) {
+      const option = document.createElement("option");
+      option.value = proc.id;
+      option.textContent = `${proc.name} (${proc.id})`;
+      select.append(option);
+    }
+    if (chosen) select.value = chosen;
+
+    const running = CAMPAIGNS.active && CAMPAIGNS.active.running;
+    $("btn-camp-start").disabled = !!running || !active || !select.options.length;
+    $("btn-camp-cancel").hidden = !running;
+    if (running) {
+      const a = CAMPAIGNS.active;
+      $("camp-active").textContent = t("camp_running", {
+        id: a.definition.id, index: (a.done || 0) + 1, total: a.definition.runs });
+    } else {
+      $("camp-active").textContent = t("camp_idle");
+    }
+
+    const body = $("camp-table").querySelector("tbody");
+    body.innerHTML = "";
+    if (!(CAMPAIGNS.campaigns || []).length) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="5" class="runs-empty">${esc(t("camp_none"))}</td>`;
+      body.append(tr);
+      return;
+    }
+    for (const entry of CAMPAIGNS.campaigns) {
+      const tr = document.createElement("tr");
+      const runs = entry.declared_runs
+        ? `${entry.recorded_runs}/${entry.declared_runs}` : entry.recorded_runs;
+      tr.innerHTML = `<td class="runs-when"><b>${esc(entry.id)}</b></td>`
+        + `<td>${esc(entry.model_id || "—")}</td>`
+        + `<td class="runs-proc">${esc(entry.procedure_id || "—")}</td>`
+        + `<td>${esc(String(runs))}</td>`;
+      const actions = document.createElement("td");
+      actions.className = "runs-actions";
+      const open = document.createElement("button");
+      open.className = "btn small";
+      open.textContent = t("camp_open");
+      open.onclick = () => showCampaign(entry.id);
+      actions.append(open);
+      tr.append(actions);
+      body.append(tr);
+    }
+  }
+
+  async function showCampaign(id) {
+    const box = $("camp-detail");
+    box.hidden = false;
+    box.textContent = t("runs_comparing");
+    let body;
+    try {
+      body = await getJSON(`/api/campaigns/${encodeURIComponent(id)}`,
+                           (b) => b && b.campaign);
+    } catch (e) {
+      box.textContent = t("camp_failed", { error: String(e.message || e) });
+      return;
+    }
+    const doc = body.campaign;
+    const c = doc.counts;
+    const rate = doc.pass_rate === null ? "—" : Math.round(doc.pass_rate * 100);
+    const parts = [];
+    parts.push(`<b>${esc(doc.id)}</b><br>`
+      + esc(t("camp_result", { passed: c.passed, failed: c.failed,
+                               flaky: c.flaky, total: doc.runs_recorded }))
+      + ` — ${esc(t("camp_rate", { rate }))}`);
+    parts.push(`<p class="hint">${esc(t("camp_sample", { n: doc.runs_recorded }))}</p>`);
+    if (doc.consistency && doc.consistency.checked && !doc.consistency.identical) {
+      parts.push(`<p class="cmp-drift">${esc(t("camp_drift"))}</p>`);
+    }
+    if ((doc.metrics || []).length) {
+      const head = [t("camp_metric"), t("camp_n"), t("camp_mean"), t("camp_sd"),
+                    t("camp_min"), t("camp_max")];
+      let table = `<table class="cmp-table"><thead><tr>`
+        + head.map((h) => `<th>${esc(h)}</th>`).join("") + `</tr></thead><tbody>`;
+      for (const row of doc.metrics) {
+        const unit = row.unit ? ` ${row.unit}` : "";
+        const sd = row.stdev === null ? "—" : `${row.stdev}${unit}`;
+        table += `<tr><td>${esc(row.label)}${row.procedure ? " — " + esc(row.procedure) : ""}`
+          + `<br><small>${esc(row.key)}</small></td>`
+          + `<td>${row.n}</td>`
+          + `<td>${row.mean === null ? "—" : esc(String(row.mean) + unit)}</td>`
+          + `<td>${esc(sd)}</td>`
+          + `<td>${row.min === null ? "—" : esc(String(row.min) + unit)}</td>`
+          + `<td>${row.max === null ? "—" : esc(String(row.max) + unit)}</td></tr>`;
+      }
+      parts.push(table + "</tbody></table>");
+    }
+    let runs = `<table class="cmp-table"><tbody>`;
+    for (const row of doc.runs || []) {
+      const why = row.failure
+        ? `${esc(t("fail_" + row.failure.category) || row.failure.category)}`
+        : "—";
+      runs += `<tr><td>${row.index}</td><td>${esc(row.run_id)}</td>`
+        + `<td class="v-${esc(row.verdict)}">${esc(row.verdict)}</td>`
+        + `<td>${why}</td></tr>`;
+    }
+    parts.push(runs + "</tbody></table>");
+    box.innerHTML = parts.join("");
+  }
+
+  $("btn-camp-start").onclick = async () => {
+    const err = $("err-camp");
+    err.hidden = true;
+    const body = {
+      model_id: active,
+      procedure_id: $("camp-procedure").value,
+      runs: parseInt($("camp-runs").value, 10) || 5,
+      values: {},
+    };
+    const chosen = campaignProcedureOptions().find((p) => p.id === body.procedure_id);
+    if (chosen) body.values = defaultsOf(chosen);
+    const res = await (await fetch("/api/campaign", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })).json();
+    if (!res.ok) {
+      err.hidden = false;
+      err.textContent = t("camp_failed", { error: res.text || "" });
+      return;
+    }
+    loadCampaigns();
+  };
+
+  $("btn-camp-cancel").onclick = async () => {
+    await fetch("/api/campaign/cancel", { method: "POST" });
+    loadCampaigns();
+  };
+
+  function applyCampaignEvent(msg) {
+    if (msg.event === "iteration_done" || msg.event === "written"
+        || msg.event === "done" || msg.event === "cancelled") {
+      loadCampaigns();
+      loadRuns();
+    } else if (msg.event === "iteration_start") {
+      $("camp-active").textContent = t("camp_running", {
+        id: msg.campaign, index: msg.index, total: msg.of });
+    }
+  }
 
   // -------------------------------------------------------------------- runs
   // A reader for the runs/ directory. Nothing here starts or changes a flight;
@@ -1422,6 +1800,16 @@
       dur.className = "runs-dur";
       dur.textContent = seconds;
       badge.append(chip, dur);
+      // The classified reason, beside the verdict. "failed" alone sends every
+      // reader to the same place; the category sends them to the right one.
+      if (run.failure && !recording) {
+        const why = document.createElement("span");
+        why.className = "runs-why " + run.failure.category;
+        why.textContent = t("fail_" + run.failure.category) || run.failure.category;
+        why.title = `${run.failure.code}: ${run.failure.detail || ""}\n\n`
+          + t("fail_note");
+        badge.append(why);
+      }
 
       const actions = document.createElement("td");
       actions.className = "runs-actions";
@@ -2092,6 +2480,7 @@
       initPanel("err-models", t("panel_models"), loadModels),
       initPanel("err-scripts", t("panel_scripts"), loadScripts),
       initPanel("err-runs", t("panel_runs"), loadRuns),
+      initPanel("err-camp", t("camp_title"), loadCampaigns),
     ]);
     if (!panels.every(Boolean)) {
       console.warn("ArgazUI: some panels failed to load; the rest of the page is live");

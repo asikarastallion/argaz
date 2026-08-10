@@ -1,4 +1,4 @@
-# ArgazUI procedure schema — versions 1 and 2
+# ArgazUI procedure schema — versions 1, 2 and 3
 
 A **procedure** is a declarative flight sequence: a list of steps plus the
 acceptance criteria that decide whether it worked. Procedures live in
@@ -27,11 +27,13 @@ command. This schema models that difference.
 
 | version | added | what it adds |
 |---|---|---|
-| `1` | v1.1 | the format below, minus the schema-2 rows |
+| `1` | v1.1 | the format below, minus the schema-2 and schema-3 rows |
 | `2` | v1.3 | the temporal acceptance criteria `within` / `for` / `never`, and the instantaneous attitude conditions `roll_within`, `pitch_within`, `angular_rate_above`, `angular_rate_below` |
+| `3` | v1.4 | the `failures:` block — controlled fault injection — and the `scenario` role |
 
-**Schema-1 files keep working unchanged.** A schema-1 document that uses a
-schema-2 feature is rejected at load time, with a message that says so.
+**Older files keep working unchanged.** A document that uses a feature from a
+later schema than it declares is rejected at load time, with a message that
+says so.
 
 The version was moved rather than extended in place because the alternative is
 quieter and worse: an older ArgazUI would have read a `within:` it does not
@@ -42,7 +44,7 @@ implement, out of a document claiming a version it satisfies.
 ## Top level
 
 ```yaml
-schema: 2                       # required: 1 or 2 (see above)
+schema: 3                       # required: 1, 2 or 3 (see above)
 id: plane_takeoff               # required, must equal the filename stem
 name:                           # required, shown in the UI
   en: Plane takeoff (TAKEOFF mode)
@@ -73,7 +75,7 @@ registry, but only one of them is a tailsitter.
 
 ```yaml
 applies_to:
-  role: takeoff                 # required: takeoff | land
+  role: takeoff                 # required: takeoff | land | scenario
   autopilot: ArduPlane          # optional: ArduCopter | ArduPlane; omitted = any
   quadplane: false              # optional tri-state; omitted = don't care
   tailsitter: false             # optional tri-state; omitted = don't care
@@ -485,17 +487,117 @@ kind of output and cannot fail a run either. See
 
 ---
 
+## Scenarios and fault injection (schema 3)
+
+A **scenario** is a procedure that deliberately breaks something and then judges
+what the aircraft did about it. It uses everything above — steps, conditions,
+`expect` — plus one new top-level block, `failures:`, and one new role.
+
+### The `scenario` role
+
+```yaml
+applies_to:
+  role: scenario
+  autopilot: ArduCopter
+```
+
+`takeoff` and `land` are auto-selected from probed capabilities and bound to
+buttons. `scenario` is neither: it is listed in its own panel and started by
+name. Injecting a fault must be something a person asked for, never something a
+capability heuristic decided applied.
+
+### `failures:`
+
+```yaml
+schema: 3
+
+failures:
+  - id: gps_off_in_hover        # required, unique within the file
+    fault: gps_loss             # required — see the table below
+    target: gps1                # required — what is degraded
+    options: {}                 # per-fault, see the table
+
+    inject_after_step: 5        # WHERE: after step 5 (0 = before the first)
+    start:                      # WHEN: the state that must hold first
+      condition: {alt_above: 20, armed: true}
+      within: 60s               # optional, default 60s
+    duration: 12s               # HOW LONG it is held, on the vehicle's clock
+
+    expected:                   # required, {en, tr}: what a person should see
+      en: The EKF loses its position source and ...
+      tr: EKF konum kaynagini kaybeder ve ...
+
+    expect:                     # criteria judged WHILE the fault is held
+      - condition: {armed: true}
+        for: 8s
+    recovery:                   # criteria judged AFTER it is cleared
+      - condition: {angular_rate_above: 150}
+        never: 5s
+
+    evidence: [attitude]        # required: signals the verdict rests on
+```
+
+Every field is mandatory except `options`, `start`, and whichever of
+`expect`/`recovery` you do not use — **at least one of those two must be
+present**, because a fault with no criteria proves only that the fault was
+injected.
+
+`expected` is prose and `expect` is criteria, and the pair is deliberate. A
+scenario whose expected behaviour is only expressible as a threshold has usually
+not been thought through; one with only prose cannot be verified at all.
+
+### The faults
+
+| `fault` | `target` | `options` | mechanism |
+|---|---|---|---|
+| `gps_loss` | `gps1` | — | `SIM_GPS1_ENABLE = 0` (`SIM_GPS_DISABLE = 1` on older ArduPilot) |
+| `gps_degradation` | `gps1` | `satellites` (default 4), `fix_type` (0–6) | `SIM_GPS1_NUMSATS`, `SIM_GPS1_FIXTYPE` |
+| `mavlink_interrupt` | `gcs_link` | — | ArgazUI sends nothing and discards everything it receives |
+| `mavlink_degradation` | `gcs_link` | `drop_one_in` (default 2, minimum 2) | ArgazUI discards every Nth received message |
+
+Wind, motor failure and arbitrary sensor corruption are **deliberately not
+implemented**. See [docs/fault-injection.md](../../docs/fault-injection.md) for
+why the list is this short and what each fault is actually for.
+
+### The rules the runner enforces
+
+1. **Fail closed.** Every declared fault is probed against the vehicle *before
+   the first step*. If the mechanism is not on this firmware, the procedure is
+   aborted with an `environment` failure and the aircraft never leaves the
+   ground. It is never flown nominally: a scenario whose fault did not happen
+   is a nominal test wearing the wrong name.
+2. **Cleaned up.** The injector restores what it changed from a `finally`, so a
+   failed, errored or cancelled scenario still leaves the simulator as it found
+   it. Whether the restore succeeded is recorded; a fault that could not be
+   cleared is itself a classified failure.
+3. **Deterministic.** Nothing here is random. `drop_one_in` counts packets
+   rather than rolling dice, so two runs of the same scenario lose the same
+   ones.
+4. **A successful injection is not a pass.** The verdict comes from `expect:`
+   and `recovery:`, and a fault whose `evidence:` never arrived is reported as
+   *not judged*.
+5. **One at a time.** Two faults cannot declare the same `inject_after_step`;
+   the file would have an execution order its reader cannot see.
+
+### Where it ends up
+
+`result.json` gains a `faults` list per procedure — the mechanism as applied,
+which parameters were written and what they were before, how long it was
+actually held, which evidence arrived, and every criterion's own verdict.
+`fingerprint.json` records the declaration under `scenario`, and the
+`failures:` block is inside the procedure text that `procedure_hash` covers, so
+a run cannot have been degraded by something the archived document does not
+mention.
+
+---
+
 ## Reserved for a later schema
 
-The following top-level keys are **reserved and rejected by the validator** so
-that no procedure starts using them informally before the scenario runner
-exists:
+One top-level key remains **reserved and rejected by the validator**, so that no
+procedure starts using it informally before the runner for it exists:
 
 ```yaml
 mission:      # a full mission to fly, with per-waypoint acceptance criteria
-failures:     # fault injection (sensor dropouts, motor loss, RC/GCS failsafe)
 ```
 
-They are listed here because the format was designed around them: steps,
-conditions and `expect` are already the vocabulary a scenario would need, so
-adding these two keys does not require reworking anything above.
+`failures:` was on this list until v1.4 implemented it.

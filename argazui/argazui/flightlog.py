@@ -460,6 +460,49 @@ def _markdown(report: dict) -> str:
                 "running instance is not in the state it started in.")
     add("")
 
+    # ----------------------------------------------------- what was injected
+    # Second, and for the same reason as the overrides above: every
+    # measurement below was taken on an aircraft something was deliberately
+    # done to, and a reader who learns that at the bottom has already read the
+    # numbers as though it were a nominal flight.
+    injected = meta.get("faults") or []
+    if injected:
+        add("## Faults this run injected")
+        add("")
+        add("This was an **off-nominal** run. Each fault below was declared in "
+            "the procedure, applied to the simulator, held, and cleared.")
+        add("")
+        add("| Fault | Target | Mechanism | Held | Cleared | Criteria |")
+        add("|---|---|---|---:|---|---|")
+        for item in injected:
+            cleared = {True: "yes", False: "**NO**", None: "n/a"}.get(item.get("cleared"))
+            criteria = "**not judged**" if item.get("evidence_missing") else (
+                "passed" if item.get("passed") else "**failed**")
+            add(f"| `{item.get('id')}`<br><sub>{item.get('fault')}</sub> "
+                f"| {item.get('target')} | {item.get('mechanism') or '—'} "
+                f"| {item.get('held_s', 0):.1f} s | {cleared} | {criteria} |")
+        if any(item.get("cleared") is False for item in injected):
+            add("")
+            add("**A fault could not be cleared.** The simulated vehicle may "
+                "still be degraded, so nothing measured after that point means "
+                "what it says.")
+        add("")
+
+    # ------------------------------------------------------- why it did not pass
+    failure = meta.get("failure")
+    if failure:
+        add("## Why this run did not pass")
+        add("")
+        add(f"**{failure.get('category')}** — `{failure.get('code')}`")
+        add("")
+        add(f"{failure.get('detail') or 'no detail recorded'}")
+        add("")
+        add(f"Recorded at `{failure.get('source') or '—'}`"
+            + (f" in `{failure['procedure']}`" if failure.get("procedure") else "")
+            + ". See docs/failure-classification.md for what this category "
+              "means and what to look at first.")
+        add("")
+
     add("## Flight")
     add("")
     add("| | |")

@@ -417,6 +417,105 @@ Metrics are measurements, not acceptance criteria. A regression does not mean a
 criterion failed; it means the aircraft is doing the same thing measurably less
 well than the baseline did.
 
+## 5c-3. Scenarios: flying with something deliberately broken
+
+Every procedure above asks whether the aircraft does what it was told. A
+**scenario** asks the other question — *what does it do when something is
+wrong* — by breaking one thing on purpose, for a stated length of time, and
+then judging the response.
+
+Scenarios appear in the **Scenarios (fault injection)** panel and are started
+by name. They are never bound to a quick-command button and are never
+auto-selected: injecting a fault has to be something a person asked for, not
+something a capability match decided.
+
+Two ship with v1.4, both for Copter:
+
+| scenario | what it does |
+|---|---|
+| `copter_gps_loss` | climbs to a hover in GUIDED, switches the simulated GPS off for 12 s |
+| `copter_link_loss` | climbs to a hover in GUIDED, silences the link between ArgazUI and the aircraft for 10 s |
+
+**Everything is simulation-only and reversible.** A fault writes a `SIM_*`
+parameter or changes ArgazUI's own socket behaviour; nothing has a path to
+hardware. Whatever it changed is restored when the run ends — including when
+the run fails, errors or is cancelled — and a fault that could *not* be
+restored is reported as a failure of its own rather than assumed away.
+
+**A scenario whose fault cannot be injected does not fly.** The mechanism is
+probed before the first step, and if this ArduPilot has no such parameter the
+procedure is aborted and the run recorded as an `environment` failure. Flying
+it nominally would report a pass for a behaviour nobody exercised.
+
+**A successfully injected fault is not a pass.** The verdict comes from the
+criteria the scenario declared — some judged while the fault is held, some
+after it is cleared — and a fault whose evidence never arrived is reported as
+*not judged*.
+
+See [docs/fault-injection.md](../docs/fault-injection.md) for the catalogue and
+the rules, and [`procedures/SCHEMA.md`](procedures/SCHEMA.md) for the
+`failures:` block.
+
+## 5c-4. Repeatability campaigns
+
+One flight tells you what happened once. A **campaign** flies the same
+procedure, on the same model, in the same configuration, N times, and reports
+the spread instead of a verdict.
+
+It exists because of a real case in this project's own history:
+`tailsitter_takeoff` passed three times at 24.9 m, 23.6 m and 18.3 m. Every run
+met its criteria; the *spread* was the signature of an aircraft that was not in
+control of its climb, and no single run could have shown it.
+
+In the browser: **Repeatability campaign** — pick a procedure, pick a count,
+press RUN CAMPAIGN. The campaign takes over START and STOP for as long as it
+runs, because each iteration is a real launch and a real shutdown with its own
+run directory and its own evidence.
+
+From the shell, to aggregate what has already been flown:
+
+```bash
+python3 -m argazui campaign                  # list the campaigns on disk
+python3 -m argazui campaign <campaign-id>    # recompute and write the document
+```
+
+| exit | meaning |
+|---|---|
+| `0` | aggregated, and every run passed cleanly |
+| `1` | one or more runs failed, was flaky, or is incomplete |
+| `2` | there is no such campaign |
+
+The document reports pass/fail/flaky counts, a clean pass rate, and the mean,
+standard deviation, minimum and maximum of every metric — with the sample size
+beside each. It computes **no confidence interval and no reliability figure**:
+five runs is five runs. A run that passed only on a retry is `flaky` and is not
+in the pass rate.
+
+See [docs/campaigns.md](../docs/campaigns.md).
+
+## 5c-5. Why a run did not pass
+
+Every failed run carries one machine-readable **category**, shown beside its
+verdict in the Flight Runs panel, in the **Why** column of `docs/status.md`,
+and at the top of `report.md`:
+
+| category | what it means |
+|---|---|
+| `environment` | the simulation never got into the state the run needed |
+| `vehicle_readiness` | the aircraft would not be made ready — pre-arm, arming |
+| `procedure` | a step of the flow did not do what it asked |
+| `acceptance` | the flow ran and a declared criterion did not hold |
+| `evidence` | it flew, and the proof of what happened is missing |
+| `regression` | nothing failed; a measured quantity got worse |
+| `infrastructure` | ArgazUI, the link or CI broke |
+
+**Only `acceptance` is a verdict about the aircraft.** The others say the
+simulation, the tooling or the evidence went wrong, and reading one as the
+other is how a broken harness comes to be reported as a broken aircraft. See
+[docs/failure-classification.md](../docs/failure-classification.md), and
+[docs/failure-investigation.md](../docs/failure-investigation.md) for the path
+from a category to the file that explains it.
+
 ## 5d. Live telemetry in PlotJuggler
 
 The report in section 5c is what you read *after* a flight. This is how you

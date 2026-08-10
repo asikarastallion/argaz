@@ -45,11 +45,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from . import failures as failurelib
 from . import paths
 
 # 2 (v1.3): rows carry `claims` — what was verified, at procedure and
 #           acceptance-criterion granularity, with the run that proves each.
-SCHEMA = 2
+# 3 (v1.4): a failing row carries the classified failure category, and an
+#           injected fault is a claim of its own kind.
+SCHEMA = 3
 
 PASSED, FAILED, FLAKY, UNTESTED = "passed", "failed", "flaky", "untested"
 RESULTS = (PASSED, FAILED, FLAKY, UNTESTED)
@@ -64,6 +67,11 @@ CLAIM_PASSED, CLAIM_FAILED, CLAIM_UNEVALUATED = "passed", "failed", "not evaluat
 CLAIM_PROCEDURE = "procedure"
 CLAIM_MODE = "mode transition"
 CLAIM_CRITERION = "acceptance criterion"
+# An off-nominal claim: a fault was injected and the aircraft's response was
+# judged. Its own kind because it is a different sort of statement from the
+# other three — it says what happened when something was WRONG, and reading it
+# as a nominal claim would overstate what the run showed.
+CLAIM_FAULT = "fault response"
 
 # A test outcome recorded by tests/conftest.py, mapped to a table result.
 # `skipped` is deliberately UNTESTED and never PASSED: a machine that did not
@@ -99,6 +107,10 @@ class Row:
     firmware: str = ""
     tier: str = ""
     claims: list[Claim] = field(default_factory=list)
+    # The classified reason the model's latest run did not pass, or None.
+    # Read from the run rather than derived here: `failures.py` is the one
+    # implementation of that judgement.
+    failure: Optional[dict] = None
 
     @property
     def model_id(self) -> str:
@@ -149,6 +161,26 @@ def claims_of(result: dict) -> list[Claim]:
                         else CLAIM_UNEVALUATED if step.get("status") == "skipped"
                         else CLAIM_FAILED),
                 detail=f"{step.get('label', 'set_mode')} — {step.get('text', '')}"[:120],
+                run_id=run_id))
+
+        # A fault the run injected, and whether the aircraft's response met the
+        # criteria the scenario declared. A fault that was applied and never
+        # judged — because its evidence never arrived — is `not evaluated`, not
+        # a pass: injecting a fault successfully proves nothing about the
+        # aircraft.
+        for fault in outcome.get("faults") or []:
+            if not fault.get("applied"):
+                verdict_f = CLAIM_UNEVALUATED
+            elif fault.get("evidence_missing"):
+                verdict_f = CLAIM_UNEVALUATED
+            else:
+                verdict_f = CLAIM_PASSED if fault.get("passed") else CLAIM_FAILED
+            out.append(Claim(
+                subject=f"{fault.get('fault')} → {fault.get('id')}",
+                kind=CLAIM_FAULT, procedure=procedure, result=verdict_f,
+                detail=(f"{fault.get('target')}, held "
+                        f"{fault.get('held_s', 0)}s — "
+                        f"{fault.get('text', '')}")[:160],
                 run_id=run_id))
 
         for criterion in outcome.get("expect") or []:
@@ -282,6 +314,8 @@ def _row_for(model: dict, tier2_tests: dict[str, dict], runs: list[dict]) -> Row
         # De-duplicate while keeping order: a retried procedure appears twice.
         row.procedures = list(dict.fromkeys(row.procedures))
         row.advisories = data.get("advisory_count")
+        row.failure = data.get("failure") or (
+            lambda f: f.as_dict() if f else None)(failurelib.classify_run(data))
         row.last_run = data.get("started_utc") or ""
         row.firmware = ((data.get("build") or {}).get("text") or "").strip()
         if row.result == PASSED and data.get("flaky"):
@@ -359,18 +393,26 @@ def render(data: dict, workflow: str = "", run_url: str = "") -> str:
         "`untested` means *not yet verified by a machine* — it does not mean "
         "broken, and it does not mean working.",
         "",
-        "| Model | Class | Launch method | Procedures | Result | Advisories | "
-        "Last run (UTC) | Firmware | Tier |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "| Model | Class | Launch method | Procedures | Result | Why | "
+        "Advisories | Last run (UTC) | Firmware | Tier |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for row in sorted(rows, key=lambda r: (RESULTS.index(r.result), r.model_id)):
         result = f"**{row.result}**" if row.result in (FAILED, FLAKY) else row.result
         note = f"{result}<br><sub>{row.reason}</sub>" if row.reason else result
+        # The category, not the message. "acceptance" and "environment" send a
+        # reader to two different files, and that is the whole reason this
+        # column exists rather than a longer sentence in the one before it.
+        why = "—"
+        if row.failure:
+            why = (f"`{row.failure.get('category')}`"
+                   f"<br><sub>{_cell(row.failure.get('code', ''))}</sub>")
         lines.append(
             f"| `{row.model_id}` | {_cell(row.model.get('vehicle_class'))} "
             f"| `{_cell(row.model.get('method'))}` "
             f"| {_cell(', '.join(f'`{p}`' for p in row.procedures))} "
             f"| {note} "
+            f"| {why} "
             f"| {row.advisories if row.advisories is not None else '—'} "
             f"| {_cell(row.last_run)} "
             f"| {_cell(row.firmware)} "
@@ -378,6 +420,23 @@ def render(data: dict, workflow: str = "", run_url: str = "") -> str:
 
     lines += ["", "Totals: " + ", ".join(
         f"**{tally.get(name, 0)}** {name}" for name in RESULTS) + ".", ""]
+
+    categories: dict[str, int] = {}
+    for row in rows:
+        if row.failure:
+            key = row.failure.get("category", "")
+            categories[key] = categories.get(key, 0) + 1
+    if categories:
+        lines += [
+            "Failures by category: " + ", ".join(
+                f"**{count}** {failurelib.label_for(name)} (`{name}`)"
+                for name, count in sorted(categories.items())) + ".",
+            "",
+            "Only `acceptance` is a verdict about an aircraft. The others say "
+            "the simulation, the tooling or the evidence went wrong — see "
+            "[failure-classification.md](failure-classification.md).",
+            "",
+        ]
 
     # ------------------------------------------------------------- tier 1
     tier1 = data.get("tier1") or {}

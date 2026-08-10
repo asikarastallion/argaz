@@ -52,6 +52,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from . import failures as failurelib
 from . import metrics as metricslib
 from . import fingerprint as fp
 from . import paths
@@ -295,7 +296,7 @@ def compare(baseline: dict, current: dict, config: Optional[dict] = None,
     else:
         verdict = PASSED
 
-    return {
+    document = {
         "schema": SCHEMA,
         "generated_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "verdict": verdict,
@@ -312,6 +313,13 @@ def compare(baseline: dict, current: dict, config: Optional[dict] = None,
         "degraded": [f"{r['key']}@{r['procedure']}" if r["procedure"] else r["key"]
                      for r in comparisons if r["verdict"] == DEGRADED],
     }
+    # The same classification the runs carry, so a pipeline reads one taxonomy
+    # rather than a verdict word here and a category there. `incomparable`
+    # classifies as `evidence`, not `regression`: two runs that do not line up
+    # have not shown that anything got worse.
+    failure = failurelib.classify_comparison(document)
+    document["failure"] = failure.as_dict() if failure else None
+    return document
 
 
 # ------------------------------------------------------------------ rendering

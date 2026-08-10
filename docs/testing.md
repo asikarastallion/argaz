@@ -53,6 +53,43 @@ run report as `flaky` in [status.md](status.md) rather than `passed`, and every
 attempt stays in `result.json`. Retrying quietly until green is precisely the
 behaviour this project exists to prevent.
 
+## Off-nominal tests, and where each half lives
+
+Fault injection is verified in two places on purpose, because the two questions
+are different and only one of them needs an aircraft.
+
+| file | proves |
+|---|---|
+| `tests/test_faults.py` | the *mechanism*: it probes before it writes, restores what it changed, drops the packets it claims to, and refuses a declaration that would inject nothing. Uses a recording stand-in link; runs in milliseconds. |
+| `tests/test_tier1_faults.py` | the mechanism against a *real* ArduPilot: the parameter exists, the write is accepted, the aircraft is degraded for the declared window, the value comes back, and the run record separates the injection from the response from the verdict. |
+| `tests/test_tier2_models.py` | one off-nominal scenario on a *real airframe in Gazebo* — the one thing tier 1 cannot show. |
+
+The tier-1 fault tests assert `applied is True` before they assert the outcome.
+Without that, a scenario whose fault silently failed to inject would pass as a
+nominal flight under an off-nominal name — which is the failure the fail-closed
+rule exists to prevent, so the test has to check that the rule held rather than
+assume it.
+
+## Campaign tests, and why two runs
+
+`tests/test_campaign.py` builds run directories rather than flying them. The
+cases that matter are the ones a real campaign produces rarely and at the worst
+moment — a flaky run that must not become a pass, an iteration that never
+started, a procedure edited half way through — and constructing those is exact
+and takes milliseconds.
+
+`tests/test_tier1_campaign.py` flies a real one, with **two** iterations rather
+than the default five. Two is the smallest number that can show what that test
+is for: that the runs are genuinely independent, with separate directories,
+separate logs and separate indices. It is not a repeatability measurement and
+does not claim to be one — the spread it would report from two runs is exactly
+the one `campaign.statistics` refuses to print.
+
+It also generates each iteration's flight report rather than skipping it. The
+report is what fills in the firmware identity, and without it the campaign's
+own consistency check correctly reports every iteration as "firmware unknown on
+at least one side" — a true answer to a question the test was not asking.
+
 ## Why there is no `pytest-timeout`
 
 Every flight is already bounded from two directions: each procedure carries its

@@ -21,6 +21,31 @@ açıklamak için gereken her şey vardır.
 | `versions.txt` | ArduPilot SHA'sı, Gazebo, ArgazUI, yorumlayıcı |
 | `plots/` | irtifa ve tutum takibi PNG'leri — matplotlib kuruluysa |
 
+`result.json` içinde ayrıca adlandırmaya değer iki alan var; ikisi de v1.4 ile
+geldi:
+
+- **`failure`** — koşunun neden geçmediği; bir cümle olarak değil, yedi
+  kategoriden biri olarak. Geçen bir koşuda `null`'dır ve bilerek asla
+  `"category": "none"` değildir. Bkz.
+  [Arıza sınıflandırması](failure-classification.tr.md).
+- **`campaign`** — bu koşunun hangi tekrarlanabilirlik kampanyasının yinelemesi
+  olduğu, ya da `null`. Bir dizin dosyasında değil koşunun içinde tutulur;
+  böylece kampanya koşuları okunarak bulunur ve kopyalanmış bir koşu bile
+  neye ait olduğunu söyler. Bkz. [Kampanyalar](campaigns.tr.md).
+
+Arıza enjekte etmiş bir koşu, prosedür başına bir **`faults`** listesi de
+taşır; içinde birbirinden türetilmeyen dört ayrı şey vardır: mekanizmanın
+uygulandığı hâli (hangi parametrelere ne yazıldı, önceki değerleri neydi),
+tepki (gerçekte ne kadar, hangi saatte tutuldu ve hangi kanıt geldi),
+kriterler ve hüküm. Hiçbiri diğerinden çıkarılmaz, çünkü *başarıyla enjekte
+edilmiş bir arıza geçiş değildir*. Bkz.
+[Arıza enjeksiyonu](fault-injection.tr.md).
+
+Bir kampanya kendi dizinini yazar:
+`runs/campaigns/<kampanya-id>/campaign.json` ve `.md`. Bu, N sıradan koşunun
+üzerinde bir toplamdır ve onlardan yeniden hesaplanamayacak hiçbir bilgi
+eklemez.
+
 ## YAML neden birebir saklanır
 
 Tek kaynak kuralının denetlenebilir hâli budur. `scenario.yaml`, KALKIŞ

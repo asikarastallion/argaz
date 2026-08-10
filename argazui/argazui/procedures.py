@@ -31,20 +31,23 @@ from typing import Any, Optional
 
 import yaml
 
+from . import faults as faultlib
 from . import paths
 
 # The current schema. Schema 1 files are still loaded unchanged; schema 2 adds
 # the temporal acceptance criteria and the instantaneous attitude conditions
-# introduced in v1.3, and a file has to declare 2 to use them. Extending
-# schema 1 in place would have been quieter and worse: an older ArgazUI would
-# have read a `within:` it does not implement out of a document claiming a
-# version it satisfies.
-SCHEMA_VERSION = 2
-SUPPORTED_SCHEMAS = (1, 2)
+# introduced in v1.3, and schema 3 adds the `failures:` block — controlled
+# fault injection — introduced in v1.4. A file has to declare the version whose
+# features it uses. Extending a schema in place would have been quieter and
+# worse: an older ArgazUI would have read a `within:` or a `failures:` it does
+# not implement out of a document claiming a version it satisfies.
+SCHEMA_VERSION = 3
+SUPPORTED_SCHEMAS = (1, 2, 3)
 
-# Reserved for a later schema (see SCHEMA.md). Rejected now so that nothing
-# starts depending on a half-defined meaning before the scenario runner exists.
-RESERVED_KEYS = ("mission", "failures")
+# Still reserved (see SCHEMA.md). `failures:` left this list in v1.4; `mission:`
+# stays, so that nothing starts depending on a half-defined meaning before the
+# mission runner exists.
+RESERVED_KEYS = ("mission",)
 
 STEP_TYPES = (
     "set_param", "get_param", "set_mode", "arm", "disarm",
@@ -84,7 +87,19 @@ DURATION_UNITS = {"ms": 0.001, "s": 1.0, "sec": 1.0, "min": 60.0}
 # see MONOTONE_CONDITIONS in procrunner.py.
 STABILITY_KEYS = ("roll", "pitch", "max_rate", "tolerance", "min_seconds")
 
-ROLES = ("takeoff", "land")
+# `scenario`, new in v1.4, is the role an off-nominal flow declares. It is
+# deliberately NOT a third button: takeoff and land are auto-selected from
+# probed capabilities, and a scenario is always chosen by name, because
+# injecting a fault is never something that should happen because a heuristic
+# thought it applied.
+ROLES = ("takeoff", "land", "scenario")
+
+# Roles a capability probe may pick automatically.
+AUTO_ROLES = ("takeoff", "land")
+
+# Keys of a `failures:` entry (schema 3).
+FAULT_KEYS = ("id", "fault", "target", "options", "inject_after_step", "start",
+              "duration", "expected", "expect", "recovery", "evidence")
 
 # applies_to keys that are matched against probed vehicle capabilities.
 CAPABILITY_KEYS = ("autopilot", "quadplane", "tailsitter", "fw_takeoff_allowed",
@@ -294,6 +309,67 @@ class Expectation:
 
 
 @dataclass
+class Fault:
+    """One declared, controlled fault — the `failures:` block of schema 3.
+
+    Every field the architecture requires of a fault is here and none is
+    optional-by-omission:
+
+        inject_after_step  WHERE in the flow it happens
+        start              the state that must hold before it is injected
+        duration           how long it is held, on the vehicle's clock
+        fault + target     WHAT is degraded, and which instance of it
+        expected           what a person should expect to see — in words
+        expect / recovery  what a machine decides the verdict on
+        evidence           the telemetry the verdict is only valid with
+
+    `expected` is prose and `expect` is criteria, and the pair is deliberate. A
+    scenario whose expected behaviour is only expressible as a threshold has
+    usually not been thought through, and one with only prose cannot be
+    verified at all.
+    """
+
+    id: str
+    kind: str
+    target: str
+    options: dict
+    inject_after_step: int
+    duration: float
+    expected: dict
+    expect: list[Expectation] = field(default_factory=list)
+    recovery: list[Expectation] = field(default_factory=list)
+    evidence: list[str] = field(default_factory=list)
+    start_condition: Optional[dict] = None
+    start_within: float = 60.0
+
+    def label(self, lang: str = "en") -> str:
+        return f"{self.id} ({faultlib.label_for(self.kind, lang)})"
+
+    def expected_text(self, lang: str = "en") -> str:
+        return self.expected.get(lang) or self.expected.get("en") or ""
+
+    def as_dict(self, lang: str = "en") -> dict:
+        return {
+            "id": self.id, "fault": self.kind, "target": self.target,
+            "options": dict(self.options),
+            "inject_after_step": self.inject_after_step,
+            "duration": self.duration,
+            "duration_text": format_duration(self.duration),
+            "expected": self.expected_text(lang),
+            "start": ({"condition": _plain_condition(self.start_condition),
+                       "within": self.start_within}
+                      if self.start_condition else None),
+            "expect": [e.label(lang) for e in self.expect],
+            "recovery": [e.label(lang) for e in self.recovery],
+            "evidence": list(self.evidence),
+        }
+
+
+def _plain_condition(cond: Optional[dict]) -> dict:
+    return {str(k): v for k, v in (cond or {}).items()}
+
+
+@dataclass
 class Override:
     """A parameter this procedure needs changed, and why.
 
@@ -357,6 +433,7 @@ class Procedure:
     expect: list[Expectation]
     timeout: float
     raw_text: str
+    failures: list[Fault] = field(default_factory=list)
 
     def label(self, lang: str = "en") -> str:
         return self.name.get(lang) or self.name.get("en") or self.id
@@ -380,6 +457,7 @@ class Procedure:
             "overrides": [o.as_dict(lang) for o in self.overrides],
             "steps": [{"name": s.label(lang), "kind": s.kind} for s in self.steps],
             "expect": [e.label(lang) for e in self.expect],
+            "failures": [f.as_dict(lang) for f in self.failures],
         }
 
     def matches(self, caps: dict) -> bool:
@@ -505,6 +583,94 @@ def _parse_expect(raw: Any, where: str, schema: int) -> Expectation:
     )
 
 
+def _parse_fault(raw: Any, where: str, schema: int, step_count: int) -> Fault:
+    """One `failures:` entry.
+
+    Validated hard, for a reason this project has met before in a milder form:
+    a mis-declared acceptance criterion produces a wrong verdict, and a
+    mis-declared fault produces a wrong verdict *about an aircraft that was
+    never actually degraded*. Every rejection below is a case where the run
+    would otherwise have looked like an off-nominal test and been a nominal
+    one.
+    """
+    if schema < 3:
+        raise ProcedureError(
+            f"{where}: 'failures:' was added in procedure schema 3; this file "
+            f"declares schema {schema}. Set 'schema: 3' to use it.")
+    if not isinstance(raw, dict):
+        raise ProcedureError(f"{where}: a fault must be a map")
+    for key in raw:
+        if key not in FAULT_KEYS:
+            raise ProcedureError(
+                f"{where}: unknown fault key '{key}'. Known: {', '.join(FAULT_KEYS)}")
+    for key in ("id", "fault", "target", "inject_after_step", "duration",
+                "expected", "evidence"):
+        if raw.get(key) is None:
+            raise ProcedureError(f"{where}: a fault needs '{key}'")
+
+    try:
+        options = faultlib.check_declaration(
+            raw["fault"], raw["target"], raw.get("options"), where)
+    except (ValueError, TypeError) as exc:
+        raise ProcedureError(str(exc)) from exc
+
+    after = raw["inject_after_step"]
+    if not isinstance(after, int) or isinstance(after, bool) \
+            or not 0 <= after <= step_count:
+        raise ProcedureError(
+            f"{where}: inject_after_step must be a step number between 0 and "
+            f"{step_count} (0 injects before the first step); got {after!r}")
+
+    duration = parse_duration(raw["duration"], f"{where}.duration")
+
+    start_condition = None
+    start_within = 60.0
+    start = raw.get("start")
+    if start is not None:
+        if not isinstance(start, dict) or "condition" not in start:
+            raise ProcedureError(
+                f"{where}.start: needs a 'condition' (and optionally a 'within')")
+        for key in start:
+            if key not in ("condition", "within"):
+                raise ProcedureError(f"{where}.start: unknown key '{key}'")
+        start_condition = _check_condition(start["condition"],
+                                           f"{where}.start.condition", schema)
+        if start.get("within") is not None:
+            start_within = parse_duration(start["within"], f"{where}.start.within")
+
+    expect = [_parse_expect(item, f"{where}.expect[{i}]", schema)
+              for i, item in enumerate(raw.get("expect") or [])]
+    recovery = [_parse_expect(item, f"{where}.recovery[{i}]", schema)
+                for i, item in enumerate(raw.get("recovery") or [])]
+    if not expect and not recovery:
+        raise ProcedureError(
+            f"{where}: state at least one criterion under 'expect' (judged while "
+            f"the fault is held) or 'recovery' (judged after it is cleared). A "
+            f"fault with no criteria proves only that the fault was injected, "
+            f"which is not a result about the aircraft.")
+
+    evidence = raw["evidence"]
+    if isinstance(evidence, str):
+        evidence = [evidence]
+    if not isinstance(evidence, list) or not evidence:
+        raise ProcedureError(
+            f"{where}.evidence: list at least one signal the verdict rests on. "
+            f"Known: {', '.join(faultlib.EVIDENCE_SIGNALS)}")
+    for signal in evidence:
+        if signal not in faultlib.EVIDENCE_SIGNALS:
+            raise ProcedureError(
+                f"{where}.evidence: unknown signal '{signal}'. Known: "
+                f"{', '.join(faultlib.EVIDENCE_SIGNALS)}")
+
+    return Fault(
+        id=str(raw["id"]), kind=str(raw["fault"]), target=str(raw["target"]),
+        options=options, inject_after_step=after, duration=duration,
+        expected=_text(raw["expected"], f"{where}.expected"),
+        expect=expect, recovery=recovery, evidence=list(evidence),
+        start_condition=start_condition, start_within=start_within,
+    )
+
+
 def parse(text: str, path: Path) -> Procedure:
     """Parses and validates one procedure document."""
     where = path.name
@@ -618,6 +784,23 @@ def parse(text: str, path: Path) -> Procedure:
     expect = [_parse_expect(raw, f"{where}.expect[{i}]", version)
               for i, raw in enumerate(raw_expect)]
 
+    raw_failures = doc.get("failures")
+    if raw_failures is not None and not isinstance(raw_failures, list):
+        raise ProcedureError(f"{where}: 'failures' must be a list")
+    failures = [_parse_fault(item, f"{where}.failures[{i}]", version, len(steps))
+                for i, item in enumerate(raw_failures or [])]
+    identifiers = {f.id for f in failures}
+    if len(identifiers) != len(failures):
+        raise ProcedureError(f"{where}: two faults share an id")
+    # Faults are injected in flow order and held one at a time. Declaring two
+    # at the same point would give the file an execution order the reader
+    # cannot see, so it is refused rather than resolved by list position.
+    points = [f.inject_after_step for f in failures]
+    if len(set(points)) != len(points):
+        raise ProcedureError(
+            f"{where}: two faults are injected after the same step. One fault "
+            f"is held at a time; give them different injection points.")
+
     return Procedure(
         id=pid,
         schema=version,
@@ -635,6 +818,7 @@ def parse(text: str, path: Path) -> Procedure:
         expect=expect,
         timeout=float(doc.get("timeout", 300)),
         raw_text=text,
+        failures=failures,
     )
 
 
@@ -675,6 +859,19 @@ def candidates(role: str, caps: dict) -> list[Procedure]:
     """Every procedure that fits these capabilities, best first."""
     matching = [p for p in load_all().values() if p.role == role and p.matches(caps)]
     return sorted(matching, key=lambda p: (p.default, p.priority), reverse=True)
+
+
+def scenarios(caps: Optional[dict] = None) -> list[Procedure]:
+    """Off-nominal flows, optionally filtered to a probed aircraft.
+
+    Never auto-selected. A scenario injects a fault, and a fault is not
+    something that should start because a capability heuristic decided it
+    applied — it is chosen by name, every time.
+    """
+    found = [p for p in load_all().values() if p.role == "scenario"]
+    if caps is not None:
+        found = [p for p in found if p.matches(caps)]
+    return sorted(found, key=lambda p: p.id)
 
 
 def select(role: str, caps: dict, model: Optional[dict] = None) -> Optional[Procedure]:

@@ -153,12 +153,21 @@ def _runtime() -> dict:
 
 def capture(model: Optional[dict] = None,
             procedures: Optional[list[dict]] = None,
-            firmware: str = "") -> dict:
+            firmware: str = "",
+            scenario: Optional[list[dict]] = None) -> dict:
     """The manifest for one run.
 
     `procedures` is a list of `{"id", "schema", "file", "text"}` — the verbatim
     YAML the run executed, which is the only version of a procedure that can
     honestly be hashed: the file on disk may already have been edited.
+
+    `scenario` is the faults those procedures declared (v1.4). It is recorded
+    for a reader, NOT as a separate identity field, and the distinction is
+    deliberate: the `failures:` block is part of the procedure text, so
+    `procedure_hash` already covers it byte for byte. A second hash over the
+    same content could only ever disagree with the first, and a comparison
+    refused because two hashes of one thing differ would be a bug wearing the
+    costume of a safety check.
     """
     model = model or {}
     procedures = procedures or []
@@ -253,6 +262,12 @@ def capture(model: Optional[dict] = None,
         "procedures": procedure_entries,
         "procedure_hash": _procedure_hash(
             [{"id": p.get("id"), "text": p.get("text")} for p in procedures]),
+        # Off-nominal conditions this run was configured to inject. `[]` means
+        # a nominal flight; what actually happened to the aircraft is in
+        # result.json under each procedure's `faults`, because a declaration
+        # and an injection are two different facts.
+        "scenario": {"faults": list(scenario or []),
+                     "covered_by": "procedure_hash"},
         "config": paths.source_summary(),
         "unknown": unknown,
     }

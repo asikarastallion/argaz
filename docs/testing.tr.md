@@ -52,6 +52,43 @@ koşunun [status.md](status.md) içinde `passed` değil `flaky` görünmesini sa
 ve her deneme `result.json` içinde kalır. Yeşile ulaşana kadar sessizce yeniden
 denemek, bu projenin engellemek için var olduğu davranışın ta kendisidir.
 
+## Nominal-dışı testler ve her yarısının yeri
+
+Arıza enjeksiyonu bilerek iki yerde doğrulanır; çünkü iki soru farklıdır ve
+yalnızca biri araç ister.
+
+| dosya | neyi kanıtlar |
+|---|---|
+| `tests/test_faults.py` | *mekanizmayı*: yazmadan önce yoklar, değiştirdiğini geri alır, iddia ettiği paketleri düşürür ve hiçbir şey enjekte etmeyecek bir beyanı reddeder. Kaydeden bir vekil bağlantı kullanır, milisaniyeler sürer. |
+| `tests/test_tier1_faults.py` | mekanizmayı *gerçek* bir ArduPilot üzerinde: parametre vardır, yazma kabul edilir, araç beyan edilen pencere boyunca bozulur, değer geri gelir ve koşu kaydı enjeksiyonu tepkiden, tepkiyi hükümden ayırır. |
+| `tests/test_tier2_models.py` | *Gazebo'da gerçek bir hava aracı* üzerinde bir nominal-dışı senaryo — katman 1'in gösteremeyeceği tek şey. |
+
+Katman-1 arıza testleri, sonucu doğrulamadan önce `applied is True` iddiasında
+bulunur. Bu olmadan, arızası sessizce enjekte edilememiş bir senaryo,
+nominal-dışı bir ad taşıyan nominal bir uçuş olarak geçerdi — kapalı düşme
+kuralının önlemek için var olduğu arıza budur, dolayısıyla test kuralın
+tuttuğunu varsaymak yerine denetler.
+
+## Kampanya testleri ve neden iki koşu
+
+`tests/test_campaign.py` koşu dizinlerini uçurmaz, kurar. Önemli olan durumlar,
+gerçek bir kampanyanın nadiren ve en kötü anda ürettikleridir — geçişe
+dönüşmemesi gereken kararsız bir koşu, hiç başlamamış bir yineleme, ortada
+düzenlenmiş bir prosedür — ve bunları kurmak hem kesin hem de milisaniyeler
+sürer.
+
+`tests/test_tier1_campaign.py` gerçek bir kampanya uçurur; varsayılan beş
+yerine **iki** yinelemeyle. İki, o testin amacını gösterebilecek en küçük
+sayıdır: koşuların gerçekten bağımsız olduğu — ayrı dizinler, ayrı loglar, ayrı
+sıra numaraları. Bu bir tekrarlanabilirlik ölçümü değildir ve öyle olduğunu
+iddia etmez; iki koşudan raporlayacağı dağılım, tam da
+`campaign.statistics`'in basmayı reddettiği dağılımdır.
+
+Ayrıca her yinelemenin uçuş raporunu atlamak yerine üretir. Uçan yazılımın
+kimliğini dolduran şey rapordur; o olmadan kampanyanın kendi tutarlılık
+denetimi her yinelemeyi haklı olarak "en az bir tarafta firmware bilinmiyor"
+diye raporlar — testin sormadığı bir soruya verilmiş doğru bir cevap.
+
 ## Neden `pytest-timeout` yok
 
 Her uçuş zaten iki yönden sınırlıdır: her prosedür kendi `timeout:` tavanını

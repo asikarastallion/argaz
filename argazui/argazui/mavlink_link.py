@@ -421,6 +421,12 @@ class MavlinkLink:
         # as the stability watch: `_absorb` sees every message exactly once.
         # Its lifetime is this link's — opened by start(), closed by stop().
         self.mirror = TelemetryMirror(port=mirror_port, on_log=self.on_log)
+        # A declared, simulation-only link fault (v1.4). None means the link is
+        # behaving normally, which is the only state anything outside
+        # `faults.LinkInjector` ever sets it to. See `set_link_fault`.
+        self._link_fault: Optional[dict] = None
+        self._rx_seen: int = 0
+        self._rx_dropped: int = 0
 
     def emit(self, kind: str, **payload) -> None:
         """Bir olayi kosu kaydina bildirir; hicbir zaman cagirana hata dondurmez."""
@@ -494,6 +500,10 @@ class MavlinkLink:
         self._rc_overrides.clear()
         self._streams_requested = False
         self._state_sampled = 0.0
+        # A link fault must not outlive the link that carried it. The runner
+        # already clears it from a `finally`; this is the second guarantee, for
+        # the case where the whole session is torn down mid-fault.
+        self._link_fault = None
         self.state = VehicleState()
 
     def _run(self) -> None:
@@ -525,6 +535,61 @@ class MavlinkLink:
                 job.result.put({"ok": False, "text": t("cmd_error", err=exc)})
 
     # ---------------------------------------------------------------- mesaj pompasi
+    # -------------------------------------------------------- injected faults
+    # A scenario may declare that the link to the ground station is interrupted
+    # or lossy (see faults.py). Both are implemented here, in exactly two
+    # places, and both are simulation-only in the strongest sense available:
+    # nothing below writes to the vehicle, and the fault is a flag in this
+    # process that a `finally` in the runner always clears.
+    #
+    # WHY SUPPRESSING THE HEARTBEAT IS THE WHOLE MECHANISM
+    # ----------------------------------------------------
+    # ArduPilot's GCS failsafe keys on `sysid_mygcs_seen`, which is called from
+    # exactly three handlers: HEARTBEAT, RC_CHANNELS_OVERRIDE and
+    # MANUAL_CONTROL (ardupilot/libraries/GCS_MAVLink/GCS_Common.cpp). ArgazUI
+    # sends the first two and never the third, so withholding them is a
+    # complete model of "the ground station went away" rather than an
+    # approximation of one. A parameter read issued while the fault is active
+    # would still leave this process — it just does not reset the failsafe
+    # timer, and no step runs inside a fault window in any case.
+
+    def set_link_fault(self, drop_one_in: int = 1, block_tx: bool = False) -> None:
+        """Degrade this link deterministically. Only `faults.py` calls this.
+
+        `drop_one_in` counts RECEIVED messages: 1 discards every one, 2 every
+        second, and so on. It is a count and not a probability so that two runs
+        of the same scenario lose the same packets.
+        """
+        self._link_fault = {"drop_one_in": max(1, int(drop_one_in)),
+                            "block_tx": bool(block_tx)}
+        self._rx_seen = self._rx_dropped = 0
+        self.emit("link_fault", state="applied", **self._link_fault)
+
+    def clear_link_fault(self) -> dict:
+        """Restore normal behaviour and report what the fault actually did."""
+        record = {"received": self._rx_seen, "discarded": self._rx_dropped,
+                  **(self._link_fault or {})}
+        self._link_fault = None
+        self.emit("link_fault", state="cleared", **record)
+        return record
+
+    @property
+    def link_fault(self) -> Optional[dict]:
+        return dict(self._link_fault) if self._link_fault else None
+
+    def _drop_received(self) -> bool:
+        """Is this received message discarded by an injected link fault?"""
+        if not self._link_fault:
+            return False
+        self._rx_seen += 1
+        if self._rx_seen % self._link_fault["drop_one_in"] == 0:
+            self._rx_dropped += 1
+            return True
+        return False
+
+    def _tx_blocked(self) -> bool:
+        return bool(self._link_fault and self._link_fault["block_tx"])
+
     def _pump(self, seconds: float) -> None:
         """Gelen mesajlari okuyup arac durumunu gunceller."""
         deadline = time.time() + seconds
@@ -533,7 +598,12 @@ class MavlinkLink:
             msg = self._conn.recv_match(blocking=True, timeout=0.05)
             if msg is None:
                 break
-            self._absorb(msg)
+            # Read and thrown away rather than left in the socket: a link that
+            # is down does not queue traffic up for later, and delivering a
+            # burst of stale state the moment the fault clears would make the
+            # recovery criteria judge the wrong instant.
+            if not self._drop_received():
+                self._absorb(msg)
         if self.state.connected and time.time() - self.state.last_heartbeat > 5:
             self.state.connected = False
 
@@ -544,6 +614,11 @@ class MavlinkLink:
         turunden; bu yuzden mesaj pompasinin icinde, her bekleyisin altinda
         calisiyorlar.
         """
+        if self._tx_blocked():
+            # An injected interruption. Both suppressed items are precisely the
+            # ones ArduPilot counts as contact from its ground station, so this
+            # branch is the fault rather than a side effect of it.
+            return
         now = time.time()
         if now - self._hb_last_sent >= GCS_HEARTBEAT_INTERVAL:
             try:
@@ -726,6 +801,10 @@ class MavlinkLink:
             self._housekeeping()
             msg = self._conn.recv_match(blocking=True, timeout=0.2)
             if msg is None:
+                continue
+            if self._drop_received():
+                # Dropped before it is looked at, including by `match_fn`: a
+                # message the link did not receive cannot satisfy a wait.
                 continue
             self._absorb(msg)
             if match_fn(msg):
