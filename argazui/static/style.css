@@ -441,6 +441,33 @@ pre.report {
   border-left: 2px solid var(--warn); padding-left: 10px; margin: 8px 0;
 }
 
+/* ------------------------------------------- campaign / experiment detail
+   The box a campaign or an experiment opens into. One rule set for both,
+   because they show the same shape of thing — a set of runs, their numbers,
+   and what may be concluded from them — and two would drift.
+
+   Only a failed criterion is coloured. Everything else is deliberately quiet:
+   in a document whose whole subject is what may and may not be claimed, the
+   one thing that should shout is the thing that did not hold. */
+.cmp { margin: 12px 0; overflow-x: auto; }
+.cmp h4 { margin: 14px 0 6px; font-size: 12px; color: var(--accent);
+          text-transform: uppercase; letter-spacing: .6px; }
+.cmp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.cmp-table th, .cmp-table td {
+  text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.cmp-table th { color: var(--muted); font-weight: 600; }
+.cmp-table small { color: var(--muted); font-size: 11px; }
+.cmp .v-failed, .cmp .v-degraded { color: var(--danger); font-weight: 600; }
+.cmp .v-passed { color: var(--ok); }
+.cmp .v-flaky, .cmp .v-incomplete, .cmp .v-not-judged { color: var(--warn); }
+.cmp .v-not-run { color: var(--muted); font-style: italic; }
+.exp-limits { margin: 6px 0 0; padding-left: 18px; font-size: 12px;
+              color: var(--muted); }
+.exp-limits li { margin: 4px 0; }
+.exp-limits b { color: var(--text); }
+
 /* --------------------------------------------------------------- docs portal */
 .sheet.docs { width: min(1180px, 100%); height: 88vh; }
 .docs-body { display: flex; min-height: 0; flex: 1; }

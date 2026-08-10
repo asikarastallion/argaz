@@ -63,7 +63,11 @@ from .versions import environment
 #   manifest of what the run was expected to leave behind and what it did.
 #   Steps and criteria inside `procedures` also gained `step_id` and
 #   `criterion_id`. Nothing that existed moved.
-RESULT_SCHEMA = 5
+# 6 (v1.6): `experiment` — the experiment and arm this run belongs to, beside
+#   the campaign stamp rather than instead of it, because an experiment's arm
+#   IS a campaign and every tool that already reads campaigns must keep
+#   finding it. Null on an ordinary run, and nothing that existed moved.
+RESULT_SCHEMA = 6
 
 # What a run's acceptance verdict can be. Health findings live in
 # `advisory_count` and never appear here.
@@ -147,7 +151,8 @@ class RunRecorder:
                  work_dir: Optional[Path] = None,
                  on_log: Optional[Callable[[str], None]] = None,
                  campaign: Optional[dict] = None,
-                 test_id: Optional[str] = None) -> None:
+                 test_id: Optional[str] = None,
+                 experiment: Optional[dict] = None) -> None:
         self.model = model
         # What this run was FOR. A pytest node id when a test drove it, and
         # None when a person pressed START — which is recorded as `manual`
@@ -159,6 +164,11 @@ class RunRecorder:
         # campaign is found by reading its runs, so a run that was moved or
         # copied still says what it belonged to.
         self.campaign = dict(campaign) if campaign else None
+        # The experiment and arm this run belongs to, or None. Beside the
+        # campaign stamp and not instead of it: an experiment's arm IS a
+        # repeatability campaign, and a run that dropped its campaign id to
+        # carry an experiment one would vanish from every campaign tool.
+        self.experiment = dict(experiment) if experiment else None
         self.started = datetime.now(timezone.utc)
         self.started_monotonic = self.started.timestamp()
         self.on_log = on_log or (lambda text: None)
@@ -498,6 +508,7 @@ class RunRecorder:
             "seconds": round(finished.timestamp() - self.started_monotonic, 1),
             "status": status,
             "campaign": self.campaign,
+            "experiment": self.experiment,
             "test_id": self.test_id,
             "advisory_count": None,
             # Both stay None until the flight report has been produced. "not
@@ -713,9 +724,11 @@ def attach_report(directory: Path, report: dict) -> None:
     if report.get("fingerprint"):
         result["fingerprint"] = report["fingerprint"]
     # A run recorded before v1.3 and re-analysed now genuinely becomes a
-    # schema-4 document: it carries the fields schema 4 defines. Leaving the
-    # old number on it would make the version say less than the file does.
+    # current-schema document: it carries the fields that schema defines.
+    # Leaving the old number on it would make the version say less than the
+    # file does.
     result.setdefault("campaign", None)
+    result.setdefault("experiment", None)
     result.setdefault("test_id", None)
     result["schema"] = RESULT_SCHEMA
     path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n",
@@ -881,6 +894,7 @@ def describe_run(directory: Path) -> dict:
         "status": result.get("status", "incomplete") if result else "incomplete",
         "failure": failure,
         "campaign": result.get("campaign"),
+        "experiment": result.get("experiment"),
         "test_id": result.get("test_id"),
         # The verdict on the run's own evidence, not the whole manifest: the
         # panel needs one line, and `evidence.json` is one fetch away.

@@ -493,7 +493,53 @@ in the pass rate.
 
 See [docs/campaigns.md](../docs/campaigns.md).
 
-## 5c-5. Why a run did not pass
+## 5c-5. Experiments
+
+A campaign asks *"does this happen the same way N times?"*. An **experiment**
+asks the question that needs two groups:
+
+> Does losing GPS during the climb change how this aircraft holds altitude,
+> compared with the same climb when nothing is wrong?
+
+An experiment is a file in `argazui/experiments/`. It names one model, one or
+more **arms** — a procedure flown N times — the measurements to report, the
+comparison policy, acceptance criteria about the *group*, and what the answer
+does not cover.
+
+In the browser: the **Experiments** panel — pick a declared experiment, press
+RUN EXPERIMENT. Unlike a campaign it does not need a model started first,
+because the file names its own. Each arm is flown as an ordinary repeatability
+campaign, so every iteration is a real launch, a real shutdown and its own run
+directory.
+
+From the shell:
+
+```bash
+python3 -m argazui experiment                    # declared and flown, side by side
+python3 -m argazui experiment <experiment-id>    # aggregate its newest run
+```
+
+| exit | meaning |
+|---|---|
+| `0` | aggregated, and nothing declared failed |
+| `1` | a declared criterion did not hold |
+| `2` | no such experiment, or nothing flown under that name |
+
+The document has ten fixed sections and ends, as the flight report does, with
+**limitations and non-claims**. Its comparison reports `n` on both sides, the
+two means, their difference and whether the arms' observed ranges overlap —
+and computes **no p-value, confidence interval or effect size**. At these
+sample sizes each would run fine, mean nothing, and read as though the
+difference had been established.
+
+A declared experiment nobody has flown is listed as such, in the panel and in
+the coverage report: it is a question this project asked and never answered.
+
+See [docs/experiments.md](../docs/experiments.md),
+[docs/validation-limits.md](../docs/validation-limits.md) and
+[`experiments/SCHEMA.md`](experiments/SCHEMA.md).
+
+## 5c-6. Why a run did not pass
 
 Every failed run carries one machine-readable **category**, shown beside its
 verdict in the Flight Runs panel, in the **Why** column of `docs/status.md`,
@@ -516,7 +562,7 @@ other is how a broken harness comes to be reported as a broken aircraft. See
 [docs/failure-investigation.md](../docs/failure-investigation.md) for the path
 from a category to the file that explains it.
 
-## 5c-6. Following a claim back to its evidence
+## 5c-7. Following a claim back to its evidence
 
 Every link between an intention and the proof of it has a name, so one claim
 can be followed backwards in one command:
@@ -545,7 +591,7 @@ that says no test in this repository asserts what it shows.
 
 See [docs/traceability.md](../docs/traceability.md).
 
-## 5c-7. Is the evidence actually there?
+## 5c-8. Is the evidence actually there?
 
 Each run writes `evidence.json`: what it was **expected** to leave behind, and
 what happened to each artefact — path, type, whether it exists, size, hash, and
@@ -566,7 +612,7 @@ The run sheet shows this above the report, and section 7 of `report.md` renders
 the same table. See
 [docs/evidence-manifest.md](../docs/evidence-manifest.md).
 
-## 5c-8. What has never been run
+## 5c-9. What has never been run
 
 ```bash
 python3 -m argazui coverage        # writes docs/coverage.md

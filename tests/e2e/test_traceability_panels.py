@@ -67,10 +67,10 @@ def test_the_coverage_panel_switches_language(browser_page, server):
     assert_no_console_errors(page, "after switching language twice")
 
 
-def test_the_coverage_endpoint_reports_the_four_dimensions(server):
+def test_the_coverage_endpoint_reports_the_five_dimensions(server):
     document = server.api("/api/coverage")["coverage"]
     names = [d["dimension"] for d in document["dimensions"]]
-    assert names == ["models", "procedures", "criteria", "faults"]
+    assert names == ["models", "procedures", "criteria", "faults", "experiments"]
     for dimension in document["dimensions"]:
         assert dimension["declared"] >= 0
         # Every dimension must be able to name what it did not reach.

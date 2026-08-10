@@ -114,6 +114,59 @@ def test_the_v13_surfaces_are_translated():
             f"{lang} is missing {sorted(expected - catalogue[lang])}")
 
 
+def test_the_v16_surfaces_are_translated():
+    """The strings v1.6 added: the experiments panel and its document.
+
+    Named explicitly for the same reason the v1.3 set is. The ones that matter
+    most are the last four — a document that stated its limitations in English
+    to a Turkish reader would be stating them to nobody.
+    """
+    catalogue = interface_catalogue()
+    expected = {
+        "exp_title", "exp_hint", "exp_start", "exp_cancel", "exp_idle",
+        "exp_running", "exp_none", "exp_no_runs", "exp_never_flown",
+        "exp_question", "exp_criteria", "exp_delta", "exp_overlap",
+        "exp_basis", "exp_v_passed", "exp_v_failed", "exp_v_incomplete",
+        "exp_v_not_judged", "exp_v_not_run",
+        "exp_no_stats", "exp_limits", "exp_limits_none", "exp_verification",
+    }
+    for lang in LANGUAGES:
+        assert expected <= catalogue[lang], (
+            f"{lang} is missing {sorted(expected - catalogue[lang])}")
+
+
+def test_the_experiment_verdicts_all_have_a_string_behind_them():
+    """The panel builds a key from the verdict word, so a new one goes silent.
+
+    `exp_v_` + the verdict with hyphens replaced. A verdict added to
+    `analysis.py` and not here would render as its own key name.
+    """
+    from argazui import analysis
+
+    catalogue = interface_catalogue()
+    for verdict in analysis.VERDICTS:
+        key = "exp_v_" + verdict.replace("-", "_")
+        for lang in LANGUAGES:
+            assert key in catalogue[lang], (
+                f"the verdict '{verdict}' has no {lang} string ({key})")
+
+
+def test_every_limitation_category_is_named_in_both_languages():
+    """A limitation shown in English to a Turkish reader is shown to nobody."""
+    from argazui import limitations
+
+    for category in limitations.CATEGORIES:
+        for lang in LANGUAGES:
+            assert limitations.LABELS[category].get(lang), \
+                f"{category} has no {lang} label"
+            assert limitations.WHAT[category].get(lang), \
+                f"{category} does not say what belongs in it, in {lang}"
+        for text in limitations.STANDING[category]:
+            for lang in LANGUAGES:
+                assert text.get(lang), \
+                    f"a standing limitation in {category} has no {lang} text"
+
+
 # ---------------------------------------------------------------------- docs
 def test_every_documentation_page_is_named_in_both_languages():
     for group in docs.GROUPS:

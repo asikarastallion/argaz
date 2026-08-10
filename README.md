@@ -152,9 +152,23 @@ recorded, and which firmware it was.
   each. A missing **required** artefact is an evidence failure; a missing
   optional one is fine **only with a stated reason**:
   [docs/evidence-manifest.md](docs/evidence-manifest.md).
-- **Coverage that names what was not covered** across four dimensions —
-  models, procedures, acceptance criteria, faults — and refuses to be a test
-  count: [docs/coverage-model.md](docs/coverage-model.md).
+- **Coverage that names what was not covered** across five dimensions —
+  models, procedures, acceptance criteria, faults, experiments — and refuses to
+  be a test count: [docs/coverage-model.md](docs/coverage-model.md).
+- **Experiments: a controlled comparison declared in a file.** One model, one
+  or more *arms* — a procedure flown N times — a stated question, acceptance
+  criteria about the group, and a comparison policy. Each arm is executed as an
+  ordinary repeatability campaign, so there is no second execution engine and
+  every iteration leaves the ordinary run directory. The analysis reports n on
+  both sides, the two means and their difference, and computes **no p-value,
+  confidence interval or effect size** — at these sample sizes each would be
+  arithmetic that runs fine, means nothing, and reads as though the difference
+  had been established: [docs/experiments.md](docs/experiments.md).
+- **Validation limits stated per experiment**, in four categories — simulation
+  assumptions, model limitations, unverified physical effects, conditions
+  outside the test scope — printed as the document's last section beside the
+  standing ones no definition can drop:
+  [docs/validation-limits.md](docs/validation-limits.md).
 
 ### Operations and reliability
 
@@ -283,7 +297,11 @@ successfully injected is not a pass.
 
 A campaign adds one directory of its own,
 `runs/campaigns/<campaign-id>/campaign.json` and `.md`, which is an aggregation
-over N ordinary runs and holds no fact that cannot be recomputed from them.
+over N ordinary runs and holds no fact that cannot be recomputed from them. An
+experiment adds `runs/experiments/<experiment-run-id>/experiment.json` and `.md`
+on the same terms, over the campaigns its arms were flown as — and each of its
+runs carries **both** stamps, because an arm really is a campaign and a run that
+dropped its campaign id would vanish from every campaign tool here.
 
 The report has ten fixed, numbered sections — scope, configuration, procedure,
 verdict, failed criteria, metrics, evidence manifest, environment, regression,
@@ -343,6 +361,10 @@ python3 -m argazui campaign <campaign-id>
 # what is declared and has never been run, and the chain behind one run
 python3 -m argazui coverage
 python3 -m argazui trace runs/<run-id>     # exit 1 if a link does not resolve
+
+# experiments: what is declared beside what has been flown, then one document
+python3 -m argazui experiment
+python3 -m argazui experiment <experiment-id>   # exit 1 if a criterion failed
 ```
 
 `runs/` is gitignored — it is the output of flying, not source. Point
@@ -629,6 +651,7 @@ it does not copy them — so there is exactly one place to edit any of it.
 |---|---|
 | [`argazui/USAGE.md`](argazui/USAGE.md) | The full guide: every panel, launch methods, adding models/buttons/scripts. Also in-app under **HOW TO USE**, in English and Turkish. |
 | [`argazui/procedures/SCHEMA.md`](argazui/procedures/SCHEMA.md) | The procedure format: steps, conditions, acceptance criteria, declared overrides, temporal criteria, and the `failures:` block |
+| [`argazui/experiments/SCHEMA.md`](argazui/experiments/SCHEMA.md) | The experiment format: arms, metrics, comparison policy, group-level criteria and declared limitations |
 | [`docs/verification-model.md`](docs/verification-model.md) | What a green result claims — and, at greater length, what it does not |
 | [`docs/acceptance-criteria.md`](docs/acceptance-criteria.md) | Conditions and the temporal shapes `within` / `for` / `never` |
 | [`docs/metrics.md`](docs/metrics.md) | The metric catalogue: units, scopes and source signals |
@@ -641,6 +664,8 @@ it does not copy them — so there is exactly one place to edit any of it.
 | [`docs/evidence-manifest.md`](docs/evidence-manifest.md) | What a run was expected to leave behind, and what it did |
 | [`docs/coverage-model.md`](docs/coverage-model.md) | What counts as coverage, and what is refused as coverage |
 | [`docs/coverage.md`](docs/coverage.md) | Generated: what is declared and has never been run |
+| [`docs/experiments.md`](docs/experiments.md) | A controlled comparison: arms, deltas, and what a delta is worth |
+| [`docs/validation-limits.md`](docs/validation-limits.md) | Four categories in which a result states what it does not establish |
 | [`docs/verification-vs-validation.md`](docs/verification-vs-validation.md) | Two words that get confused, and only one of which this tool does |
 | [`docs/reproducibility.md`](docs/reproducibility.md) | The environment fingerprint, field by field |
 | [`docs/runs-and-evidence.md`](docs/runs-and-evidence.md) | What a run directory contains and why each file is in it |
@@ -663,6 +688,19 @@ exists to avoid.
 ---
 
 ## Scope
+
+### Implemented in v1.6
+
+A declarative experiment layer — one model, one or more arms, a stated question,
+a measurement set, acceptance criteria about a *group* of runs, and a comparison
+policy — executed by handing each arm to the existing campaign runner so that
+no second execution engine exists and every iteration leaves the ordinary run
+directory; campaign analysis across a controlled set of runs, reporting
+distributions and deltas with the sample size on both sides and refusing every
+statistic the sample cannot support; validation-oriented limitations declared
+per experiment in four named categories, printed beside standing ones no
+definition can drop; and a fifth coverage dimension that lists each declared
+experiment **and each of its arms** that has never been flown.
 
 ### Implemented in v1.5
 
@@ -722,6 +760,14 @@ These are listed so they are not mistaken for features:
 - authentication, remote access, graphical mission planning, telemetry
   dashboards (MAVProxy's map and console cover part of the last two; ArgazUI
   mirrors live telemetry for PlotJuggler rather than plotting it itself)
+- inferential statistics over experiments. There is no p-value, confidence
+  interval, effect size or significance test anywhere in this project, and none
+  is planned: a SITL campaign produces single-digit samples, and every one of
+  those figures would compute cleanly and mean nothing
+- a general simulation DSL, or a requirements-management system. An experiment
+  names procedures that already exist and states its own question; it does not
+  trace to an operational need, because there is no requirements document to
+  trace to
 
 ### Known limitations
 

@@ -440,6 +440,57 @@ CATALOG: dict[str, dict[str, str]] = {
                                      "siklikta basarisiz oldugu da bir "
                                      "tekrarlanabilirlik sonucudur."},
 
+    # -------------------------------------------------- experiments (v1.6)
+    # An experiment is several campaigns in sequence. Every message says which
+    # arm is flying, because the one thing a reader must never lose track of
+    # is which side of the comparison the aircraft is on right now.
+    "experiment_started": {"en": "EXPERIMENT {id}: running '{experiment}' on "
+                                 "'{model}' — {arms} arm(s), {runs} run(s) in "
+                                 "total. Each arm is flown as an ordinary "
+                                 "repeatability campaign.",
+                           "tr": "DENEY {id}: '{model}' uzerinde '{experiment}' "
+                                 "kosuluyor — {arms} kol, toplam {runs} kosu. "
+                                 "Her kol siradan bir tekrarlanabilirlik "
+                                 "kampanyasi olarak ucurulur."},
+    "experiment_arm":    {"en": "EXPERIMENT {id}: arm '{arm}' — '{procedure}' "
+                                "{runs} time(s), as campaign {campaign}",
+                          "tr": "DENEY {id}: '{arm}' kolu — '{procedure}' "
+                                "{runs} kez, {campaign} kampanyasi olarak"},
+    "experiment_finished": {"en": "EXPERIMENT {id} finished: {verdict}. "
+                                  "{passed} criterion(s) held, {failed} did "
+                                  "not, {unjudged} could not be judged, over "
+                                  "{runs} run(s). Document written to {path}",
+                            "tr": "DENEY {id} bitti: {verdict}. {runs} kosu "
+                                  "uzerinde {passed} kriter saglandi, {failed} "
+                                  "saglanmadi, {unjudged} degerlendirilemedi. "
+                                  "Belge {path} dizinine yazildi"},
+    "experiment_cancelled": {"en": "EXPERIMENT {id} cancelled after {done} "
+                                   "run(s). The runs already flown keep their "
+                                   "evidence, and the document says which arms "
+                                   "are short.",
+                             "tr": "DENEY {id}, {done} kosudan sonra iptal "
+                                   "edildi. Ucurulmus kosular kanitlarini "
+                                   "korur ve belge hangi kollarin eksik "
+                                   "kaldigini soyler."},
+    "experiment_busy":   {"en": "an experiment is already running",
+                          "tr": "zaten calisan bir deney var"},
+    "experiment_none":   {"en": "no experiment is running",
+                          "tr": "calisan bir deney yok"},
+    "experiment_unknown": {"en": "there is no experiment named '{id}' in "
+                                 "argazui/experiments/",
+                           "tr": "argazui/experiments/ icinde '{id}' adinda "
+                                 "bir deney yok"},
+    "experiment_no_model": {"en": "the experiment '{experiment}' names model "
+                                  "'{id}', which is not in the registry — a "
+                                  "controlled comparison cannot be flown on an "
+                                  "aircraft that is not there",
+                            "tr": "'{experiment}' deneyi '{id}' modelini "
+                                  "adlandiriyor ama bu model kayit defterinde "
+                                  "yok — var olmayan bir arac uzerinde "
+                                  "kontrollu karsilastirma ucurulamaz"},
+    "experiment_no_runs": {"en": "no run carries the experiment id '{id}'",
+                           "tr": "'{id}' deney kimligini tasiyan bir kosu yok"},
+
     # -------------------------------------------------- run artefacts
     "run_started":       {"en": "Recording this session as run '{id}' "
                                 "(console, MAVLink events, parameters, dataflash).",

@@ -191,6 +191,12 @@ def chain(result: dict) -> dict:
         "test_id": result.get("test_id") or BY_HAND,
         "model_id": (result.get("model") or {}).get("id"),
         "campaign_id": (result.get("campaign") or {}).get("id"),
+        # The controlled comparison this run was one arm of, when it was one.
+        # A chain that stopped at the campaign would leave a reviewer holding
+        # an experiment document with no way back to it from a single run.
+        "experiment_id": (result.get("experiment") or {}).get("id"),
+        "experiment_run": (result.get("experiment") or {}).get("run"),
+        "experiment_arm": (result.get("experiment") or {}).get("arm"),
         "verdict": result.get("status"),
         "failure": result.get("failure"),
         "procedures": procedures,

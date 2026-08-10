@@ -281,6 +281,57 @@
       camp_drift: "The iterations were not identical, so any spread below " +
                   "measures the difference as much as it measures the aircraft.",
 
+      // ----------------------------------------------- v1.6: experiments
+      // An experiment is several campaigns in sequence, so every string here
+      // names the ARM. Losing track of which side of a comparison the aircraft
+      // is on is the one confusion this panel exists to prevent.
+      exp_title: "Experiments",
+      exp_hint: "A controlled comparison declared in a file: one model, one or " +
+                "more arms — a procedure flown N times — a stated question, " +
+                "acceptance criteria about the group, and what the answer does " +
+                "not cover. Each arm is flown as an ordinary campaign.",
+      exp_start: "▶ RUN EXPERIMENT", exp_cancel: "✕ cancel experiment",
+      exp_open: "open",
+      exp_idle: "No experiment is running.",
+      exp_running: "Experiment {id}: {done} of {total} run(s) flown.",
+      exp_none: "No experiment is declared in argazui/experiments/.",
+      exp_no_runs: "No experiment has been flown yet.",
+      exp_failed: "The experiment could not be started: {error}",
+      exp_arms: "{n} arm(s), {runs} run(s)",
+      exp_col_id: "Experiment", exp_col_model: "Model", exp_col_policy: "Compares",
+      exp_col_arms: "Arms", exp_col_runs: "Runs", exp_col_flown: "Flown",
+      exp_policy_arms: "arm against arm",
+      exp_policy_baseline: "against its own earlier run",
+      exp_policy_repeats: "nothing — distributions only",
+      exp_never_flown: "declared, never flown",
+      exp_v_passed: "every declared criterion held",
+      exp_v_failed: "a declared criterion did not hold",
+      exp_v_incomplete: "incomplete — something declared was never flown or " +
+                        "never measured",
+      exp_v_not_judged: "nothing was asserted — this experiment declares no " +
+                        "acceptance criteria",
+      exp_v_not_run: "no run carries this experiment id",
+      exp_question: "Question",
+      exp_criteria: "Acceptance criteria",
+      exp_criterion_passed: "held", exp_criterion_failed: "DID NOT HOLD",
+      exp_criterion_unjudged: "not judged",
+      exp_delta: "Δ of means", exp_overlap: "Ranges overlap",
+      exp_yes: "yes", exp_no: "no",
+      exp_basis: "Basis", exp_reference: "Reference", exp_current: "Current",
+      exp_no_stats: "No p-value, confidence interval or effect size is computed " +
+                    "from a sample this size. What is reported is n on both " +
+                    "sides, the two means, their difference, and whether the " +
+                    "observed ranges overlap at all — which is not a " +
+                    "significance test.",
+      exp_limits: "Limitations and non-claims",
+      exp_limits_none: "This experiment declared no limitations of its own, so " +
+                       "only the standing ones apply.",
+      exp_standing: "standing",
+      exp_verification: "Everything here is verification: an implementation met " +
+                        "criteria somebody declared. None of it is validation — " +
+                        "nothing shows the criteria, the model or the question " +
+                        "are representative of anything outside a simulator.",
+
       // Failure states. A blank readout with no explanation is not acceptable
       // in a panel someone flies from.
       panel_failed: "{panel} could not be loaded: {error}. The rest of the page " +
@@ -620,6 +671,55 @@
       camp_drift: "Yinelemeler birbirinin aynısı değildi; aşağıdaki dağılım " +
                   "aracı ölçtüğü kadar bu farkı da ölçüyor.",
 
+      // ----------------------------------------------- v1.6: deneyler
+      exp_title: "Deneyler",
+      exp_hint: "Bir dosyada beyan edilmiş kontrollü karşılaştırma: tek model, " +
+                "bir ya da daha çok kol — N kez uçurulan bir prosedür —, açıkça " +
+                "yazılmış bir soru, grup hakkında kabul kriterleri ve yanıtın " +
+                "neyi kapsamadığı. Her kol sıradan bir kampanya olarak uçurulur.",
+      exp_start: "▶ DENEYİ ÇALIŞTIR", exp_cancel: "✕ deneyi iptal et",
+      exp_open: "aç",
+      exp_idle: "Çalışan deney yok.",
+      exp_running: "Deney {id}: {total} koşudan {done} tanesi uçuruldu.",
+      exp_none: "argazui/experiments/ altında beyan edilmiş deney yok.",
+      exp_no_runs: "Henüz uçurulmuş deney yok.",
+      exp_failed: "Deney başlatılamadı: {error}",
+      exp_arms: "{n} kol, {runs} koşu",
+      exp_col_id: "Deney", exp_col_model: "Model",
+      exp_col_policy: "Karşılaştırma", exp_col_arms: "Kol",
+      exp_col_runs: "Koşu", exp_col_flown: "Uçurulan",
+      exp_policy_arms: "kolu kola karşı",
+      exp_policy_baseline: "kendi önceki koşusuna karşı",
+      exp_policy_repeats: "hiçbir şey — yalnızca dağılım",
+      exp_never_flown: "beyan edildi, hiç uçurulmadı",
+      exp_v_passed: "beyan edilen her kriter sağlandı",
+      exp_v_failed: "beyan edilen bir kriter sağlanmadı",
+      exp_v_incomplete: "eksik — beyan edilen bir şey hiç uçurulmadı ya da hiç " +
+                        "ölçülmedi",
+      exp_v_not_judged: "hiçbir iddiada bulunulmadı — bu deney kabul kriteri " +
+                        "beyan etmiyor",
+      exp_v_not_run: "bu deney kimliğini taşıyan koşu yok",
+      exp_question: "Soru",
+      exp_criteria: "Kabul kriterleri",
+      exp_criterion_passed: "sağlandı", exp_criterion_failed: "SAĞLANMADI",
+      exp_criterion_unjudged: "değerlendirilmedi",
+      exp_delta: "Ortalama farkı", exp_overlap: "Aralıklar örtüşüyor",
+      exp_yes: "evet", exp_no: "hayır",
+      exp_basis: "Dayanak", exp_reference: "Referans", exp_current: "Güncel",
+      exp_no_stats: "Bu büyüklükte bir örneklemden p değeri, güven aralığı ya da " +
+                    "etki büyüklüğü hesaplanmaz. Raporlanan şey iki taraftaki n, " +
+                    "iki ortalama, farkları ve gözlenen aralıkların örtüşüp " +
+                    "örtüşmediğidir — bu bir anlamlılık testi değildir.",
+      exp_limits: "Sınırlar ve yapılmayan iddialar",
+      exp_limits_none: "Bu deney kendine ait bir sınır beyan etmedi; yalnızca " +
+                       "her zaman geçerli olanlar uygulanır.",
+      exp_standing: "her zaman geçerli",
+      exp_verification: "Buradaki her şey doğrulamadır: bir uygulama, birinin " +
+                        "beyan ettiği kriterleri karşıladı. Hiçbiri geçerleme " +
+                        "değildir — kriterlerin, modelin ya da sorunun " +
+                        "simülatör dışındaki herhangi bir şeyi temsil ettiğini " +
+                        "gösteren hiçbir şey yok.",
+
       panel_failed: "{panel} yüklenemedi: {error}. Sayfanın geri kalanı çalışmaya " +
                     "devam ediyor; tam hata için tarayıcı konsoluna bak.",
       panel_models: "Model listesi", panel_commands: "Hızlı Komutlar",
@@ -741,6 +841,7 @@
     // switch has to reach them or they keep the previous language's sentence.
     renderScenarios();
     renderCampaigns();
+    renderExperiments();
     renderCoverage();
     if (lastStatus) { $("buttons").dataset.key = ""; applyStatus(lastStatus); }
 
@@ -861,6 +962,8 @@
           applyProcedureEvent(msg);
         } else if (msg.type === "campaign") {
           applyCampaignEvent(msg);
+        } else if (msg.type === "experiment") {
+          applyExperimentEvent(msg);
         }
       } catch (e) {
         console.error("ArgazUI: failed to handle a WebSocket message", msg && msg.type, e);
@@ -1792,9 +1895,224 @@
         || msg.event === "done" || msg.event === "cancelled") {
       loadCampaigns();
       loadRuns();
+      // An experiment's arms ARE campaigns, so their iterations arrive here.
+      // The experiment panel's progress line only moves if it is told.
+      if (EXPERIMENTS.active && EXPERIMENTS.active.running) loadExperiments();
     } else if (msg.event === "iteration_start") {
       $("camp-active").textContent = t("camp_running", {
         id: msg.campaign, index: msg.index, total: msg.of });
+    }
+  }
+
+  // ----------------------------------------------------- experiments (v1.6)
+  // A controlled comparison declared in a file. The panel lists what is
+  // declared and what has been flown SIDE BY SIDE, because a declared
+  // experiment nobody has run is a question this project asked and never
+  // answered — and it is invisible in a listing that only shows results.
+  let EXPERIMENTS = { experiments: [], runs: [], active: { running: false } };
+
+  async function loadExperiments() {
+    EXPERIMENTS = await getJSON("/api/experiments",
+                                (b) => Array.isArray(b && b.experiments));
+    renderExperiments();
+  }
+
+  function experimentRunsOf(id) {
+    return (EXPERIMENTS.runs || []).filter((r) => r.experiment_id === id);
+  }
+
+  function renderExperiments() {
+    const select = $("exp-select");
+    const chosen = select.value;
+    select.innerHTML = "";
+    for (const item of EXPERIMENTS.experiments || []) {
+      const option = document.createElement("option");
+      option.value = item.id;
+      option.textContent = `${item.name} (${item.id})`;
+      select.append(option);
+    }
+    if (chosen) select.value = chosen;
+
+    const running = EXPERIMENTS.active && EXPERIMENTS.active.running;
+    $("btn-exp-start").disabled = !!running || !select.options.length;
+    $("btn-exp-cancel").hidden = !running;
+    if (running) {
+      const a = EXPERIMENTS.active;
+      $("exp-active").textContent = t("exp_running", {
+        id: a.run, done: a.done || 0, total: a.total || 0 });
+    } else {
+      $("exp-active").textContent = t("exp_idle");
+    }
+
+    const body = $("exp-table").querySelector("tbody");
+    body.innerHTML = "";
+    if (!(EXPERIMENTS.experiments || []).length) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="5" class="runs-empty">${esc(t("exp_none"))}</td>`;
+      body.append(tr);
+      return;
+    }
+    for (const item of EXPERIMENTS.experiments) {
+      const flown = experimentRunsOf(item.id);
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td class="runs-when"><b>${esc(item.id)}</b>`
+        + `<br><small>${esc(item.question || "")}</small></td>`
+        + `<td>${esc(item.model_id || "—")}</td>`
+        + `<td class="runs-proc">${esc(t("exp_policy_" + item.compare.policy))}</td>`
+        + `<td>${esc(t("exp_arms", { n: item.arms.length,
+                                     runs: item.total_runs }))}</td>`;
+      const actions = document.createElement("td");
+      actions.className = "runs-actions";
+      if (flown.length) {
+        const open = document.createElement("button");
+        open.className = "btn small";
+        open.textContent = t("exp_open");
+        open.onclick = () => showExperiment(flown[0].run);
+        actions.append(open);
+      } else {
+        // Said out loud rather than left as an empty cell. "Declared and never
+        // flown" is the entry that matters most in this table.
+        const note = document.createElement("small");
+        note.textContent = t("exp_never_flown");
+        actions.append(note);
+      }
+      tr.append(actions);
+      body.append(tr);
+    }
+  }
+
+  function experimentVerdictText(verdict) {
+    return t("exp_v_" + String(verdict).replace(/-/g, "_")) || verdict;
+  }
+
+  async function showExperiment(id) {
+    const box = $("exp-detail");
+    box.hidden = false;
+    box.textContent = t("runs_comparing");
+    let body;
+    try {
+      body = await getJSON(`/api/experiments/${encodeURIComponent(id)}`,
+                           (b) => b && b.experiment);
+    } catch (e) {
+      box.textContent = t("exp_failed", { error: String(e.message || e) });
+      return;
+    }
+    const doc = body.experiment;
+    const definition = doc.definition || {};
+    const parts = [];
+    parts.push(`<b>${esc(doc.id)}</b> — `
+      + `<span class="v-${esc(doc.verdict)}">`
+      + `${esc(experimentVerdictText(doc.verdict))}</span>`);
+    if (definition.question) {
+      parts.push(`<p class="hint"><b>${esc(t("exp_question"))}:</b> `
+        + `${esc(definition.question)}</p>`);
+    }
+
+    // Arms first: every number below belongs to one of them.
+    let arms = `<table class="cmp-table"><thead><tr>`
+      + [t("exp_col_arms"), t("camp_procedure"), t("exp_col_runs"),
+         t("camp_result")].map((h) => `<th>${esc(h)}</th>`).join("")
+      + `</tr></thead><tbody>`;
+    for (const arm of doc.arms || []) {
+      const c = arm.counts || {};
+      arms += `<tr><td><b>${esc(arm.id)}</b><br><small>${esc(arm.label)}</small></td>`
+        + `<td>${esc(arm.procedure_id || "—")}</td>`
+        + `<td>${arm.recorded_runs}/${arm.declared_runs || "—"}</td>`
+        + `<td>${esc(t("camp_result", { passed: c.passed || 0,
+                                        failed: c.failed || 0,
+                                        flaky: c.flaky || 0,
+                                        total: arm.recorded_runs }))}</td></tr>`;
+    }
+    parts.push(arms + "</tbody></table>");
+
+    const acceptance = doc.acceptance || {};
+    if ((acceptance.criteria || []).length) {
+      let table = `<h4>${esc(t("exp_criteria"))}</h4>`
+        + `<table class="cmp-table"><tbody>`;
+      for (const row of acceptance.criteria) {
+        const mark = row.passed ? t("exp_criterion_passed")
+          : row.evaluated ? t("exp_criterion_failed") : t("exp_criterion_unjudged");
+        const cls = row.passed ? "v-passed" : row.evaluated ? "v-failed" : "v-incomplete";
+        table += `<tr><td>${esc(row.label)}<br><small>${esc(row.criterion_id)}`
+          + ` — ${esc(row.arm)}</small></td>`
+          + `<td class="${cls}">${esc(mark)}</td>`
+          + `<td><small>${esc(row.text)}</small></td></tr>`;
+      }
+      parts.push(table + "</tbody></table>");
+    }
+
+    for (const comparison of doc.comparisons || []) {
+      let table = `<h4>${esc(comparison.current)} ← ${esc(comparison.reference)}</h4>`
+        + `<table class="cmp-table"><thead><tr>`
+        + [t("camp_metric"), t("exp_reference"), t("exp_current"), t("exp_delta"),
+           t("exp_overlap"), t("exp_basis")]
+          .map((h) => `<th>${esc(h)}</th>`).join("")
+        + `</tr></thead><tbody>`;
+      for (const row of comparison.metrics || []) {
+        const unit = row.unit ? ` ${row.unit}` : "";
+        const left = row.reference || {}, right = row.current || {};
+        const cell = (side) => side.mean === null || side.mean === undefined
+          ? "—" : `${side.mean}${unit} (n=${side.n})`;
+        const overlap = row.ranges_overlap === null ? "—"
+          : row.ranges_overlap ? t("exp_yes") : t("exp_no");
+        table += `<tr><td>${esc(row.label)}<br><small>${esc(row.key)}</small></td>`
+          + `<td>${esc(cell(left))}</td><td>${esc(cell(right))}</td>`
+          + `<td>${row.delta === null ? "—" : esc(String(row.delta) + unit)}</td>`
+          + `<td>${esc(overlap)}</td>`
+          + `<td>${esc(row.basis)}${row.reason
+              ? `<br><small>${esc(row.reason)}</small>` : ""}</td></tr>`;
+      }
+      parts.push(table + "</tbody></table>");
+      parts.push(`<p class="hint">${esc(t("exp_no_stats"))}</p>`);
+    }
+
+    // The limitations are part of the result, not a footnote to it. They are
+    // rendered here for the same reason section 10 exists in the document: a
+    // reader who is not told where the claims stop decides for themselves.
+    parts.push(`<h4>${esc(t("exp_limits"))}</h4>`);
+    parts.push(`<p class="hint">${esc(t("exp_verification"))}</p>`);
+    if (!doc.limitations_declared) {
+      parts.push(`<p class="hint">${esc(t("exp_limits_none"))}</p>`);
+    }
+    let limits = "<ul class=\"exp-limits\">";
+    for (const row of doc.limitations || []) {
+      const mark = row.source === "standing"
+        ? ` <em>(${esc(t("exp_standing"))})</em>` : "";
+      limits += `<li><b>${esc(row.label)}</b> — ${esc(row.text)}${mark}</li>`;
+    }
+    parts.push(limits + "</ul>");
+    box.innerHTML = parts.join("");
+  }
+
+  $("btn-exp-start").onclick = async () => {
+    const err = $("err-exp");
+    err.hidden = true;
+    const res = await (await fetch("/api/experiment", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ experiment_id: $("exp-select").value }),
+    })).json();
+    if (!res.ok) {
+      err.hidden = false;
+      err.textContent = t("exp_failed", { error: res.text || "" });
+      return;
+    }
+    loadExperiments();
+  };
+
+  $("btn-exp-cancel").onclick = async () => {
+    await fetch("/api/experiment/cancel", { method: "POST" });
+    loadExperiments();
+  };
+
+  function applyExperimentEvent(msg) {
+    // Every experiment event re-reads the listing rather than patching a
+    // number into the page. The server already knows how many runs are done;
+    // a counter maintained here would be a second answer that drifts the first
+    // time an arm is cancelled half way through.
+    loadExperiments();
+    if (msg.event === "written" || msg.event === "done"
+        || msg.event === "cancelled") {
+      loadRuns();
     }
   }
 
@@ -2770,6 +3088,7 @@
       initPanel("err-scripts", t("panel_scripts"), loadScripts),
       initPanel("err-runs", t("panel_runs"), loadRuns),
       initPanel("err-camp", t("camp_title"), loadCampaigns),
+      initPanel("err-exp", t("exp_title"), loadExperiments),
       initPanel("err-cov", t("cov_title"), loadCoverage),
     ]);
     if (!panels.every(Boolean)) {

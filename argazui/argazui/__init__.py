@@ -2,4 +2,4 @@
 
 # Recorded in every run's versions.txt and result.json, so an archived flight
 # says which ArgazUI produced it.
-__version__ = "1.5.0"
+__version__ = "1.6.0"

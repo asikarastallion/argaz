@@ -89,6 +89,27 @@ kimliğini dolduran şey rapordur; o olmadan kampanyanın kendi tutarlılık
 denetimi her yinelemeyi haklı olarak "en az bir tarafta firmware bilinmiyor"
 diye raporlar — testin sormadığı bir soruya verilmiş doğru bir cevap.
 
+## Deney testleri ve neden kol başına tek koşu
+
+Aynı ayrım, bir katman yukarıda. `tests/test_experiments.py` büyük ölçüde
+*retlerden* oluşur; çünkü bir deney dosyası bir kez okunur ve ardından birinin
+kanıt olarak incelediği bir belge üretir — doğrulayıcının kaçırdığı her hata, o
+belgede kendinden emin biçimde yanlış bir cümleye dönüşür. Hiçbiri çökmez.
+Hepsi düzgünce ekrana gelir.
+
+`tests/test_experiment_analysis.py` koşu dizinleri üzerindeki aritmetiği,
+hükmün hangi sırayla kararlaştırıldığını ve belgenin basmayı reddettiği şeyleri
+kapsar.
+
+`tests/test_tier1_experiment.py` gerçek bir iki kollu deneyi, kol başına
+**bir** koşuyla uçurur. Diğer ikisinin gösteremediği tek şeyi denetlemek için
+vardır: çıkan şeyin, her biri kendi dataflash logu ve parmak izine sahip, her
+biri **hem** kampanya **hem** deney damgası taşıyan iki *sıradan* koşu dizini
+olması ve analizin bunları yalnızca koşuları okuyarak bulması. Bu bir kontrollü
+karşılaştırma değildir — iki tarafta da n=1, analizin `measured` yerine
+`indicative` diye işaretlediği durumun ta kendisidir ve test bunu yaptığını
+doğrular.
+
 ## Neden `pytest-timeout` yok
 
 Her uçuş zaten iki yönden sınırlıdır: her prosedür kendi `timeout:` tavanını

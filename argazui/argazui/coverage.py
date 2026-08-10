@@ -16,6 +16,7 @@ list is the deliverable.
     procedures   procedure files that some run actually executed
     criteria     acceptance criteria that some run actually EVALUATED
     faults       fault kinds and declared scenario faults actually injected
+    experiments  declared experiments, and the arms of them that were flown
 
 WHAT "EVALUATED" MEANS, AND WHY IT IS STRICTER THAN "RAN"
 ---------------------------------------------------------
@@ -38,6 +39,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
+from . import experiments as experimentlib
 from . import faults as faultlib
 from . import paths
 from . import procedures as procs
@@ -45,9 +47,9 @@ from . import trace
 
 SCHEMA = 1
 
-MODELS, PROCEDURES, CRITERIA, FAULTS = (
-    "models", "procedures", "criteria", "faults")
-DIMENSIONS = (MODELS, PROCEDURES, CRITERIA, FAULTS)
+MODELS, PROCEDURES, CRITERIA, FAULTS, EXPERIMENTS = (
+    "models", "procedures", "criteria", "faults", "experiments")
+DIMENSIONS = (MODELS, PROCEDURES, CRITERIA, FAULTS, EXPERIMENTS)
 
 LABELS: dict[str, dict[str, str]] = {
     MODELS: {"en": "Model coverage", "tr": "Model kapsami"},
@@ -56,6 +58,7 @@ LABELS: dict[str, dict[str, str]] = {
                "tr": "Kabul kriteri kapsami"},
     FAULTS: {"en": "Fault and scenario coverage",
              "tr": "Ariza ve senaryo kapsami"},
+    EXPERIMENTS: {"en": "Experiment coverage", "tr": "Deney kapsami"},
 }
 
 WHAT: dict[str, dict[str, str]] = {
@@ -81,6 +84,15 @@ WHAT: dict[str, dict[str, str]] = {
               "declare, that some run actually injected.",
         "tr": "Kodun uyguladigi ariza turleri ve senaryolarin beyan ettigi "
               "arizalardan bir kosuda gercekten enjekte edilmis olanlar."},
+    EXPERIMENTS: {
+        "en": "Declared experiments, and each arm of them, that some recorded "
+              "run actually flew. An arm is listed on its own because an "
+              "experiment half of whose arms were flown has answered nothing "
+              "— a comparison needs both sides.",
+        "tr": "Beyan edilmis deneyler ve kayitli bir kosunun gercekten "
+              "ucurdugu kollari. Kollar ayri ayri listelenir cunku kollarinin "
+              "yarisi ucurulmus bir deney hicbir seyi yanitlamamistir — bir "
+              "karsilastirma iki tarafi da ister."},
 }
 
 
@@ -168,6 +180,26 @@ def declared_faults(directory: Optional[Path] = None) -> list[dict]:
     return out
 
 
+def declared_experiments(directory: Optional[Path] = None) -> list[dict]:
+    """Every experiment, plus each of its arms, by identifier.
+
+    Both, because they answer different questions — the same shape fault
+    coverage has. An experiment nobody ran is a question this project asked
+    and never answered; an *arm* nobody ran is worse than that, because the
+    experiment looks flown and its comparison has one side missing.
+    """
+    out: list[dict] = []
+    for eid, experiment in sorted(experimentlib.load_all(directory).items()):
+        out.append({"id": eid, "what": experiment.label("en"),
+                    "scope": "experiment"})
+        for arm in experiment.arms:
+            out.append({"id": f"{eid}{trace.SEP}{arm.id}",
+                        "what": f"{arm.procedure_id} × {arm.runs} "
+                                f"[{arm.role}]",
+                        "scope": "arm", "experiment": eid})
+    return out
+
+
 # ------------------------------------------------------------------ evidence
 def _runs_under(roots: list[Path]) -> list[dict]:
     out: list[dict] = []
@@ -210,6 +242,25 @@ def _tier2_models(roots: list[Path]) -> set:
                 nodeid = test.get("nodeid", "")
                 if "[" in nodeid and nodeid.rstrip().endswith("]"):
                     covered.add(nodeid.rsplit("[", 1)[1].rstrip("]").strip())
+    return covered
+
+
+def _experiments_flown(runs: list[dict]) -> set:
+    """Experiments and arms some recorded run actually flew.
+
+    Read from the run's own experiment stamp, not from the documents under
+    `runs/experiments/`. A document can be written for an experiment run that
+    was cancelled after its first arm, and coverage has to be about what flew.
+    """
+    covered: set = set()
+    for result in runs:
+        stamp = result.get("experiment") or {}
+        identifier, arm = stamp.get("id"), stamp.get("arm")
+        if not identifier:
+            continue
+        covered.add(identifier)
+        if arm:
+            covered.add(f"{identifier}{trace.SEP}{arm}")
     return covered
 
 
@@ -258,11 +309,13 @@ def _exercised(runs: list[dict]) -> tuple[set, set, set, int]:
 # ------------------------------------------------------------------- report
 def collect(runs_roots: Optional[list[Path]] = None,
             procedures_dir: Optional[Path] = None,
-            registry: Optional[dict] = None) -> dict:
+            registry: Optional[dict] = None,
+            experiments_dir: Optional[Path] = None) -> dict:
     """The coverage document, computed from what is currently on disk."""
     roots = [Path(r) for r in (runs_roots or [paths.RUNS_DIR])]
     runs = _runs_under(roots)
     executed, evaluated, injected, unattributable = _exercised(runs)
+    flown = _experiments_flown(runs)
 
     from datetime import datetime, timezone
     return {
@@ -278,6 +331,7 @@ def collect(runs_roots: Optional[list[Path]] = None,
             _dimension(PROCEDURES, declared_procedures(procedures_dir), executed),
             _dimension(CRITERIA, declared_criteria(procedures_dir), evaluated),
             _dimension(FAULTS, declared_faults(procedures_dir), injected),
+            _dimension(EXPERIMENTS, declared_experiments(experiments_dir), flown),
         ],
     }
 
@@ -375,8 +429,10 @@ def render(document: dict) -> str:
 
 
 def generate(runs_roots: list[Path], out: Path,
-             procedures_dir: Optional[Path] = None) -> str:
-    document = collect(runs_roots, procedures_dir)
+             procedures_dir: Optional[Path] = None,
+             experiments_dir: Optional[Path] = None) -> str:
+    document = collect(runs_roots, procedures_dir,
+                       experiments_dir=experiments_dir)
     text = render(document)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")

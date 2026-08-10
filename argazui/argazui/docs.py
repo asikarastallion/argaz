@@ -136,6 +136,11 @@ PAGES = [
          source={"en": "procedures/SCHEMA.md"},
          section={"en": "Scenarios and fault injection (schema 3)"},
          root=ROOT_APP),
+    Page("experiment-schema", "procedures",
+         {"en": "Experiment Schema", "tr": "Deney şeması"},
+         {"en": "The complete YAML reference for a controlled comparison.",
+          "tr": "Kontrollü bir karşılaştırma için tam YAML başvurusu."},
+         source={"en": "experiments/SCHEMA.md"}, root=ROOT_APP),
 
     Page("verification-model", "verification",
          {"en": "Verification Model", "tr": "Doğrulama modeli"},
@@ -187,6 +192,20 @@ PAGES = [
           "tr": "Bir koşunun neyi bırakması bekleniyordu ve ne bıraktı."},
          source={"en": "docs/evidence-manifest.md",
                  "tr": "docs/evidence-manifest.tr.md"}),
+    Page("experiments", "verification",
+         {"en": "Experiments", "tr": "Deneyler"},
+         {"en": "A controlled comparison: arms, deltas, and what a delta is "
+                "worth.",
+          "tr": "Kontrollü karşılaştırma: kollar, farklar ve bir farkın "
+                "değeri."},
+         source={"en": "docs/experiments.md", "tr": "docs/experiments.tr.md"}),
+    Page("validation-limits", "verification",
+         {"en": "Validation Limits", "tr": "Geçerleme sınırları"},
+         {"en": "Four categories in which a result states what it does not "
+                "establish.",
+          "tr": "Bir sonucun neyi kanıtlamadığını belirttiği dört kategori."},
+         source={"en": "docs/validation-limits.md",
+                 "tr": "docs/validation-limits.tr.md"}),
     Page("coverage-model", "verification",
          {"en": "Coverage Model", "tr": "Kapsam modeli"},
          {"en": "What counts as coverage, and what is refused as coverage.",

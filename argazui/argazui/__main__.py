@@ -11,6 +11,8 @@
     python3 -m argazui campaign 20260810T124500Z_iris.copter_takeoff
     python3 -m argazui coverage                     # what is declared and unrun
     python3 -m argazui trace runs/<run>             # intent -> evidence -> verdict
+    python3 -m argazui experiment                   # declared experiments and their runs
+    python3 -m argazui experiment copter_gps_loss_vs_nominal
 """
 import argparse
 import json
@@ -25,13 +27,16 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="ArgazUI — ArduPilot SITL + Gazebo control panel")
     ap.add_argument("command", nargs="?",
                     choices=("serve", "doctor", "runs", "report", "status",
-                             "compare", "campaign", "coverage", "trace"),
+                             "compare", "campaign", "coverage", "trace",
+                             "experiment"),
                     default="serve")
     ap.add_argument("target", nargs="?",
                     help="report: a run directory or a .BIN dataflash log; "
                          "compare: the current run directory; "
                          "campaign: a campaign id (omit to list them); "
-                         "trace: a run directory")
+                         "trace: a run directory; "
+                         "experiment: an experiment run id or a definition id "
+                         "(omit to list them)")
     ap.add_argument("--argaz-root", help="simulation root (overrides ARGAZ_ROOT / argaz.toml)")
     ap.add_argument("--ardupilot-root", help="ArduPilot root")
     ap.add_argument("--sitl-models-root", help="SITL_Models root")
@@ -51,7 +56,9 @@ def main(argv=None) -> int:
                          "directories; repeat for more than one. "
                          "campaign: the runs root to search")
     ap.add_argument("--out", help="status: where to write the generated table; "
-                                  "campaign: a directory for campaign.json/.md")
+                                  "campaign: a directory for campaign.json/.md; "
+                                  "experiment: a directory for "
+                                  "experiment.json/.md")
     ap.add_argument("--workflow", default="", help="status: which workflow produced this")
     ap.add_argument("--run-url", default="", help="status: link to that workflow run")
     ap.add_argument("--baseline",
@@ -93,6 +100,9 @@ def main(argv=None) -> int:
 
     if args.command == "trace":
         return _trace(args.target, args.as_json)
+
+    if args.command == "experiment":
+        return _experiment(args.target, args.as_json, args.runs, args.out)
 
     if args.command == "status":
         from pathlib import Path
@@ -329,6 +339,117 @@ def _campaign(target: Optional[str], as_json: bool, roots: Optional[list],
     counts = document["counts"]
     unclean = counts["failed"] + counts["flaky"] + counts["incomplete"]
     return 1 if unclean else 0
+
+
+def _experiment(target: Optional[str], as_json: bool, roots: Optional[list],
+                out: Optional[str]) -> int:
+    """`argazui experiment [<id>]` — aggregate one controlled comparison.
+
+    With no id it lists what this checkout declares and what has actually been
+    flown, side by side. A declared experiment nobody has run is a question
+    this project asked and never answered, and it is invisible in a listing
+    that only shows results.
+
+    With an id — either an experiment run id or a definition id, which resolves
+    to its newest run — it recomputes the whole document from the run
+    directories and writes `experiment.json` and `experiment.md`.
+
+    EXIT CODES
+    ----------
+        0  the experiment was aggregated and nothing declared failed
+        1  a declared criterion did not hold
+        2  no such experiment, or nothing has been flown under that name
+
+    1 rather than 0 for a failed criterion because this is meant for CI, and 2
+    is kept separate for the same reason `compare` and `campaign` keep it:
+    "there is no such experiment" is a different piece of news from "the
+    comparison came out badly".
+
+    An `incomplete` experiment exits 0. Arms short of their runs are a reason
+    to fly more, not a reason to fail a build — and a project whose CI went red
+    for declaring an experiment before it could be flown would learn to stop
+    declaring them.
+    """
+    from . import analysis as analysislib
+    from . import experiments as experimentlib
+
+    root = Path(roots[0]) if roots else paths.RUNS_DIR
+
+    if not target:
+        try:
+            declared = experimentlib.load_all()
+        except experimentlib.ExperimentError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
+        flown = analysislib.list_experiment_runs(root)
+        if as_json:
+            print(json.dumps({
+                "dir": str(paths.EXPERIMENTS_DIR), "root": str(root),
+                "experiments": [item.as_dict() for item in declared.values()],
+                "runs": flown}, indent=2, ensure_ascii=False))
+            return 0 if declared or flown else 2
+        if not declared:
+            print(f"No experiments declared in {paths.EXPERIMENTS_DIR}.")
+        else:
+            print(f"{'experiment':34s} {'model':14s} {'policy':9s} arms  runs  flown")
+            for item in declared.values():
+                runs = [e for e in flown if e["experiment_id"] == item.id]
+                print(f"{item.id:34s} {item.model_id:14s} {item.policy:9s} "
+                      f"{len(item.arms):4d} {item.total_runs:5d} "
+                      f"{len(runs):6d}")
+            print(f"\n{len(declared)} experiment(s) in {paths.EXPERIMENTS_DIR}")
+        unrun = [item.id for item in declared.values()
+                 if not any(e["experiment_id"] == item.id for e in flown)]
+        if unrun:
+            print(f"\nDeclared and never flown: {', '.join(unrun)}")
+        if flown:
+            print(f"\n{'run':46s} {'experiment':30s} runs")
+            for entry in flown:
+                print(f"{entry['run']:46s} "
+                      f"{str(entry['experiment_id'] or '-'):30s} "
+                      f"{entry['recorded_runs']}")
+        return 0 if (declared or flown) else 2
+
+    resolved = target
+    if not experimentlib.EXPERIMENT_RUN_PATTERN.match(target):
+        candidates = [entry for entry in analysislib.list_experiment_runs(root)
+                      if entry["experiment_id"] == target]
+        if not candidates:
+            print(f"ERROR: no run under {root} carries the experiment id "
+                  f"'{target}'. Declared experiments are listed by "
+                  f"`python3 -m argazui experiment`.", file=sys.stderr)
+            return 2
+        resolved = candidates[0]["run"]
+        print(f"No experiment run given; using the newest run of '{target}': "
+              f"{resolved}", file=sys.stderr)
+
+    document = analysislib.collect(resolved, root)
+    if not document["runs_recorded"]:
+        print(f"ERROR: no run under {root} carries the experiment run id "
+              f"'{resolved}'.", file=sys.stderr)
+        return 2
+
+    directory = Path(out) if out else None
+    as_json_path, as_text_path = analysislib.write(
+        resolved, document, root if directory is None else directory.parent)
+    if directory is not None:
+        # An explicit --out writes the pair there instead, so a CI job can
+        # collect them without reaching into the runs tree.
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "experiment.json").write_text(
+            json.dumps(document, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8")
+        (directory / "experiment.md").write_text(analysislib.render(document),
+                                                 encoding="utf-8")
+        as_json_path, as_text_path = (directory / "experiment.json",
+                                      directory / "experiment.md")
+
+    if as_json:
+        print(json.dumps(document, indent=2, ensure_ascii=False))
+    else:
+        print(analysislib.render(document))
+    print(f"wrote {as_json_path}\n      {as_text_path}", file=sys.stderr)
+    return 1 if document["verdict"] == analysislib.FAILED else 0
 
 
 def _coverage(as_json: bool, roots: Optional[list], out: Optional[str]) -> int:

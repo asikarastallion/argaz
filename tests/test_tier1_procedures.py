@@ -195,11 +195,13 @@ def test_run_directory_is_complete_and_parseable(request, runs_root, frame):
                  "evidence.json"):
         assert (directory / name).is_file(), f"{name} is missing from {directory}"
 
-    assert result["schema"] == 5
+    assert result["schema"] == 6
     assert result["status"] in ("passed", "failed", "error")
     # A nominal procedure declares no fault, and the field says so with an
-    # empty list rather than by being absent.
+    # empty list rather than by being absent. The same rule applies to the
+    # campaign and experiment this run did not belong to: `null`, present.
     assert result["procedures"][0]["result"]["faults"] == []
+    assert result["campaign"] is None and result["experiment"] is None
     # The run says what it was FOR, so the traceability chain has a start.
     assert result["test_id"] == request.node.nodeid
     assert result["procedures"], "the procedure was not recorded in result.json"

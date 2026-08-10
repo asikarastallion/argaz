@@ -140,6 +140,25 @@
     <div id="camp-detail" class="cmp" hidden></div>
   </section>
 
+  <!-- ------------------------------------------------ experiments (v1.6) -->
+  <!-- A controlled comparison declared in a file. Several campaigns in
+       sequence, so every row names its arm: losing track of which side of the
+       comparison the aircraft is on is the confusion this panel prevents. -->
+  <section class="panel" id="exp-panel">
+    <h2><span data-i18n="exp_title">Experiments</span>
+        <button class="btn link" id="btn-exp-cancel" data-i18n="exp_cancel"
+                hidden>✕ cancel experiment</button></h2>
+    <p class="hint" data-i18n="exp_hint"></p>
+    <div class="row">
+      <select id="exp-select"></select>
+      <button class="btn" id="btn-exp-start" data-i18n="exp_start">▶ RUN EXPERIMENT</button>
+    </div>
+    <p class="panel-error" id="err-exp" hidden></p>
+    <p class="hint" id="exp-active"></p>
+    <div class="runs-wrap"><table class="runs" id="exp-table"><tbody></tbody></table></div>
+    <div id="exp-detail" class="cmp" hidden></div>
+  </section>
+
   <!-- -------------------------------------------------------- coverage (v1.5) -->
   <!-- What this project declares and has never run. The uncovered lists are
        the payload; a percentage on its own invites a reader to stop. -->

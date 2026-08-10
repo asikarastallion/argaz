@@ -1,5 +1,228 @@
 # Changelog
 
+## v1.6.0 — 2026-08-11
+
+### What this release is about
+
+v1.3 made a run measurable. v1.4 made it repeatable and its failures
+diagnosable. v1.5 made it auditable. Every one of those answers a question
+about **one thing** — this flight, these five flights, this claim and the file
+under it.
+
+The question an engineer actually turns up with is not shaped like that:
+
+> Does losing GPS during the climb change how this aircraft holds altitude,
+> compared with the same climb when nothing is wrong?
+
+Answering it needs a *controlled* set of runs — same model, same configuration,
+a nominal group and a faulted group, a stated number of repetitions, a named
+set of measurements, and a criterion decided in advance. Every one of those
+pieces already existed here. What did not exist was anywhere to write down
+**which combination of them is being run**, so that the combination itself
+could be reviewed, versioned and repeated.
+
+That file is an experiment.
+
+### It composes; it does not extend
+
+This is the part of the release that is deliberately boring, and it is the
+requirement the architecture was most explicit about: **do not create a second
+execution engine.**
+
+- an arm names a procedure that already exists — there is no step list in an
+  experiment file, no expression language, no conditional and no loop;
+- an arm is handed to `campaign.CampaignRunner`, which drives the same
+  `ProcedureRunner` the button drives;
+- every iteration leaves the **ordinary run directory**: `result.json`, the
+  dataflash log, the fingerprint, the evidence manifest, the flight report.
+
+`ExperimentRunner` owns the order of the arms and the identity that ties their
+runs together. That is all it owns. `campaign.py` was not modified by this
+release.
+
+An arm *is* a campaign, and its runs carry **both** stamps — the campaign one
+and the experiment one. A run that dropped its campaign id to carry an
+experiment id would have vanished from every campaign tool in the project.
+
+### Why it is called an experiment and not a scenario
+
+The architecture calls this object a *scenario*. This repository has used that
+word since v1.4 for something else: `applies_to.role: scenario` is an
+off-nominal **procedure**, every run directory contains a `scenario.yaml`
+holding the procedures that executed, and the environment fingerprint has a
+`scenario` block listing the faults they declared.
+
+Reusing the word would have made three existing artefacts ambiguous, and the
+one that matters most — the file a reviewer opens to see what actually ran — is
+the one that would have broken. An off-nominal procedure is still a scenario; a
+faulted arm is an experiment *using* one.
+
+### What an experiment declares
+
+```yaml
+schema: 1
+id: copter_gps_loss_vs_nominal
+question: {en: "Does losing the position source change how well it tracks...", tr: "..."}
+model: iris
+values: {alt: 25}
+arms:
+  - {id: nominal,  procedure: copter_takeoff,  runs: 3, role: reference}
+  - {id: gps_loss, procedure: copter_gps_loss, runs: 3, role: treatment}
+metrics: [tracking_error_roll_rms, peak_angular_rate]
+compare: {policy: arms, reference_arm: nominal}
+accept:
+  - {id: roll-tracking, arm: gps_loss, metric: tracking_error_roll_rms,
+     max_delta: 3.0, delta_vs: nominal}
+limitations: {assumptions: [...], model_limitations: [...], ...}
+```
+
+**`question` is required.** An experiment with no stated question is a batch of
+runs, and the document it produces is a table of numbers with nothing to read
+them against. It is the one field no tool can derive, check or default, which
+is exactly why it has to be written.
+
+The validator is strict for a specific reason: every mistake it lets through
+becomes a sentence in a reviewed document that is confidently wrong, and none
+of them crash. An input the procedure does not declare would let the arm fly
+its default altitude while the document said otherwise. A criterion judging a
+metric outside `metrics:` would rest its verdict on a number the report never
+shows. A `reference_arm` disagreeing with `role: reference` would give the file
+two answers to which side a delta is measured from. All three are refused at
+load time.
+
+### Comparison, and the statistics that are not here
+
+Within an experiment a metric is identified by its **key alone**, not by
+`key@procedure` as everywhere else. That is the one place this project's metric
+identity inverts, and it inverts on purpose: the arms deliberately fly
+different procedures, and the whole question is what the same quantity did
+under the two conditions. Matching on identity would line up nothing at all.
+
+What the analysis reports is deliberately dull — `n` on both sides, the two
+means, their difference, the relative change, and whether the two arms'
+observed ranges overlap at all.
+
+> **No p-value, no confidence interval, no effect size, no "significant".**
+
+At the sample sizes a SITL campaign produces every one of them would be
+arithmetic that runs fine and means nothing, and each would read to a reviewer
+as though the difference had been established. An overlap is not a significance
+test; it is a statement about the numbers actually seen.
+
+A delta is `measured` only when both arms have at least three measured values —
+the same threshold campaigns use before printing a standard deviation. Below
+that it is **`indicative`**, and the row says so.
+
+### Verdicts, and the one that is not a pass
+
+| verdict | meaning |
+|---|---|
+| `passed` | every declared criterion held, over the runs that were declared |
+| `failed` | a criterion was judged and did not hold |
+| `incomplete` | an arm is short of its runs, or a criterion was never judged |
+| `not-judged` | the experiment declares no criteria — nothing was asserted |
+| `not-run` | nothing carries this experiment id |
+
+`failed` is decided before `incomplete`: a criterion that was judged and did not
+hold is a result, and one from three runs instead of five is still that result —
+the document prints `n` beside it.
+
+A criterion that could not be judged is **never counted as a pass**. "No run
+measured this" and "this held" are different facts, and only one is an answer.
+
+### Limitations, declared per experiment
+
+Four named categories — simulation assumptions, model limitations, unverified
+physical effects, conditions outside the test scope — written in the file,
+beside the criteria, and printed as section 10 of the document.
+
+They are separate because a reader does something different with each: an
+assumption can be **checked**, a model limitation **bounds** the claim, an
+unverified effect is a reason not to **extrapolate**, and something out of scope
+is a reason to **run something else**. Collapsing them into one `notes:` field
+— which is what every project does eventually — turns four actionable
+statements into a paragraph nobody reads. An unknown category is rejected at
+load time, because a limit filed under a name the report never prints is one
+the author believes was stated and nobody ever read.
+
+**Standing limitations cannot be dropped by a definition.** A document that
+could omit *"nothing here was measured on hardware"* by leaving a key out would
+omit it, and its reader would not know it was missing. They are marked
+*(standing)* so they are distinguishable from the ones somebody wrote for this
+particular question.
+
+An experiment that declares none is allowed, and the document says so in as many
+words. A rule forcing every experiment to declare a limitation would produce a
+repository full of limitations written to satisfy the rule.
+
+### The document
+
+Ten fixed, numbered sections, in the same discipline the flight report has had
+since v1.5: question and scope, configuration, execution, verdict, failed
+criteria, measured quantities by arm, comparison, evidence, how to reproduce
+this document, and limitations and non-claims.
+
+It is recomputed from the run directories every time — there is no index and no
+cache, so a document and the evidence under it cannot drift apart. A document
+can still be produced for an experiment whose **file has been renamed or
+deleted**: it reports what the runs record and states plainly that it cannot
+report what was asked.
+
+```bash
+python3 -m argazui experiment                              # declared beside flown
+python3 -m argazui experiment copter_gps_loss_vs_nominal   # its newest run
+```
+
+Exit `0` aggregated and nothing failed, `1` a declared criterion did not hold,
+`2` nothing by that name. An **incomplete** experiment exits `0`: arms short of
+their runs are a reason to fly more, not a reason to fail a build — the same
+reasoning `argazui coverage` is built on.
+
+### Coverage grew a fifth dimension
+
+Experiments, with **each arm listed on its own**. An experiment half of whose
+arms were flown has answered nothing, and it would otherwise appear as covered:
+a comparison needs both sides.
+
+### What is in this release
+
+| | |
+|---|---|
+| `argazui/experiments.py` | the definition, its validation, and the runner that hands each arm to a campaign |
+| `argazui/analysis.py` | distributions per arm, deltas between them, acceptance, the ten-section document |
+| `argazui/limitations.py` | the four categories, the standing statements, both languages |
+| `argazui/experiments/*.yaml` | two shipped experiments, and `SCHEMA.md` |
+| `runs.py` | result schema **6** — the `experiment` stamp, beside `campaign` |
+| `trace.py` | the chain now carries the experiment, run and arm a run belonged to |
+| `coverage.py` | the fifth dimension |
+| the interface | an **Experiments** panel, in English and Turkish |
+| `docs/experiments.md`, `docs/validation-limits.md` | and their Turkish twins |
+
+### Tests
+
+`tests/test_experiments.py` — the validator, mostly its refusals, because every
+one of them is a case that would otherwise render a correct-looking document
+that is wrong. `tests/test_experiment_analysis.py` — the arithmetic, the
+verdict order, and what the document refuses to print.
+`tests/test_tier1_experiment.py` — **a real two-arm experiment, flown**, which
+is the only way to check that what comes out is two ordinary run directories
+carrying both stamps. `tests/e2e/test_experiment_panel.py` — the panel in a
+real browser, in both languages, with the console read after every assertion.
+
+### Known limits
+
+- **An experiment is still verification.** It compares two simulations of an
+  aircraft, and a delta between them is a fact about the simulation. Nothing in
+  this release moves the boundary described in
+  `docs/verification-vs-validation.md`; it makes the *unanswered* part visible
+  and specific instead of leaving it to a reader's generosity.
+- **The `baseline` policy picks its baseline by recency.** That is a
+  convenience for a person; a pipeline that needs a reproducible answer should
+  name the experiment run it wants.
+- **Nothing schedules or parallelises arms.** They are flown in file order, one
+  aircraft at a time, because that is what a single-vehicle harness can honestly
+  do.
+
 ## v1.5.0 — 2026-08-10
 
 ### What this release is about

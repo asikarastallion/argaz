@@ -19,12 +19,15 @@ from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from . import analysis as analysislib
 from . import campaign as campaignlib
 from . import coverage as coveragelib
 from . import docs
 from . import evidence as evidencelib
+from . import experiments as experimentlib
 from . import failures as failurelib
 from . import faults as faultlib
+from . import limitations as limitslib
 from . import metrics as metricslib
 from . import paths
 from . import procedures as procs
@@ -150,6 +153,12 @@ class Manager:
         self.campaign: Optional[campaignlib.CampaignRunner] = None
         self.campaign_thread: Optional[threading.Thread] = None
         self.last_campaign: Optional[str] = None
+        # Experiment state (v1.6). An experiment owns START and STOP for even
+        # longer than a campaign does — it is several campaigns in sequence —
+        # so it is tracked beside them for the same reason.
+        self.experiment: Optional[experimentlib.ExperimentRunner] = None
+        self.experiment_thread: Optional[threading.Thread] = None
+        self.last_experiment: Optional[str] = None
         hub.console_sink = self._record_console
 
     def session(self, stream: str) -> TerminalSession:
@@ -239,7 +248,8 @@ class Manager:
 
     # -- eylemler --
     def start_model(self, model_id: str,
-                    campaign: Optional[dict] = None) -> dict:
+                    campaign: Optional[dict] = None,
+                    experiment: Optional[dict] = None) -> dict:
         with self.lock:
             model = self.find_model(model_id)
             if model is None:
@@ -265,7 +275,8 @@ class Manager:
                                        launch_commands=commands,
                                        work_dir=paths.RUN_DIR / model["id"],
                                        on_log=hub.push_log,
-                                       campaign=campaign)
+                                       campaign=campaign,
+                                       experiment=experiment)
                 hub.push_log(t("run_started", id=self.run.run_id))
             except OSError as exc:
                 # Artefakt toplayamamak ucusu engellememeli; ama sessiz de
@@ -593,6 +604,107 @@ class Manager:
                 "done": len(runner.iterations),
                 "iterations": runner.iterations}
 
+    # -- experiments -------------------------------------------------------
+    # An experiment is a controlled set of campaigns: one model, one or more
+    # arms, each arm a procedure flown N times. Nothing here executes anything
+    # — `ExperimentRunner` hands each arm to `CampaignRunner`, which hands each
+    # iteration to the same START/STOP path the button uses.
+    def start_experiment(self, experiment_id: str) -> dict:
+        if self.experiment_thread and self.experiment_thread.is_alive():
+            return {"ok": False, "text": t("experiment_busy")}
+        if self.campaign_thread and self.campaign_thread.is_alive():
+            return {"ok": False, "text": t("campaign_busy")}
+        experiment = experimentlib.get(experiment_id)
+        if experiment is None:
+            return {"ok": False, "text": t("experiment_unknown", id=experiment_id)}
+        # Checked here rather than at load time: a definition stays readable on
+        # a checkout whose registry has not been scanned yet, and what cannot
+        # be allowed is flying one against an aircraft that is not there.
+        if self.find_model(experiment.model_id) is None:
+            return {"ok": False, "text": t("experiment_no_model",
+                                           id=experiment.model_id,
+                                           experiment=experiment.id)}
+
+        run_id = experimentlib.experiment_run_id(experiment.id)
+        self.experiment = experimentlib.ExperimentRunner(
+            experiment, run_id,
+            launch=lambda arm, definition, index: _CampaignIteration(
+                self, definition, index,
+                experiment=experiment.stamp(run_id, arm, index)),
+            on_progress=self._on_experiment_event)
+        self.experiment_thread = threading.Thread(
+            target=self._experiment_loop, args=(experiment, run_id),
+            name=f"experiment-{run_id}", daemon=True)
+        self.experiment_thread.start()
+        text = t("experiment_started", id=run_id, experiment=experiment.id,
+                 model=experiment.model_id, arms=len(experiment.arms),
+                 runs=experiment.total_runs)
+        hub.push_log(text)
+        return {"ok": True, "run": run_id,
+                "experiment": experiment.as_dict(get_language()), "text": text}
+
+    def _experiment_loop(self, experiment: experimentlib.Experiment,
+                         run_id: str) -> None:
+        runner = self.experiment
+        try:
+            runner.run()
+        finally:
+            # Written whether the experiment finished, failed or was cancelled.
+            # An experiment that stopped after its first arm is a result about
+            # one arm, and it belongs on disk — with the document saying which
+            # arms are short, which is exactly what `arms_short` is for.
+            document = analysislib.collect(run_id, paths.RUNS_DIR, experiment,
+                                           get_language())
+            as_json, _ = analysislib.write(run_id, document, paths.RUNS_DIR)
+            self.last_experiment = run_id
+            acceptance = document["acceptance"]
+            hub.push_log(t("experiment_finished", id=run_id,
+                           verdict=document["verdict"],
+                           passed=acceptance["passed"],
+                           failed=acceptance["failed"],
+                           unjudged=acceptance["not_evaluated"],
+                           runs=document["runs_recorded"],
+                           path=str(as_json.parent)))
+            hub.push_json({"type": "experiment", "event": "written",
+                           "run": run_id, "document": document})
+
+    def _on_experiment_event(self, event: dict) -> None:
+        # A campaign's own events pass through this callback unchanged, because
+        # an arm really is a campaign; they are handed to the campaign reporter
+        # so the terminal shows one vocabulary for one thing. It does its own
+        # broadcast, so this one must not — a browser that received every
+        # iteration twice would show a campaign of ten runs as twenty.
+        if event.get("type") == "campaign":
+            self._on_campaign_event(event)
+            return
+        hub.push_json(event)
+        if event.get("event") == "arm_start":
+            hub.push_log(t("experiment_arm", id=event["run"],
+                           arm=event["arm"], procedure=event["procedure"],
+                           runs=event["runs"], campaign=event["campaign"]))
+
+    def cancel_experiment(self) -> dict:
+        if not (self.experiment_thread and self.experiment_thread.is_alive()):
+            return {"ok": False, "text": t("experiment_none")}
+        self.experiment.cancel()
+        return {"ok": True, "text": t("experiment_cancelled",
+                                      id=self.experiment.run_id,
+                                      done=self.experiment.done)}
+
+    def experiment_status(self) -> dict:
+        runner = self.experiment
+        running = bool(self.experiment_thread and self.experiment_thread.is_alive())
+        if runner is None:
+            return {"running": False, "last": self.last_experiment}
+        return {"running": running, "last": self.last_experiment,
+                "run": runner.run_id,
+                "experiment_id": runner.experiment.id,
+                "definition": runner.experiment.as_dict(get_language()),
+                "done": runner.done,
+                "total": runner.experiment.total_runs,
+                "arms": {arm: len(rows)
+                         for arm, rows in runner.iterations.items()}}
+
     def cancel_procedure(self) -> dict:
         if self.runner and self.proc_thread and self.proc_thread.is_alive():
             self.runner.cancel()
@@ -635,6 +747,7 @@ class Manager:
             # deliberate blackout would otherwise look like a broken tool.
             "link_fault": self.mav.link_fault,
             "campaign": self.campaign_status(),
+            "experiment": self.experiment_status(),
             "lang": get_language(),
         }
 
@@ -651,10 +764,15 @@ class _CampaignIteration:
     """
 
     def __init__(self, manager: "Manager", definition: campaignlib.Definition,
-                 index: int) -> None:
+                 index: int, experiment: Optional[dict] = None) -> None:
         self.manager = manager
+        # `experiment` is the stamp an experiment's arm adds beside the campaign
+        # one. One iteration class for both, because an arm of an experiment IS
+        # a campaign iteration and a second class would be a second answer to
+        # "how is a run started".
         res = manager.start_model(definition.model_id,
-                                  campaign=definition.stamp(index))
+                                  campaign=definition.stamp(index),
+                                  experiment=experiment)
         if not res.get("ok"):
             raise RuntimeError(res.get("text", "the model could not be started"))
         if not manager.mav.wait_ready(timeout=manager.CAMPAIGN_READY_TIMEOUT):
@@ -828,6 +946,90 @@ def api_campaign_detail(campaign_id: str):
                             status_code=404)
     return {"ok": True, "campaign": document,
             "markdown": campaignlib.render(document)}
+
+
+# --------------------------------------------------------------------- v1.6
+class ExperimentReq(BaseModel):
+    experiment_id: str
+
+
+@app.get("/api/experiments")
+def api_experiments():
+    """What this project declares as experiments, and what has been run.
+
+    Both lists, because they answer different questions. A declared experiment
+    nobody has flown is a question this project asked and never answered, and
+    it is invisible in a listing that only shows results.
+    """
+    try:
+        declared = [item.as_dict(get_language())
+                    for item in experimentlib.load_all().values()]
+        error = ""
+    except experimentlib.ExperimentError as exc:
+        declared, error = [], str(exc)
+    return {"schema": experimentlib.SCHEMA_VERSION,
+            "root": str(paths.RUNS_DIR),
+            "dir": str(paths.EXPERIMENTS_DIR),
+            "policies": list(experimentlib.POLICIES),
+            "active": mgr.experiment_status(),
+            "experiments": declared,
+            "experiments_error": error,
+            "runs": analysislib.list_experiment_runs()}
+
+
+@app.post("/api/experiment")
+def api_experiment(req: ExperimentReq):
+    """Fly every arm of one experiment, each as an ordinary campaign."""
+    return JSONResponse(mgr.start_experiment(req.experiment_id))
+
+
+@app.post("/api/experiment/cancel")
+def api_experiment_cancel():
+    return JSONResponse(mgr.cancel_experiment())
+
+
+@app.get("/api/experiments/{identifier}")
+def api_experiment_detail(identifier: str):
+    """One experiment run, recomputed from its runs every time.
+
+    Accepts either an experiment run id or a definition id; a definition id
+    resolves to its newest recorded run. Both are things a person legitimately
+    has in their hand, and making them guess which one the route wants would be
+    an interface detail leaking into a URL.
+    """
+    resolved = _resolve_experiment_run(identifier)
+    if resolved is None:
+        return JSONResponse({"ok": False,
+                             "text": t("experiment_no_runs", id=identifier)},
+                            status_code=404)
+    # The definition is looked up by `collect` from the stamp the runs carry,
+    # so an experiment whose file was renamed still produces a document — with
+    # fewer facts in it, and saying which ones are missing.
+    document = analysislib.collect(resolved, paths.RUNS_DIR,
+                                   lang=get_language())
+    return {"ok": True, "experiment": document,
+            "markdown": analysislib.render(document, get_language())}
+
+
+def _resolve_experiment_run(identifier: str) -> Optional[str]:
+    """An experiment run id, from either an id or a definition name."""
+    if experimentlib.EXPERIMENT_RUN_PATTERN.match(identifier):
+        return identifier if analysislib.runs_of(identifier) else None
+    newest = [entry for entry in analysislib.list_experiment_runs()
+              if entry["experiment_id"] == identifier]
+    return newest[0]["run"] if newest else None
+
+
+@app.get("/api/limitations")
+def api_limitations():
+    """The four limitation categories and the statements that always apply.
+
+    Served rather than duplicated in the interface, for the same reason the
+    fault and metric catalogues are: a standing limitation added to the module
+    must not be able to go missing from the page that shows them.
+    """
+    return {"schema": limitslib.SCHEMA,
+            "categories": limitslib.catalogue(get_language())}
 
 
 @app.get("/api/faults")

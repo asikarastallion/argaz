@@ -90,6 +90,26 @@ report is what fills in the firmware identity, and without it the campaign's
 own consistency check correctly reports every iteration as "firmware unknown on
 at least one side" — a true answer to a question the test was not asking.
 
+## Experiment tests, and why one run per arm
+
+The same split, one layer up. `tests/test_experiments.py` is mostly *refusals*,
+because an experiment file is read once and then produces a document somebody
+reviews as evidence — and every mistake the validator lets through becomes a
+sentence in that document which is confidently wrong. None of them crash. All
+of them render.
+
+`tests/test_experiment_analysis.py` is the arithmetic over run directories, the
+order the verdict is decided in, and what the document refuses to print.
+
+`tests/test_tier1_experiment.py` flies a real two-arm experiment with **one**
+run per arm. It exists to check the one thing neither of the others can: that
+what comes out is two *ordinary* run directories, each with its own dataflash
+log and fingerprint, each stamped with **both** its campaign and its
+experiment, and that the analysis finds them by reading the runs alone. It is
+not a controlled comparison — n=1 on both sides is exactly the case the
+analysis marks `indicative` rather than `measured`, and the test asserts that
+it does.
+
 ## Why there is no `pytest-timeout`
 
 Every flight is already bounded from two directions: each procedure carries its

@@ -1,0 +1,173 @@
+# Copter GPS loss against a nominal climb — experiment schema 1 (v1.6).
+#
+# WHAT THIS ASKS
+#   `copter_gps_loss.yaml` already judges one off-nominal flight: the GPS was
+#   taken away, the aircraft did or did not stay within the criteria that
+#   scenario declares. What it cannot say is how the aircraft flew COMPARED
+#   WITH the same climb when nothing was wrong — and that comparison is what
+#   somebody actually wants when they ask whether losing GPS "costs" anything.
+#
+#   So this experiment flies both, the same number of times, on the same model,
+#   with the same altitude, and puts the two distributions side by side.
+#
+# WHY THE ACCEPTANCE CRITERIA ARE ABOUT THE GROUP
+#   Every criterion about a single flight is already in the two procedures and
+#   is not repeated here. What is declared below can only be said about a set of
+#   runs: that the nominal arm is reliable enough for the comparison to mean
+#   anything, and that the faulted arm's attitude tracking did not move further
+#   from it than a stated amount.
+#
+# WHY THE DELTA LIMIT IS 3 DEGREES AND NOT A TIGHTER NUMBER
+#   It is a review threshold, not a specification. Three degrees of extra RMS
+#   roll tracking error is roughly where a multirotor's attitude response stops
+#   looking like the same aircraft to a person reading a plot. Nothing in
+#   ArduPilot's documentation states a limit for this, and inventing a tighter
+#   one would dress a guess as a requirement.
+schema: 1
+id: copter_gps_loss_vs_nominal
+name:
+  en: GPS loss against a nominal climb
+  tr: Nominal tirmanisa karsi GPS kaybi
+question:
+  en: >-
+    Does losing the position source during a hover change how well this
+    multirotor tracks its demanded attitude, compared with the same climb when
+    nothing is wrong?
+  tr: >-
+    Askida konum kaynagini kaybetmek, bu cok pervaneli aracin talep edilen
+    tutumu ne kadar iyi takip ettigini, hicbir sorun yokken yapilan ayni
+    tirmanisa kiyasla degistiriyor mu?
+
+model: iris
+
+# Applied to every arm. Both procedures call their input `alt`, so both climb
+# to the same height — which is the whole point of a controlled comparison.
+values:
+  alt: 25
+
+arms:
+  - id: nominal
+    procedure: copter_takeoff
+    runs: 3
+    role: reference
+    label:
+      en: Nominal climb
+      tr: Nominal tirmanis
+    note:
+      en: Nothing is injected. This arm is what the other one is read against.
+      tr: Hicbir sey enjekte edilmez. Diger kol bu kola gore okunur.
+
+  - id: gps_loss
+    procedure: copter_gps_loss
+    runs: 3
+    role: treatment
+    label:
+      en: GPS lost in the hover
+      tr: Askida GPS kaybi
+    note:
+      en: >-
+        The simulated GPS receiver is switched off for the window the scenario
+        declares, and restored before the run ends.
+      tr: >-
+        Simule GPS alicisi, senaryonun beyan ettigi pencere boyunca kapatilir
+        ve kosu bitmeden geri acilir.
+
+# The measurement set. Only these are reported and only these may be judged —
+# a criterion may not rest on a number the document does not show.
+metrics:
+  - tracking_error_roll_rms
+  - tracking_error_pitch_rms
+  - peak_angular_rate
+  - time_outside_attitude_envelope
+
+compare:
+  policy: arms
+  reference_arm: nominal
+
+accept:
+  - id: nominal-reliable
+    arm: nominal
+    min_pass_rate: 1.0
+    message:
+      en: >-
+        Every nominal run must be a clean pass — a reference arm that fails is
+        not a reference, and a delta measured from it means nothing.
+      tr: >-
+        Her nominal kosu temiz gecmeli — basarisiz olan bir referans kolu
+        referans degildir ve ona gore olculen bir fark hicbir sey ifade etmez.
+
+  - id: roll-tracking-not-much-worse
+    arm: gps_loss
+    metric: tracking_error_roll_rms
+    max_delta: 3.0
+    delta_vs: nominal
+    message:
+      en: >-
+        Mean RMS roll tracking error under GPS loss must stay within 3 deg of
+        the nominal arm's — a review threshold, not a specification.
+      tr: >-
+        GPS kaybi altindaki ortalama RMS yatis takip hatasi, nominal kolunkine
+        3 derece mesafede kalmali — bu bir inceleme esigidir, sartname degil.
+
+  - id: pitch-tracking-not-much-worse
+    arm: gps_loss
+    metric: tracking_error_pitch_rms
+    max_delta: 3.0
+    delta_vs: nominal
+    message:
+      en: >-
+        The same threshold on the pitch axis, for the same reason.
+      tr: >-
+        Ayni esik, ayni gerekceyle yunuslama ekseninde.
+
+limitations:
+  assumptions:
+    - en: >-
+        GPS loss is simulated by switching the SITL receiver off with SIM_GPS
+        parameters. The autopilot sees the receiver stop reporting; it does not
+        see a receiver that is jammed, spoofed or reporting a plausible wrong
+        position.
+      tr: >-
+        GPS kaybi, SIM_GPS parametreleriyle SITL alicisi kapatilarak simule
+        edilir. Otopilot, alicinin raporlamayi kesmesini gorur; karistirilan,
+        aldatilan ya da makul ama yanlis konum bildiren bir aliciyi gormez.
+    - en: >-
+        Both arms are assumed to be judged on the same climb. They are only
+        the same climb to the extent the two procedure files agree, and those
+        are two different files.
+      tr: >-
+        Iki kolun da ayni tirmanis uzerinden degerlendirildigi varsayilir.
+        Bunlar yalnizca iki prosedur dosyasinin ortustugu olcude ayni
+        tirmanistir ve bunlar iki farkli dosyadir.
+  model_limitations:
+    - en: >-
+        The EKF's behaviour without GPS depends on which other sensors the
+        model provides and on parameters such as EK3_SRC1_POSXY. A different
+        aircraft with a different sensor set would respond differently, and
+        this result does not transfer to it.
+      tr: >-
+        EKF'nin GPS'siz davranisi, modelin sagladigi diger sensorlere ve
+        EK3_SRC1_POSXY gibi parametrelere baglidir. Farkli bir sensor setine
+        sahip baska bir arac farkli tepki verir; bu sonuc ona aktarilamaz.
+  unverified_effects:
+    - en: >-
+        The transient at the moment the position source disappears is the part
+        of this that would matter in the air, and it is exactly the part a
+        parameter write reproduces least well.
+      tr: >-
+        Konum kaynaginin kayboldugu andaki gecici davranis, havada onem
+        tasiyacak kisimdir ve bir parametre yazmasinin en kotu yeniden urettigi
+        kisim tam olarak budur.
+  out_of_scope:
+    - en: >-
+        Losing GPS during a transition, a mission, or any phase other than the
+        hover this experiment flies.
+      tr: >-
+        Gecis sirasinda, gorev sirasinda ya da bu deneyin uctugu aski disindaki
+        herhangi bir asamada GPS kaybi.
+    - en: >-
+        Recovery behaviour beyond the window the scenario restores the receiver
+        in.
+      tr: >-
+        Senaryonun aliciyi geri actigi pencerenin otesindeki toparlanma
+        davranisi.

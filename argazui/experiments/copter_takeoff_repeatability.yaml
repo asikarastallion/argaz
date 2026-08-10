@@ -1,0 +1,80 @@
+# Copter takeoff, five times — experiment schema 1 (v1.6).
+#
+# WHY AN EXPERIMENT AND NOT JUST A CAMPAIGN
+#   A repeatability campaign already flies one procedure N times and reports
+#   the spread. What it has never been able to carry is the rest of the
+#   statement: which question the repetition was meant to answer, what would
+#   have counted as an acceptable answer, and what the answer does not cover.
+#   Those three live in a file here rather than in whoever pressed the button.
+#
+#   So this is the simplest experiment there is — one arm, no comparison — and
+#   it exists partly to make that shape a normal thing to write down.
+#
+# WHY THE PASS RATE IS 1.0 AND THE SPREAD IS NOT JUDGED
+#   A takeoff that works four times in five is a broken takeoff, so the pass
+#   rate is declared and it is total. The spread is deliberately NOT given a
+#   limit: nobody has measured what this frame's run-to-run scatter should be,
+#   and a threshold invented to be satisfied is worse than no threshold. It is
+#   reported, with n beside it, for a person to read.
+schema: 1
+id: copter_takeoff_repeatability
+name:
+  en: Copter takeoff repeatability
+  tr: Copter kalkis tekrarlanabilirligi
+question:
+  en: >-
+    Does the standard guided climb reach its target altitude every time on
+    this model, and how far apart are the runs when it does?
+  tr: >-
+    Standart guided tirmanis bu modelde her seferinde hedef irtifaya ulasiyor
+    mu ve ulastiginda kosular birbirinden ne kadar uzak?
+
+model: iris
+
+values:
+  alt: 15
+
+arms:
+  - id: repeat
+    procedure: copter_takeoff
+    runs: 5
+    role: treatment
+    label:
+      en: The same climb, five times
+      tr: Ayni tirmanis, bes kez
+
+metrics:
+  - time_to_target_alt
+  - tracking_error_roll_rms
+  - peak_angular_rate
+
+compare:
+  policy: repeats
+
+accept:
+  - id: every-run-clean
+    arm: repeat
+    min_pass_rate: 1.0
+    message:
+      en: >-
+        Every run must be a clean pass. A run that only passed on a retry is
+        flaky and does not count towards this.
+      tr: >-
+        Her kosu temiz gecmeli. Yalnizca yeniden denemede gecen bir kosu
+        kararsizdir ve bu orana sayilmaz.
+
+limitations:
+  assumptions:
+    - en: >-
+        Five runs is five runs. Nothing here supports a statement about how
+        often the sixth would pass.
+      tr: >-
+        Bes kosu bes kosudur. Buradaki hicbir sey, altincisinin ne siklikta
+        gececegine dair bir ifadeyi desteklemez.
+  out_of_scope:
+    - en: >-
+        Any altitude other than the one configured above, and any wind. The
+        climb is flown in the model's own world with its default conditions.
+      tr: >-
+        Yukarida yapilandirilan disindaki her irtifa ve her turlu ruzgar.
+        Tirmanis, modelin kendi dunyasinda varsayilan kosullarla ucurulur.

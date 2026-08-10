@@ -22,6 +22,11 @@ RUN_DIR = ARGAZUI_DIR / "run"
 MODELS_JSON = CONFIG_DIR / "models.json"
 BUTTONS_JSON = CONFIG_DIR / "buttons.json"
 PROCEDURES_DIR = ARGAZUI_DIR / "procedures"
+# Experiment definitions (v1.6). Beside the procedures rather than under them:
+# an experiment composes procedures and is not one, and a loader that had to
+# tell the two apart by reading them would be one typo away from running the
+# wrong thing.
+EXPERIMENTS_DIR = ARGAZUI_DIR / "experiments"
 
 DEFAULT_HTTP_PORT = 8770
 DEFAULT_MAVLINK_PORT = 14550

@@ -62,8 +62,9 @@ def tier2_suite(*models, outcome="passed") -> dict:
 
 
 # ------------------------------------------------------------- declarations
-def test_the_four_dimensions_are_declared_and_labelled():
-    assert coverage.DIMENSIONS == ("models", "procedures", "criteria", "faults")
+def test_the_five_dimensions_are_declared_and_labelled():
+    assert coverage.DIMENSIONS == ("models", "procedures", "criteria", "faults",
+                                   "experiments")
     for name in coverage.DIMENSIONS:
         for lang in ("en", "tr"):
             assert coverage.LABELS[name].get(lang)
@@ -222,6 +223,39 @@ def test_an_injected_fault_covers_its_mechanism_and_its_scenario(tmp_path):
     assert "gps_loss" not in dimension["uncovered"]
     assert "copter_gps_loss#gps_off_in_hover" not in dimension["uncovered"]
     assert "mavlink_interrupt" in dimension["uncovered"]
+
+
+# ---------------------------------------------------------------- experiments
+def write_experiment_run(root, name: str, *, experiment: str, arm: str) -> None:
+    directory = root / name
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "result.json").write_text(json.dumps({
+        "run_id": name, "status": "passed", "procedures": [],
+        "experiment": {"schema": 1, "id": experiment, "arm": arm,
+                       "run": f"20260810T120000Z_{experiment}", "index": 1,
+                       "of": 3},
+    }), encoding="utf-8")
+
+
+def test_every_shipped_experiment_and_arm_is_declared():
+    declared = coverage.declared_experiments()
+    assert declared, "no experiment is declared, so this dimension measures nothing"
+    scopes = {item["scope"] for item in declared}
+    assert scopes == {"experiment", "arm"}, (
+        "an arm must be listed on its own — an experiment half of whose arms "
+        "were flown has answered nothing")
+
+
+def test_an_experiment_is_covered_by_the_runs_that_carry_its_stamp(tmp_path):
+    write_experiment_run(tmp_path, "20260810T120100Z_iris",
+                         experiment="copter_gps_loss_vs_nominal", arm="nominal")
+    document = coverage.collect([tmp_path], registry=REGISTRY)
+    dimension = coverage.by_dimension(document, coverage.EXPERIMENTS)
+    assert "copter_gps_loss_vs_nominal" not in dimension["uncovered"]
+    assert "copter_gps_loss_vs_nominal#nominal" not in dimension["uncovered"]
+    # The other side of the comparison was never flown, and that is the entry
+    # that matters: a delta with one arm missing is not a delta.
+    assert "copter_gps_loss_vs_nominal#gps_loss" in dimension["uncovered"]
 
 
 def test_an_empty_dimension_reports_no_fraction_rather_than_full():

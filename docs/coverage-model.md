@@ -14,13 +14,13 @@ somebody adds an aircraft, a procedure or a criterion nobody runs. It measures
 effort, not reach, and a project that watches it will eventually be proud of a
 suite that covers less than it did last month.
 
-So coverage is measured over **named things that could be exercised**, in four
+So coverage is measured over **named things that could be exercised**, in five
 dimensions, and every dimension lists the items it did not reach.
 
 > A percentage with no list under it is an invitation to stop reading. The list
 > is the deliverable.
 
-## The four dimensions
+## The five dimensions
 
 | dimension | covered when |
 |---|---|
@@ -28,6 +28,13 @@ dimensions, and every dimension lists the items it did not reach.
 | **Procedures** | some recorded run executed the procedure file |
 | **Criteria** | some run actually **evaluated** the acceptance criterion |
 | **Faults** | some run actually **injected** the fault kind or the declared scenario fault |
+| **Experiments** | some recorded run carried the experiment's stamp — listed per experiment **and per arm** |
+
+An [experiment](experiments.md)'s arms are listed separately from the
+experiment itself, for the same reason a declared scenario fault is listed
+separately from the mechanism behind it: an experiment half of whose arms were
+flown has answered nothing, and it would otherwise appear as covered. A
+comparison needs both sides.
 
 Tier 1 does not count towards model coverage. It flies SITL's own generic
 frames and says nothing about an airframe — reading a tier-1 run as model

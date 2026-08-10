@@ -14,13 +14,13 @@ prosedür ya da kimsenin koşmadığı bir kriter eklediğinde hiç azalmaz. Eme
 ölçer, erişimi değil; ve bu sayıyı izleyen bir proje er ya da geç geçen aydan
 daha azını kapsayan bir test takımıyla gurur duyar hâle gelir.
 
-Bu yüzden kapsam, **çalıştırılabilecek adlandırılmış şeyler** üzerinden, dört
+Bu yüzden kapsam, **çalıştırılabilecek adlandırılmış şeyler** üzerinden, beş
 boyutta ölçülür ve her boyut ulaşamadığı maddeleri listeler.
 
 > Altında liste olmayan bir yüzde, okumayı bırakmaya davettir. Asıl teslim
 > edilen şey listedir.
 
-## Dört boyut
+## Beş boyut
 
 | boyut | ne zaman kapsanmış sayılır |
 |---|---|
@@ -28,6 +28,13 @@ boyutta ölçülür ve her boyut ulaşamadığı maddeleri listeler.
 | **Prosedürler** | kayıtlı bir koşu prosedür dosyasını çalıştırdıysa |
 | **Kriterler** | bir koşu kabul kriterini gerçekten **değerlendirdiyse** |
 | **Arızalar** | bir koşu ariza türünü ya da beyan edilmiş senaryo arızasını gerçekten **enjekte ettiyse** |
+| **Deneyler** | kayıtlı bir koşu deneyin damgasını taşıdıysa — hem deney başına hem **kol başına** listelenir |
+
+Bir [deneyin](experiments.tr.md) kolları, deneyin kendisinden ayrı listelenir;
+beyan edilmiş bir senaryo arızasının, arkasındaki mekanizmadan ayrı
+listelenmesiyle aynı gerekçeyle: kollarının yarısı uçurulmuş bir deney hiçbir
+şeyi yanıtlamamıştır ve aksi hâlde kapsanmış görünürdü. Bir karşılaştırma iki
+tarafı da ister.
 
 Katman 1 model kapsamına sayılmaz. SITL'in kendi genel gövdelerini uçurur ve bir
 hava aracı hakkında hiçbir şey söylemez — bir katman-1 koşusunu model kapsamı
