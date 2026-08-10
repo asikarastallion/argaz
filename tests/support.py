@@ -89,8 +89,12 @@ def boot(request, runs_root: Path, model: dict, frame: str,
     truncated.
     """
     work_dir = Path(request.config.rootpath) / "argazui" / "run" / f"test_{model['id']}"
+    # The pytest node id is the run's INTENT: it is what the traceability chain
+    # starts from, and a run without one is recorded as flown by hand — which
+    # is the honest answer for a flight nothing asserts.
     recorder = RunRecorder(model=model, root=runs_root, work_dir=work_dir,
-                           launch_commands=[f"# pytest: {request.node.name}"])
+                           launch_commands=[f"# pytest: {request.node.name}"],
+                           test_id=request.node.nodeid)
 
     try:
         sitl = sitl_mod.start(model["vehicle"], frame, work_dir,

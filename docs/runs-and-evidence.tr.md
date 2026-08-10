@@ -17,6 +17,7 @@ açıklamak için gereken her şey vardır.
 | `params_diff.txt` | **firmware** varsayılanından farklı olanlar |
 | `report.md` / `report.json` | uçuş sonrası rapor |
 | `fingerprint.json` | sonucu neyin ürettiği — bkz. [tekrarlanabilirlik](reproducibility.tr.md) |
+| `evidence.json` | bu koşunun geriye **bırakması beklenen** şeyler ve ne bıraktığı — bkz. [kanıt listesi](evidence-manifest.tr.md) |
 | `regression.json` / `.md` | koşu bir referansla karşılaştırıldıysa bulunur |
 | `versions.txt` | ArduPilot SHA'sı, Gazebo, ArgazUI, yorumlayıcı |
 | `plots/` | irtifa ve tutum takibi PNG'leri — matplotlib kuruluysa |
@@ -32,6 +33,17 @@ geldi:
   olduğu, ya da `null`. Bir dizin dosyasında değil koşunun içinde tutulur;
   böylece kampanya koşuları okunarak bulunur ve kopyalanmış bir koşu bile
   neye ait olduğunu söyler. Bkz. [Kampanyalar](campaigns.tr.md).
+- **`test_id`** (v1.5) — koşunun *ne için* olduğu: bir pytest düğüm kimliği ya
+  da elle başlatılmış bir uçuş için `manual`. `manual` gerçek bir cevaptır ve
+  asıl önemli olanıdır: bu depodaki hiçbir testin o koşunun gösterdiğini iddia
+  etmediğini söyler. Bkz. [İzlenebilirlik](traceability.tr.md).
+- **`evidence`** (v1.5) — koşunun kendi kanıtı hakkındaki hüküm: gereken her
+  artefaktın mevcut olup olmadığı ve değilse neyin eksik olduğu. Tam liste
+  `evidence.json` içindedir.
+
+v1.5'ten itibaren `procedures` içindeki her adım ve her kriter bir `step_id` ve
+bir `criterion_id` taşır; böylece bir iddia, durum tablosundan onu destekleyen
+dosyaya kadar izlenebilir.
 
 Arıza enjekte etmiş bir koşu, prosedür başına bir **`faults`** listesi de
 taşır; içinde birbirinden türetilmeyen dört ayrı şey vardır: mekanizmanın

@@ -1,5 +1,203 @@
 # Changelog
 
+## v1.5.0 — 2026-08-10
+
+### What this release is about
+
+v1.3 made a run measurable. v1.4 made it repeatable and made its failures
+diagnosable. This one is about a question neither could answer: **can somebody
+who did not run it check any of it?**
+
+Three gaps, each of which lets a correct-looking document be read as more than
+it is:
+
+1. **A claim could not be followed backwards.** A reviewer holding
+   `docs/status.md` and asked *"which criterion is that, which run showed it,
+   and what file proves it"* had to read three documents and join them by eye.
+2. **Nothing checked that the evidence was actually there.** A report that was
+   never generated, an empty plot directory, a parameter dump the analysis
+   skipped — each leaves a run directory that looks fine, and each means a
+   claim rests on something nobody can open.
+3. **Nothing said what had never been run.** Every table in the project was
+   about things that were tested. None of them could distinguish a project with
+   four procedures that all pass from one with forty of which four were run.
+
+And one thing the whole apparatus made worse rather than better: the more
+precise the claims got, the easier they became to over-read.
+
+### Traceability — a name on every link
+
+```
+test intent -> procedure -> step -> criterion -> metric -> run -> artefact -> verdict
+```
+
+```bash
+python3 -m argazui trace runs/<run-id>     # exit 1 if a link does not resolve
+```
+
+There is no database. A chain is **computed** from a run's `result.json` every
+time it is asked for, exactly as a campaign document is recomputed from its
+runs. A traceability record that could drift from the run it describes would be
+worse than none: it would be a second source for the one thing this project
+keeps single.
+
+**A criterion declares its own id; a step derives one from its position.** The
+line is not arbitrary. A step identifier is only ever read inside the run that
+produced it — the report lists the steps, the failure classification names the
+one that failed — and position is a good enough name for that. A criterion
+identifier is quoted *outside* its own run: in the coverage report, in the
+"what was not tested" list, in a comparison of two runs months apart. Those
+need a name that survives somebody inserting a criterion above it.
+
+Every criterion in all thirteen shipped procedures now declares one
+(`id: alt-reached`), and a test asserts it. A procedure that omits one still
+works and gets `<procedure>#c2` — and the chain **marks that identifier as
+derived**, because an identifier whose stability the reader cannot see is worse
+than one they can.
+
+`test_id` is the start of the chain: a pytest node id, or `manual` for a flight
+somebody started by hand. `manual` is a real answer and the one that matters —
+it says no test in this repository asserts what the run shows, and the report's
+non-claims section says so in as many words.
+
+The integrity check is the feature, not the identifiers. A traceability scheme
+nobody verifies degrades silently: a criterion loses its id, a metric names a
+procedure the run never flew, an evidence reference points at a file that was
+pruned — and every one of those still renders a table that looks perfectly
+correct.
+
+### Evidence manifest
+
+Every run writes `evidence.json`: what it was **expected** to leave behind, and
+what happened to each artefact — path, type, existence, size, hash, and the
+module and schema version that produced it.
+
+Three levels, and the middle one is the point:
+
+| | |
+|---|---|
+| `required` | the run is not evidence without it. Absent → an `evidence` failure. |
+| `conditional` | required only when a stated condition held — the dataflash log is required *if the vehicle armed*, because `LOG_DISARMED=0` means a session that never armed writes none and nothing was lost |
+| `optional` | absent is fine — **but only with a stated reason** |
+
+> "There are no plots because matplotlib is not installed" and "there are no
+> plots" are different facts, and only the first is an answer.
+
+An optional artefact absent with no explanation is reported as `unexplained` —
+the same rule this project applies to a metric that could not be measured and a
+fingerprint field that could not be read.
+
+**Two things are deliberately not hashed**, and both for the same reason: a
+document cannot contain a correct digest of itself. `result.json` is rewritten
+when the report completes, so a hash taken at any one moment is wrong at the
+others — and a hash that is *sometimes* wrong would fail an integrity check for
+a run that is perfectly intact. The copy embedded in the flight report carries
+no digests at all; they live in exactly one place, `evidence.json`, which is
+captured after the report and once more after section 7 is filled in.
+
+`failures.classify_run` now takes the manifest, so "a required artefact is
+missing" is the general rule and the dataflash-specific checks are the special
+case rather than the only one.
+
+### Coverage that names what it did not reach
+
+Four dimensions — models, procedures, acceptance criteria, faults — each
+listing the items no run exercised, **by name**.
+
+> A percentage with no list under it is an invitation to stop reading. The list
+> is the deliverable.
+
+Deliberately **not a test count**: that number goes up when somebody adds a test
+and never goes down when somebody adds an aircraft, a procedure or a criterion
+nobody runs. And deliberately **not a gate** — `argazui coverage` always exits
+0, because turning an uncovered procedure into a red build would make the
+honest thing to do, declaring a procedure before it can be flown, the thing
+that breaks CI.
+
+Two refusals to flatter itself:
+
+- **A criterion nobody reached is not covered.** It produced no information
+  about the aircraft, and counting it would let a run that aborted at step two
+  report full criterion coverage. A criterion that was evaluated and *failed*
+  **is** covered — counting only passes would make coverage a second, worse
+  pass rate.
+- **A criterion recorded before identifiers existed is counted, not guessed.**
+  Attributing it by position would require assuming the procedure has not been
+  edited since. It is reported instead, so a 0% first reading after this
+  upgrade has a stated reason rather than looking like a project that tests
+  nothing.
+
+`docs/status.md` gained a **What was NOT tested** section from the same
+collection, so the summary and the full lists can never disagree about which
+runs they read.
+
+### The flight report, restructured
+
+Ten fixed, numbered sections: scope, configuration, procedure, verdict, failed
+criteria, quantitative metrics, evidence manifest, environment, regression, and
+**limitations and non-claims**.
+
+The order is the point. A reviewer reading two runs should not have to hunt for
+the same fact in two places, and a fixed order is checkable — a test asserts
+the ten headings appear in sequence.
+
+Section 10 is the one a verification document is least likely to contain. A
+reader who finishes a green report and is not told where its claims stop will
+decide for themselves, and they will decide generously; that is what a page of
+passing checks is for. So every report now states that it does not claim the
+aircraft would behave this way in the air, that anything not in section 5 was
+recorded rather than judged, and that one run is one run — plus, conditionally,
+that the run was flown by hand, that its evidence is incomplete, or that its
+environment could not be fully identified.
+
+### Verification is not validation
+
+A new page, because the distinction closes by itself in a reader's head.
+
+ArgazUI does **verification**: it shows an implementation met criteria somebody
+declared. It does not do **validation**: nothing here shows those were the
+right criteria, that the simulated aircraft resembles the real one, or that the
+scenario is one that ever happens.
+
+Stated as plainly as it can be: *no dynamics model, however good, is evidence
+about hardware* — and *a criterion this project satisfies was chosen by this
+project.*
+
+### Schemas
+
+| | from | to | added |
+|---|---|---|---|
+| procedure | 3 | **4** | `id:` on a step and on an `expect:` entry |
+| `result.json` | 4 | **5** | `test_id`, `evidence`, and `step_id` / `criterion_id` on every step and criterion |
+| `report.json` | 2 | **3** | the ten-section structure and the non-claims section |
+| `docs/status.md` | 3 | **4** | the coverage document, and the "what was NOT tested" section |
+
+Older documents load unchanged, and a file that uses a later schema's feature
+than it declares is refused at load time.
+
+### Known limits
+
+- **Declaring criterion identifiers changed every shipped procedure's text**,
+  which changes its `procedure_hash`. Baselines recorded before v1.5 are
+  `incomparable` against runs after it — correctly, and by the design
+  `regression.py` already had. `--ignore-config-drift` compares anyway and
+  still reports what differed.
+- **Criterion coverage reads 0% until the procedures are flown again.** Runs
+  recorded before v1.5 carry no criterion identifiers and are counted as
+  unattributable rather than matched by position. The report says so.
+- **Traceability is not requirements management.** There is no requirements
+  document, no bidirectional matrix and no approval workflow, and v1.5
+  deliberately did not build one. The chain links a claim to its *evidence*; it
+  does not link it to a *purpose*.
+- **Nothing tests the manifest against a dismantled real run.** The manifest
+  tests build directories rather than removing a file from one a flight
+  produced, and the two are not quite the same thing — it is on the manual
+  checklist.
+- **A non-claims section nobody reads against a flight they watched is a
+  paragraph.** So is a coverage list nobody checks against their own beliefs.
+  Both exist to be disagreed with, and no test can do that.
+- Nothing here changes what tier 2 can claim, and no new model was flown.
+
 ## v1.4.0 — 2026-08-10
 
 ### What this release is about

@@ -28,7 +28,7 @@
 # Sources:
 #   https://ardupilot.org/copter/docs/gcs-failsafe.html
 #   https://ardupilot.org/dev/docs/mavlink-basics.html
-schema: 3
+schema: 4
 id: copter_link_loss
 name:
   en: Copter ground-station link loss (scenario)
@@ -143,7 +143,8 @@ failures:
     evidence: [heartbeat, attitude]
 
 expect:
-  - condition:
+  - id: attitude-envelope
+    condition:
       attitude_stable: {roll: [-25, 25], pitch: [-25, 25], max_rate: 120,
                         tolerance: 3}
     message:

@@ -118,7 +118,8 @@ def test_a_flight_becomes_evidence_becomes_metrics_becomes_a_verdict(request, ru
     manifest = stored["fingerprint"]
     assert manifest["procedure_hash"].startswith("sha256:")
     assert manifest["procedures"][0]["id"] == "copter_takeoff"
-    assert manifest["procedures"][0]["schema"] == 2, (
+    from argazui.procedures import SCHEMA_VERSION
+    assert manifest["procedures"][0]["schema"] == SCHEMA_VERSION, (
         "the executed procedure's declared schema did not reach the manifest")
 
     # ----------------------------------------------------------- comparison
@@ -173,11 +174,40 @@ def test_the_report_states_the_metrics_and_the_environment(request, runs_root):
     directory = _archived_run(request, runs_root)
     report = (directory / "report.md").read_text(encoding="utf-8")
 
-    assert "## Metrics" in report
+    # The ten reviewer-oriented sections, in order. Asserted as a sequence
+    # rather than by membership: the ORDER is the contract — a reviewer
+    # reading two runs must not have to hunt for the same fact in two places.
+    sections = [
+        "## 1. Scope", "## 2. Configuration", "## 3. Procedure",
+        "## 4. Verdict", "## 5. Failed criteria",
+        "## 6. Quantitative metrics", "## 7. Evidence manifest",
+        "## 8. Environment", "## 9. Regression comparison",
+        "## 10. Limitations and non-claims",
+    ]
+    positions = []
+    for heading in sections:
+        assert heading in report, f"{heading} is missing from the report"
+        positions.append(report.index(heading))
+    assert positions == sorted(positions), "the report's sections are out of order"
+
     assert "measurements, not criteria" in report
-    assert "## Environment" in report
     assert "Model configuration" in report and "sha256:" in report
     # Advisories and metrics must stay visibly separate: one has thresholds
     # from ArduPilot's documentation, the other deliberately has none.
-    assert "## Advisories" in report
-    assert report.index("## Advisories") < report.index("## Metrics")
+    assert "### Advisories" in report
+    assert report.index("### Advisories") < report.index("### Metrics")
+
+    # Section 10 is the one a verification document is least likely to have.
+    tail = report[report.index("## 10. Limitations and non-claims"):]
+    assert "verification" in tail and "validation" in tail
+    assert "would behave this way in the air" in tail, (
+        "the report does not say that a simulation is not evidence about "
+        "hardware")
+    assert "One run is one run" in tail
+
+    # Section 7 has to be able to say the evidence is incomplete, so it must
+    # actually be rendered from the manifest rather than described in prose.
+    manifest = report[report.index("## 7. Evidence manifest"):
+                      report.index("## 8. Environment")]
+    assert "result.json" in manifest and "fingerprint.json" in manifest
+    assert "Produced by" in manifest

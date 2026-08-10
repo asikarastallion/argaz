@@ -33,16 +33,18 @@ import yaml
 
 from . import faults as faultlib
 from . import paths
+from . import trace as tracelib
 
 # The current schema. Schema 1 files are still loaded unchanged; schema 2 adds
 # the temporal acceptance criteria and the instantaneous attitude conditions
-# introduced in v1.3, and schema 3 adds the `failures:` block — controlled
-# fault injection — introduced in v1.4. A file has to declare the version whose
-# features it uses. Extending a schema in place would have been quieter and
-# worse: an older ArgazUI would have read a `within:` or a `failures:` it does
-# not implement out of a document claiming a version it satisfies.
-SCHEMA_VERSION = 3
-SUPPORTED_SCHEMAS = (1, 2, 3)
+# introduced in v1.3, schema 3 adds the `failures:` block — controlled fault
+# injection — introduced in v1.4, and schema 4 adds author-declared trace
+# identifiers (v1.5). A file has to declare the version whose features it uses.
+# Extending a schema in place would have been quieter and worse: an older
+# ArgazUI would have read a `within:`, a `failures:` or an `id:` it does not
+# implement out of a document claiming a version it satisfies.
+SCHEMA_VERSION = 4
+SUPPORTED_SCHEMAS = (1, 2, 3, 4)
 
 # Still reserved (see SCHEMA.md). `failures:` left this list in v1.4; `mission:`
 # stays, so that nothing starts depending on a half-defined meaning before the
@@ -251,6 +253,10 @@ class Step:
     timeout: Optional[float] = None
     on_fail: str = "abort"
     when: Optional[dict] = None
+    # An author-declared identifier, or None to derive one from position.
+    # A step id is only ever read inside the run that produced it, so position
+    # is a good enough name — see trace.py.
+    id: Optional[str] = None
 
     def label(self, lang: str = "en") -> str:
         if self.name:
@@ -282,6 +288,12 @@ class Expectation:
     within: Optional[float] = None
     hold_for: Optional[float] = None
     never: Optional[float] = None
+    # An author-declared identifier. Unlike a step's, a criterion's id is
+    # quoted OUTSIDE its own run — in the coverage report, in the "what was not
+    # tested" list, in a comparison of two runs months apart — so it needs a
+    # name that survives somebody inserting a criterion above it. Absent, one
+    # is derived from position and marked as derived. See trace.py.
+    id: Optional[str] = None
 
     @property
     def kind(self) -> str:
@@ -488,7 +500,8 @@ def _parse_step(raw: Any, where: str, schema: int = SCHEMA_VERSION) -> Step:
             f"Known: {', '.join(STEP_TYPES)}")
     kind = kinds[0]
     for key in raw:
-        if key not in STEP_TYPES and key not in ("name", "timeout", "on_fail", "when"):
+        if key not in STEP_TYPES and key not in ("name", "timeout", "on_fail",
+                                                 "when", "id"):
             raise ProcedureError(f"{where}: unknown step key '{key}'")
 
     value = raw[kind]
@@ -530,7 +543,38 @@ def _parse_step(raw: Any, where: str, schema: int = SCHEMA_VERSION) -> Step:
         on_fail=on_fail,
         when=(_check_condition(raw["when"], f"{where}.when", schema)
               if raw.get("when") else None),
+        id=_check_id(raw.get("id"), f"{where}.id", schema),
     )
+
+
+def _check_unique_ids(declared: list, where: str, what: str) -> None:
+    named = [value for value in declared if value]
+    duplicates = sorted({value for value in named if named.count(value) > 1})
+    if duplicates:
+        raise ProcedureError(
+            f"{where}: two {what}s share the id "
+            f"{', '.join(repr(d) for d in duplicates)}. An identifier is "
+            f"quoted outside this file, so it has to name one thing.")
+
+
+def _check_id(value: Any, where: str, schema: int) -> Optional[str]:
+    """Validates an author-declared trace identifier, or returns None.
+
+    Rejected at load time rather than sanitised, for the same reason a bad
+    duration is: an identifier is quoted in tables, URLs and shell commands,
+    and one that needs escaping in any of them is one that will be got wrong
+    somewhere.
+    """
+    if value is None:
+        return None
+    if schema < 4:
+        raise ProcedureError(
+            f"{where}: trace identifiers were added in procedure schema 4; "
+            f"this file declares schema {schema}. Set 'schema: 4' to use them.")
+    try:
+        return tracelib.check_declared(value, where)
+    except tracelib.TraceError as exc:
+        raise ProcedureError(str(exc)) from exc
 
 
 def _parse_expect(raw: Any, where: str, schema: int) -> Expectation:
@@ -543,7 +587,7 @@ def _parse_expect(raw: Any, where: str, schema: int) -> Expectation:
     if not isinstance(raw, dict) or "condition" not in raw:
         raise ProcedureError(f"{where}: needs a 'condition'")
     for key in raw:
-        if key not in ("condition", "timeout", "message") + TEMPORAL_KEYS:
+        if key not in ("condition", "timeout", "message", "id") + TEMPORAL_KEYS:
             raise ProcedureError(f"{where}: unknown key '{key}'")
 
     stated = [key for key in TEMPORAL_KEYS if raw.get(key) is not None]
@@ -580,6 +624,7 @@ def _parse_expect(raw: Any, where: str, schema: int) -> Expectation:
                   if raw.get("for") is not None else None),
         never=(parse_duration(raw["never"], f"{where}.never")
                if raw.get("never") is not None else None),
+        id=_check_id(raw.get("id"), f"{where}.id", schema),
     )
 
 
@@ -783,6 +828,12 @@ def parse(text: str, path: Path) -> Procedure:
             f"criteria cannot be said to have passed")
     expect = [_parse_expect(raw, f"{where}.expect[{i}]", version)
               for i, raw in enumerate(raw_expect)]
+
+    # Declared identifiers must be unique within the file they name. Two
+    # criteria sharing one would make the coverage report and the "what was not
+    # tested" list silently merge two different claims into one row.
+    _check_unique_ids([s.id for s in steps], where, "step")
+    _check_unique_ids([e.id for e in expect], where, "criterion")
 
     raw_failures = doc.get("failures")
     if raw_failures is not None and not isinstance(raw_failures, list):

@@ -13,7 +13,7 @@
 #     Sequence: mission with NAV_TAKEOFF -> arm -> "switch to AUTO mode".
 #   ardupilot/ArduPlane/takeoff.cpp, Plane::auto_takeoff_check()
 #     TKOFF_THR_MINACC / TKOFF_THR_DELAY gate the throttle for hand launches.
-schema: 1
+schema: 4
 id: plane_takeoff_auto
 name:
   en: Plane takeoff (AUTO mission)
@@ -101,10 +101,12 @@ steps:
     timeout: 150
 
 expect:
-  - condition: {alt_above: "{alt*0.85}"}
+  - id: alt-reached
+    condition: {alt_above: "{alt*0.85}"}
     timeout: 30
     message:
       en: climbed to at least 85% of the commanded takeoff altitude
       tr: komut verilen kalkis irtifasinin en az %85'ine tirmandi
-  - condition: {armed: true}
+  - id: still-armed
+    condition: {armed: true}
     message: {en: still armed, tr: hala armli}

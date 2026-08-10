@@ -17,6 +17,7 @@ afterwards what happened.
 | `params_diff.txt` | the ones that differ from the **firmware** default |
 | `report.md` / `report.json` | the post-flight report |
 | `fingerprint.json` | what produced this result — see [reproducibility](reproducibility.md) |
+| `evidence.json` | what this run was **expected** to leave behind, and what it did — see [evidence manifest](evidence-manifest.md) |
 | `regression.json` / `.md` | present once the run has been compared to a baseline |
 | `versions.txt` | ArduPilot SHA, Gazebo, ArgazUI, interpreter |
 | `plots/` | altitude and attitude-tracking PNGs, when matplotlib is installed |
@@ -31,6 +32,17 @@ Two fields of `result.json` are worth naming separately, both added in v1.4:
   `null`. It is stamped into the run rather than kept in an index file, so a
   campaign is found by reading its runs and a run that was copied still says
   what it belonged to. See [Campaigns](campaigns.md).
+- **`test_id`** (v1.5) — what the run was *for*: a pytest node id, or `manual`
+  for a flight somebody started by hand. `manual` is a real answer and the one
+  that matters — it says no test in this repository asserts what the run shows.
+  See [Traceability](traceability.md).
+- **`evidence`** (v1.5) — the verdict on the run's own evidence: whether every
+  required artefact is present, and what is missing if not. The full manifest
+  is in `evidence.json`.
+
+Every step and every criterion inside `procedures` also carries a `step_id` and
+a `criterion_id` from v1.5, so a claim can be followed from the status table
+back to the file that supports it.
 
 A run that injected a fault also carries, per procedure, a **`faults`** list
 holding four separate things: the mechanism exactly as applied (which

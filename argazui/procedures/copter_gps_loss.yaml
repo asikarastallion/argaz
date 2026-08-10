@@ -27,7 +27,7 @@
 # Sources:
 #   https://ardupilot.org/copter/docs/ekf-inav-failsafe.html
 #   https://ardupilot.org/dev/docs/using-sitl-for-ardupilot-testing.html
-schema: 3
+schema: 4
 id: copter_gps_loss
 name:
   en: Copter GPS loss in a hover (scenario)
@@ -150,7 +150,8 @@ expect:
   # without a position source, and some attitude excursion is the correct
   # response rather than a defect. What is not acceptable is sustained loss of
   # control, which is what accumulated seconds above the rate measures.
-  - condition:
+  - id: rate-bounded
+    condition:
       attitude_stable: {max_rate: 150, tolerance: 3}
     message:
       en: never spent more than 3 s turning faster than 150°/s

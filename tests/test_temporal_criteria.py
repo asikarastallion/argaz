@@ -330,7 +330,9 @@ def test_the_shipped_copter_takeoff_uses_all_three_shapes():
     whole subject is the difference between a claim and evidence.
     """
     procedure = procs.load_all()["copter_takeoff"]
-    assert procedure.schema == 2
+    # Temporal criteria arrived in schema 2; a shipped file may declare a later
+    # one, and equality here would fail on every future schema bump.
+    assert procedure.schema >= 2
     assert {e.kind for e in procedure.expect} >= {"within", "for", "never"}
 
 

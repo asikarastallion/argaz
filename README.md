@@ -142,6 +142,19 @@ recorded, and which firmware it was.
   never started, or the evidence was lost — and those are three different
   investigations:
   [docs/failure-classification.md](docs/failure-classification.md).
+- **A traceability chain with a name on every link** — test intent → procedure
+  → step → criterion → metric → run → artefact → verdict — computed from the
+  run record rather than stored, and checked: a dangling reference or a
+  duplicate identifier is reported rather than left to render a table that
+  looks right: [docs/traceability.md](docs/traceability.md).
+- **An evidence manifest per run**: what the run was *expected* to leave
+  behind, what it did, with a hash and the module and schema that produced
+  each. A missing **required** artefact is an evidence failure; a missing
+  optional one is fine **only with a stated reason**:
+  [docs/evidence-manifest.md](docs/evidence-manifest.md).
+- **Coverage that names what was not covered** across four dimensions —
+  models, procedures, acceptance criteria, faults — and refuses to be a test
+  count: [docs/coverage-model.md](docs/coverage-model.md).
 
 ### Operations and reliability
 
@@ -213,7 +226,7 @@ Tier 1 can prove the first. Only tier 2 can prove the second.
 | Gazebo | no | yes, headless |
 | Verifies | procedure logic, capability probing, acceptance evaluation, fault injection and its fail-closed rule, campaign aggregation, failure classification, the HTTP/WebSocket API, the page in a real browser, the live telemetry mirror, `start.sh`, the status generator | that a specific airframe takes off, changes mode in flight and lands — and, for one Copter, survives a GPS loss in the hover |
 | Claims about a model | **none** | this is the only tier that may claim one |
-| Size | 292 tests | 11 models, plus one off-nominal scenario |
+| Size | 378 tests | 11 models, plus one off-nominal scenario |
 
 ### Tier 1
 
@@ -272,7 +285,14 @@ A campaign adds one directory of its own,
 `runs/campaigns/<campaign-id>/campaign.json` and `.md`, which is an aggregation
 over N ordinary runs and holds no fact that cannot be recomputed from them.
 
-The report is built from the dataflash log rather than from telemetry, so it
+The report has ten fixed, numbered sections — scope, configuration, procedure,
+verdict, failed criteria, metrics, evidence manifest, environment, regression,
+and **limitations and non-claims**. The order is fixed so a reviewer reading two
+runs never has to hunt for the same fact in two places, and the last section is
+the one a verification document is least likely to contain: what the run does
+*not* prove, stated rather than left to be inferred.
+
+It is built from the dataflash log rather than from telemetry, so it
 reflects what the autopilot itself recorded at full rate. It contains a mode
 timeline, arm/disarm intervals, an altitude profile, demanded-versus-achieved
 roll and pitch error, EKF innovation test ratios, vibration with accelerometer
@@ -319,6 +339,10 @@ python3 -m argazui compare runs/<current> --baseline runs/<baseline>
 # repeatability campaigns: list them, then aggregate one into campaign.md
 python3 -m argazui campaign
 python3 -m argazui campaign <campaign-id>
+
+# what is declared and has never been run, and the chain behind one run
+python3 -m argazui coverage
+python3 -m argazui trace runs/<run-id>     # exit 1 if a link does not resolve
 ```
 
 `runs/` is gitignored — it is the output of flying, not source. Point
@@ -613,6 +637,11 @@ it does not copy them — so there is exactly one place to edit any of it.
 | [`docs/fault-injection.md`](docs/fault-injection.md) | The two faults, their mechanisms, and the five rules they obey |
 | [`docs/failure-classification.md`](docs/failure-classification.md) | Seven categories, and why only one is about the aircraft |
 | [`docs/failure-investigation.md`](docs/failure-investigation.md) | A failed run, from its category to the file that explains it |
+| [`docs/traceability.md`](docs/traceability.md) | From a test's intent to the file that proves its verdict |
+| [`docs/evidence-manifest.md`](docs/evidence-manifest.md) | What a run was expected to leave behind, and what it did |
+| [`docs/coverage-model.md`](docs/coverage-model.md) | What counts as coverage, and what is refused as coverage |
+| [`docs/coverage.md`](docs/coverage.md) | Generated: what is declared and has never been run |
+| [`docs/verification-vs-validation.md`](docs/verification-vs-validation.md) | Two words that get confused, and only one of which this tool does |
 | [`docs/reproducibility.md`](docs/reproducibility.md) | The environment fingerprint, field by field |
 | [`docs/runs-and-evidence.md`](docs/runs-and-evidence.md) | What a run directory contains and why each file is in it |
 | [`docs/lifecycle.md`](docs/lifecycle.md) | START to STOP: what is launched and how it is shut down |
@@ -634,6 +663,16 @@ exists to avoid.
 ---
 
 ## Scope
+
+### Implemented in v1.5
+
+Traceability identifiers on every link from a test's intent to its verdict,
+with an integrity check that refuses to let the chain degrade silently; a
+per-run evidence manifest recording what each artefact is, whether it is there,
+its hash and the module and schema that produced it; coverage over four named
+dimensions that reports what it did *not* reach; a flight report restructured
+into ten reviewer-oriented sections ending in **Limitations and non-claims**;
+and a written boundary between verification and validation.
 
 ### Implemented in v1.4
 

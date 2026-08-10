@@ -202,6 +202,30 @@ executor, and `tests/e2e/test_scenarios_and_campaigns.py` drives the panel — b
 the path a user actually takes. Cancellation is unit-tested against a fake
 launcher and has never been exercised against a live Gazebo session.*
 
+## 5h. Traceability, evidence and coverage
+
+| | step | expected |
+|---|---|---|
+| ✔ | open a finished run | the sheet shows the chain — intent, steps, criteria, metrics — and any link that does not resolve |
+| ✔ | open a run flown by hand | the intent reads `manual` and says no test asserts it |
+| ✔ | `python3 -m argazui trace runs/<id>` | exit 0, and every identifier printed |
+| ✔ | check a run directory | `evidence.json` is there and says whether every required artefact is |
+| ✔ | open the coverage panel with no runs | four dimensions, each offering the list of what it did not reach |
+| ✗ | delete a file from a finished run, then rebuild its report | the manifest reports it missing and the run's verdict becomes an `evidence` failure |
+| ✗ | read a report's section 10 after a run you watched | the non-claims match what you would have said about it yourself |
+| ✗ | read `coverage.md` against your own idea of what is tested | the uncovered list contains nothing you believed was covered |
+
+*The ✔ rows are covered by `tests/test_traceability.py`,
+`tests/test_evidence_manifest.py`, `tests/test_coverage.py` and
+`tests/e2e/test_traceability_panels.py`. **No test deletes a file from a real
+finished run** — the manifest tests build directories rather than dismantling
+one that a flight produced, and the two are not quite the same thing.*
+
+*The last two rows cannot be automated at all, and they are the ones that
+matter most. A non-claims section nobody reads against a flight they watched is
+a paragraph; a coverage list nobody checks against their own beliefs is a
+table. Both exist to be disagreed with.*
+
 ## 6. Stopping, and the evidence
 
 | | step | expected |

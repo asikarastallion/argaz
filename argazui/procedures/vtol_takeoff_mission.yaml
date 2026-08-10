@@ -20,7 +20,7 @@
 #     "arm only in VTOL modes (or AUTO mode when current nav cmd is VTOL
 #      Takeoff)" — satisfied here because the mission's first item is a VTOL
 #      takeoff, which is why arming happens after the mission upload.
-schema: 1
+schema: 4
 id: vtol_takeoff_mission
 name:
   en: VTOL takeoff (AUTO mission)
@@ -92,10 +92,12 @@ steps:
     timeout: 150
 
 expect:
-  - condition: {alt_above: "{alt*0.85}"}
+  - id: alt-reached
+    condition: {alt_above: "{alt*0.85}"}
     timeout: 20
     message:
       en: reached at least 85% of the commanded altitude
       tr: komut verilen irtifanin en az %85'ine ulasti
-  - condition: {armed: true}
+  - id: still-armed
+    condition: {armed: true}
     message: {en: still armed, tr: hala armli}

@@ -79,6 +79,7 @@ from pymavlink import mavutil
 
 from . import failures as failurelib
 from . import faults as faultlib
+from . import trace as tracelib
 from .i18n import t
 from .mavlink_link import MavlinkLink, substitute
 from .procedures import Expectation, Fault, Procedure, Step, format_duration
@@ -140,11 +141,14 @@ class StepResult:
     status: str = "pending"        # pending | running | passed | failed | skipped
     text: str = ""
     seconds: float = 0.0
+    # `<procedure>#s3`, or `<procedure>#<declared>`. Recorded so a failure can
+    # be pointed at from outside the document that describes it — see trace.py.
+    step_id: str = ""
 
     def as_dict(self) -> dict:
         return {"index": self.index, "kind": self.kind, "label": self.label,
                 "status": self.status, "text": self.text,
-                "seconds": round(self.seconds, 1)}
+                "seconds": round(self.seconds, 1), "step_id": self.step_id}
 
 
 @dataclass
@@ -164,12 +168,22 @@ class ExpectResult:
     # clock says so rather than implying the vehicle's own.
     observed: float = 0.0
     clock: str = "vehicle"
+    # `<procedure>#<declared>`, or `<procedure>#c2` when the file declares
+    # none. Quoted in the coverage report and in the "what was not tested"
+    # list, which is why a criterion declares its own rather than deriving it.
+    criterion_id: str = ""
+    # False when the id above came from a position rather than a declaration —
+    # stated because a reader matching two runs on it needs to know whether it
+    # would have survived somebody inserting a line above it.
+    declared_id: bool = False
 
     def as_dict(self) -> dict:
         return {"label": self.label, "condition": _plain(self.condition),
                 "passed": self.passed, "text": self.text,
                 "kind": self.kind, "duration": self.duration,
-                "observed": round(self.observed, 2), "clock": self.clock}
+                "observed": round(self.observed, 2), "clock": self.clock,
+                "criterion_id": self.criterion_id,
+                "declared_id": self.declared_id}
 
 
 @dataclass
@@ -636,10 +650,13 @@ class ProcedureRunner:
                          signal=flag.replace("_known", ""))
         return ""
 
-    def _evaluate(self, exp: Expectation, cond: dict) -> ExpectResult:
+    def _evaluate(self, exp: Expectation, cond: dict,
+                  identifier: str = "") -> ExpectResult:
         """One acceptance criterion, judged with the shape the procedure asked for."""
         result = ExpectResult(label=exp.label(self.lang), condition=cond,
-                              kind=exp.kind, duration=exp.duration)
+                              kind=exp.kind, duration=exp.duration,
+                              criterion_id=identifier,
+                              declared_id=bool(exp.id))
         if exp.kind == "eventually":
             result.passed, result.text = self._wait_for(cond, exp.timeout)
             return result
@@ -882,9 +899,10 @@ class ProcedureRunner:
             # fault exists, and evaluating them here is what makes them a
             # statement about the degraded aircraft rather than the recovered
             # one.
-            for exp in fault.expect:
+            for index, exp in enumerate(fault.expect):
                 cond = self._resolve_condition(exp.condition, values)
-                judged = self._evaluate(exp, cond)
+                judged = self._evaluate(
+                    exp, cond, f"{result.id}.expect{index + 1}")
                 result.expect.append(judged)
                 self._evidence_seen(result.evidence_required, seen)
                 self._emit("fault_expect", fault=fault.id, expect=judged.as_dict())
@@ -923,9 +941,10 @@ class ProcedureRunner:
             return result
         self._evidence_seen(result.evidence_required, seen)
 
-        for exp in fault.recovery:
+        for index, exp in enumerate(fault.recovery):
             cond = self._resolve_condition(exp.condition, values)
-            judged = self._evaluate(exp, cond)
+            judged = self._evaluate(
+                exp, cond, f"{result.id}.recovery{index + 1}")
             result.recovery.append(judged)
             self._evidence_seen(result.evidence_required, seen)
             self._emit("fault_recovery", fault=fault.id, expect=judged.as_dict())
@@ -1097,7 +1116,8 @@ class ProcedureRunner:
         """Executes a procedure and returns a machine-readable result."""
         self._cancel = False
         values = {**proc.default_values(), **(values or {})}
-        steps = [StepResult(index=i, kind=s.kind, label=s.label(self.lang))
+        steps = [StepResult(index=i, kind=s.kind, label=s.label(self.lang),
+                            step_id=tracelib.step_id(proc.id, i, s.id))
                  for i, s in enumerate(proc.steps)]
         changed_params: dict = {}
         fault_results: list[FaultResult] = []
@@ -1159,9 +1179,10 @@ class ProcedureRunner:
 
             # ---------------------------------------------------- acceptance
             expects = []
-            for exp in proc.expect:
+            for index, exp in enumerate(proc.expect):
                 cond = self._resolve_condition(exp.condition, values)
-                er = self._evaluate(exp, cond)
+                er = self._evaluate(
+                    exp, cond, tracelib.criterion_id(proc.id, index, exp.id))
                 expects.append(er)
                 self._emit("expect", expect=er.as_dict())
 
@@ -1235,10 +1256,13 @@ class ProcedureRunner:
         for s in steps:
             if s.status in ("pending", "running"):
                 s.status = "skipped" if s.status == "pending" else "failed"
-        return [ExpectResult(label=e.label(self.lang), condition=_plain(e.condition),
+        return [ExpectResult(label=e.label(self.lang),
+                             condition=_plain(e.condition),
                              passed=False, text=t("proc_not_evaluated"),
-                             kind=e.kind, duration=e.duration)
-                for e in proc.expect]
+                             kind=e.kind, duration=e.duration,
+                             criterion_id=tracelib.criterion_id(proc.id, i, e.id),
+                             declared_id=bool(e.id))
+                for i, e in enumerate(proc.expect)]
 
     def _restore(self, changed_params: dict) -> None:
         """Puts back every parameter the procedure changed.

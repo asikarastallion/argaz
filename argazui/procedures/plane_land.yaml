@@ -15,7 +15,7 @@
 #
 # This pairs with plane_takeoff.yaml: TAKEOFF mode captures the direction that
 # AUTOLAND needs, so the two procedures are designed to be used together.
-schema: 1
+schema: 4
 id: plane_land
 name:
   en: Plane landing (AUTOLAND)
@@ -55,7 +55,9 @@ steps:
     timeout: 540
 
 expect:
-  - condition: {armed: false}
+  - id: disarmed
+    condition: {armed: false}
     message: {en: disarmed after landing, tr: inisten sonra disarm oldu}
-  - condition: {alt_below: 10.0}
+  - id: on-ground
+    condition: {alt_below: 10.0}
     message: {en: on the ground, tr: yerde}

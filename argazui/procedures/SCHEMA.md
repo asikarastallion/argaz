@@ -1,4 +1,4 @@
-# ArgazUI procedure schema — versions 1, 2 and 3
+# ArgazUI procedure schema — versions 1 to 4
 
 A **procedure** is a declarative flight sequence: a list of steps plus the
 acceptance criteria that decide whether it worked. Procedures live in
@@ -30,6 +30,7 @@ command. This schema models that difference.
 | `1` | v1.1 | the format below, minus the schema-2 and schema-3 rows |
 | `2` | v1.3 | the temporal acceptance criteria `within` / `for` / `never`, and the instantaneous attitude conditions `roll_within`, `pitch_within`, `angular_rate_above`, `angular_rate_below` |
 | `3` | v1.4 | the `failures:` block — controlled fault injection — and the `scenario` role |
+| `4` | v1.5 | author-declared trace identifiers: `id:` on a step and on an `expect:` entry |
 
 **Older files keep working unchanged.** A document that uses a feature from a
 later schema than it declares is rejected at load time, with a message that
@@ -44,7 +45,7 @@ implement, out of a document claiming a version it satisfies.
 ## Top level
 
 ```yaml
-schema: 3                       # required: 1, 2 or 3 (see above)
+schema: 4                       # required: 1-4 (see above)
 id: plane_takeoff               # required, must equal the filename stem
 name:                           # required, shown in the UI
   en: Plane takeoff (TAKEOFF mode)
@@ -384,12 +385,14 @@ reported as passed when a measurable state change is observed.
 
 ```yaml
 expect:
-  - condition: {alt_above: "{alt*0.8}"}
+  - id: alt-reached             # schema 4: see "Identifiers" below
+    condition: {alt_above: "{alt*0.8}"}
     timeout: 120
     message:
       en: climbed to at least 80% of the requested altitude
       tr: istenen irtifanin en az %80'ine tirmandi
-  - condition: {armed: true}
+  - id: still-armed
+    condition: {armed: true}
     message: {en: still armed, tr: hala armli}
 ```
 
@@ -484,6 +487,40 @@ own, which acquire one only when compared against a baseline. They are a third
 kind of output and cannot fail a run either. See
 [docs/metrics.md](../../docs/metrics.md) and
 [docs/regression.md](../../docs/regression.md).
+
+---
+
+## Identifiers (schema 4)
+
+A step and an `expect:` entry may each declare an `id:`. It is lower-case
+letters, digits, `_` and `-`, 1–48 characters, and may not contain `#`.
+
+```yaml
+steps:
+  - id: arm                     # optional — derives `<procedure>#s2` without it
+    arm: {recover: true}
+
+expect:
+  - id: alt-reached             # every shipped procedure declares these
+    condition: {alt_above: "{alt*0.9}"}
+    within: 20s
+```
+
+The composed identifier is `<procedure-id>#<local>`: `copter_takeoff#arm`,
+`copter_takeoff#alt-reached`. A step or criterion that declares none gets
+`#s3` / `#c2` from its position, and the run record **marks that identifier as
+derived**.
+
+**Criteria should always declare one; steps rarely need to.** A step identifier
+is only read inside the run that produced it. A criterion identifier is quoted
+outside it — in the coverage report, in the "what was not tested" list, in a
+comparison of two runs months apart — and those need a name that survives
+somebody inserting a criterion above it.
+
+Two steps, or two criteria, in one file may not share an id: the coverage
+report would silently merge two different claims into one row.
+
+See [docs/traceability.md](../../docs/traceability.md).
 
 ---
 

@@ -179,6 +179,50 @@
                              "procedure, so nothing was asserted.",
       runs_files: "Files in this run: {files}",
 
+      // ------------------------------------------------- v1.5: traceability
+      ev_title: "Evidence manifest",
+      ev_complete: "Complete — every required artefact is in this run's directory.",
+      ev_incomplete: "**Incomplete** — {n} required artefact(s) are missing, so " +
+                     "the claims in this run rest on evidence that is not here.",
+      ev_counts: "{present} of {expected} expected artefacts present; " +
+                 "{explained} absent with a stated reason.",
+      ev_unexplained: "{n} optional artefact(s) are absent with no reason " +
+                      "recorded. \"Absent because matplotlib is missing\" and " +
+                      "\"absent\" are different facts.",
+      ev_artefact: "Artefact", ev_level: "Level", ev_present: "Present",
+      ev_size: "Size", ev_producer: "Produced by",
+      ev_yes: "yes", ev_no: "no", ev_missing: "MISSING",
+      ev_none: "This run has no evidence manifest — it predates ArgazUI 1.5.",
+
+      tr_title: "Traceability",
+      tr_intent: "Intent", tr_manual: "flown by hand — no test asserts this",
+      tr_verdict: "Verdict", tr_ok: "Every link in the chain resolves.",
+      tr_problems: "{n} problem(s) in the chain — an identifier or an evidence " +
+                   "reference does not resolve.",
+      tr_derived: "{n} identifier(s) come from a position rather than a " +
+                  "declaration, so they would change if a line were inserted " +
+                  "above them.",
+      tr_step: "step", tr_criterion: "criterion", tr_fault: "fault",
+      tr_metric: "metric", tr_evaluated: "evaluated", tr_unevaluated: "not evaluated",
+      tr_measured: "measured", tr_unmeasured: "not measured",
+      tr_none: "This run has no result.json, so there is no chain to follow.",
+
+      cov_title: "Coverage",
+      cov_hint: "What this project declares and what has actually been run. " +
+                "Not a test count: that number goes up when somebody adds a " +
+                "test and never down when somebody adds a procedure nobody " +
+                "runs. The uncovered lists are the point.",
+      cov_dimension: "Dimension", cov_covered: "Covered", cov_declared: "Declared",
+      cov_uncovered: "Not covered", cov_show: "show",
+      cov_failed: "Coverage could not be read: {error}",
+      cov_none: "No coverage information is available.",
+      cov_all: "All {n} covered.",
+      cov_unattributed: "{n} evaluated criterion result(s) come from runs " +
+                        "recorded before criterion identifiers existed. They " +
+                        "are not matched by position — a coverage figure " +
+                        "inflated by a guess is what this project exists to " +
+                        "remove.",
+
       // ------------------------------------------------- v1.4: why it failed
       // The classified category, never the raw message. "acceptance" and
       // "environment" send a reader to two different files, which is the whole
@@ -477,6 +521,50 @@
                              "çalıştırılmadı; hiçbir şey iddia edilmedi.",
       runs_files: "Bu koşudaki dosyalar: {files}",
 
+      // ------------------------------------------------- v1.5: izlenebilirlik
+      ev_title: "Kanıt listesi",
+      ev_complete: "Eksiksiz — gereken her artefakt bu koşunun dizininde.",
+      ev_incomplete: "**Eksik** — gereken {n} artefakt yok; bu koşudaki " +
+                     "iddialar burada olmayan kanıta dayanıyor.",
+      ev_counts: "Beklenen {expected} artefaktın {present} tanesi mevcut; " +
+                 "{explained} tanesi gerekçesi belirtilerek yok.",
+      ev_unexplained: "{n} isteğe bağlı artefakt, gerekçesi kaydedilmeden yok. " +
+                      "\"matplotlib olmadığı için yok\" ile \"yok\" farklı " +
+                      "olgulardır.",
+      ev_artefact: "Artefakt", ev_level: "Düzey", ev_present: "Mevcut",
+      ev_size: "Boyut", ev_producer: "Üreten",
+      ev_yes: "evet", ev_no: "hayır", ev_missing: "EKSİK",
+      ev_none: "Bu koşunun kanıt listesi yok — ArgazUI 1.5'ten öncesine ait.",
+
+      tr_title: "İzlenebilirlik",
+      tr_intent: "Amaç", tr_manual: "elle uçuruldu — bunu doğrulayan test yok",
+      tr_verdict: "Hüküm", tr_ok: "Zincirdeki her bağ çözülüyor.",
+      tr_problems: "Zincirde {n} sorun — bir tanımlayıcı ya da bir kanıt " +
+                   "başvurusu çözülmüyor.",
+      tr_derived: "{n} tanımlayıcı beyandan değil konumdan geliyor; üstlerine " +
+                  "bir satır eklenirse değişirler.",
+      tr_step: "adım", tr_criterion: "kriter", tr_fault: "arıza",
+      tr_metric: "metrik", tr_evaluated: "değerlendirildi",
+      tr_unevaluated: "değerlendirilmedi",
+      tr_measured: "ölçüldü", tr_unmeasured: "ölçülmedi",
+      tr_none: "Bu koşuda result.json yok, izlenecek bir zincir de yok.",
+
+      cov_title: "Kapsam",
+      cov_hint: "Bu projenin beyan ettikleri ve gerçekten koşulanlar. Test " +
+                "sayısı değil: o sayı biri test eklediğinde artar, kimsenin " +
+                "koşmadığı bir prosedür eklendiğinde hiç azalmaz. Asıl mesele " +
+                "kapsanmayanlar listesidir.",
+      cov_dimension: "Boyut", cov_covered: "Kapsanan", cov_declared: "Beyan edilen",
+      cov_uncovered: "Kapsanmayan", cov_show: "göster",
+      cov_failed: "Kapsam okunamadı: {error}",
+      cov_none: "Kapsam bilgisi yok.",
+      cov_all: "{n} maddenin tamamı kapsandı.",
+      cov_unattributed: "{n} değerlendirilmiş kriter sonucu, kriter " +
+                        "tanımlayıcıları var olmadan önce kaydedilmiş " +
+                        "koşulardan geliyor. Konuma göre eşleştirilmiyorlar — " +
+                        "tahminle şişirilmiş bir kapsam değeri, bu projenin " +
+                        "ortadan kaldırmak için var olduğu şeydir.",
+
       // ------------------------------------------------- v1.4: neden geçmedi
       fail_title: "Neden geçmedi",
       fail_environment: "ortam", fail_vehicle_readiness: "araç hazır değil",
@@ -653,6 +741,7 @@
     // switch has to reach them or they keep the previous language's sentence.
     renderScenarios();
     renderCampaigns();
+    renderCoverage();
     if (lastStatus) { $("buttons").dataset.key = ""; applyStatus(lastStatus); }
 
     const search = $("docs-search");
@@ -1709,6 +1798,196 @@
     }
   }
 
+  // ------------------------------------------------ evidence & trace (v1.5)
+  // Both are shown ABOVE the report, because they say whether the report can
+  // be read as evidence at all: a run whose manifest is incomplete, or whose
+  // chain has a dangling reference, still renders a report that looks right.
+  async function showEvidence(runId) {
+    const box = $("run-evidence");
+    box.hidden = false;
+    box.innerHTML = "";
+    let body;
+    try {
+      body = await getJSON(`/api/runs/${encodeURIComponent(runId)}/evidence`,
+                           (b) => b && b.evidence);
+    } catch (e) {
+      box.innerHTML = `<h3>${esc(t("ev_title"))}</h3>`
+        + `<p class="hint">${esc(t("ev_none"))}</p>`;
+      return;
+    }
+    const m = body.evidence;
+    const c = m.counts;
+    const head = m.complete
+      ? `<b class="ok">${esc(t("ev_complete"))}</b>`
+      : `<b class="bad">${esc(t("ev_incomplete", { n: c.missing_required }))}</b>`;
+    let html = `<h3>${esc(t("ev_title"))}</h3>${head}`
+      + `<p class="hint">${esc(t("ev_counts", {
+            present: c.present, expected: c.expected,
+            explained: c.absent_explained }))}</p>`;
+    if (c.absent_unexplained) {
+      html += `<p class="cmp-drift">`
+        + `${esc(t("ev_unexplained", { n: c.absent_unexplained }))}</p>`;
+    }
+    html += `<table class="cmp-table"><thead><tr>`
+      + [t("ev_artefact"), t("ev_level"), t("ev_present"), t("ev_size"),
+         t("ev_producer")].map((h) => `<th>${esc(h)}</th>`).join("")
+      + `</tr></thead><tbody>`;
+    for (const row of m.artefacts) {
+      const present = row.exists
+        ? esc(t("ev_yes"))
+        : (row.level === "required" ? `<b class="bad">${esc(t("ev_missing"))}</b>`
+                                    : esc(t("ev_no")));
+      const why = row.exists ? "" : `<br><small>${esc(row.absent_reason || "")}</small>`;
+      const size = row.size_bytes === null ? "—" : `${row.size_bytes}`;
+      const producer = row.producer
+        + (row.producer_schema === null || row.producer_schema === undefined
+           ? "" : ` (${row.producer_schema})`);
+      html += `<tr><td>${esc(row.path || row.name)}`
+        + `<br><small>${esc(row.purpose)}</small></td>`
+        + `<td>${esc(row.level)}</td><td>${present}${why}</td>`
+        + `<td>${esc(size)}</td><td>${esc(producer)}</td></tr>`;
+    }
+    box.innerHTML = html + "</tbody></table>";
+  }
+
+  async function showTrace(runId) {
+    const box = $("run-trace");
+    box.hidden = false;
+    box.innerHTML = "";
+    let body;
+    try {
+      body = await getJSON(`/api/runs/${encodeURIComponent(runId)}/trace`,
+                           (b) => b && b.trace);
+    } catch (e) {
+      box.innerHTML = `<h3>${esc(t("tr_title"))}</h3>`
+        + `<p class="hint">${esc(t("tr_none"))}</p>`;
+      return;
+    }
+    const chain = body.trace;
+    const manual = chain.test_id === "manual";
+    let html = `<h3>${esc(t("tr_title"))}</h3>`
+      + `<p class="hint">${esc(t("tr_intent"))}: <code>${esc(chain.test_id)}</code>`
+      + (manual ? ` — ${esc(t("tr_manual"))}` : "")
+      + ` · ${esc(t("tr_verdict"))}: ${esc(chain.verdict || "—")}</p>`;
+
+    html += `<table class="cmp-table"><tbody>`;
+    for (const procedure of chain.procedures) {
+      html += `<tr><td colspan="3"><b>${esc(procedure.procedure_id)}</b> `
+        + `→ ${esc(procedure.verdict || "—")}</td></tr>`;
+      for (const step of procedure.steps) {
+        html += `<tr><td>${esc(t("tr_step"))}</td>`
+          + `<td><code>${esc(step.step_id)}</code></td>`
+          + `<td>${esc(step.status)}</td></tr>`;
+      }
+      for (const criterion of procedure.criteria) {
+        const mark = criterion.passed ? "passed"
+          : (criterion.evaluated ? "failed" : t("tr_unevaluated"));
+        html += `<tr><td>${esc(t("tr_criterion"))}</td>`
+          + `<td><code>${esc(criterion.criterion_id)}</code></td>`
+          + `<td>${esc(mark)}</td></tr>`;
+      }
+      for (const fault of procedure.faults) {
+        html += `<tr><td>${esc(t("tr_fault"))}</td>`
+          + `<td><code>${esc(fault.fault_id)}</code></td>`
+          + `<td>${esc(fault.passed ? "passed" : "failed")}</td></tr>`;
+      }
+    }
+    for (const metric of chain.metrics) {
+      html += `<tr><td>${esc(t("tr_metric"))}</td>`
+        + `<td><code>${esc(metric.metric_id)}</code></td>`
+        + `<td>${esc(metric.measured ? t("tr_measured") : t("tr_unmeasured"))}</td></tr>`;
+    }
+    html += "</tbody></table>";
+
+    if ((body.problems || []).length) {
+      html += `<p class="cmp-drift">`
+        + `${esc(t("tr_problems", { n: body.problems.length }))}</p><ul>`;
+      for (const problem of body.problems) {
+        html += `<li><code>${esc(problem.problem)}</code> ${esc(problem.subject)}`
+          + ` — ${esc(problem.detail)}</li>`;
+      }
+      html += "</ul>";
+    } else {
+      html += `<p class="hint">${esc(t("tr_ok"))}</p>`;
+    }
+    if ((body.derived_ids || []).length) {
+      html += `<p class="hint">`
+        + `${esc(t("tr_derived", { n: body.derived_ids.length }))}</p>`;
+    }
+    box.innerHTML = html;
+  }
+
+  // ----------------------------------------------------------- coverage (v1.5)
+  let COVERAGE = null;
+
+  async function loadCoverage() {
+    COVERAGE = await getJSON("/api/coverage",
+                             (b) => b && b.coverage && b.coverage.dimensions);
+    renderCoverage();
+  }
+
+  function renderCoverage() {
+    const body = $("cov-table").querySelector("tbody");
+    body.innerHTML = "";
+    $("cov-detail").hidden = true;
+    if (!COVERAGE) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="4" class="runs-empty">${esc(t("cov_none"))}</td>`;
+      body.append(tr);
+      return;
+    }
+    const doc = COVERAGE.coverage;
+    for (const dimension of doc.dimensions) {
+      const tr = document.createElement("tr");
+      const fraction = dimension.fraction === null ? "—"
+        : `${Math.round(dimension.fraction * 100)}%`;
+      tr.innerHTML = `<td class="runs-when"><b>${esc(dimension.label)}</b></td>`
+        + `<td>${dimension.covered} / ${dimension.declared}</td>`
+        + `<td>${esc(fraction)}</td>`;
+      const actions = document.createElement("td");
+      actions.className = "runs-actions";
+      if (dimension.uncovered.length) {
+        const open = document.createElement("button");
+        open.className = "btn small";
+        open.textContent = `${dimension.uncovered.length} ${t("cov_uncovered")}`;
+        open.onclick = () => showUncovered(dimension);
+        actions.append(open);
+      } else {
+        actions.textContent = t("cov_all", { n: dimension.declared });
+      }
+      tr.append(actions);
+      body.append(tr);
+    }
+    if (doc.unattributable_criteria) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="4" class="hint">`
+        + `${esc(t("cov_unattributed", { n: doc.unattributable_criteria }))}</td>`;
+      body.append(tr);
+    }
+  }
+
+  function showUncovered(dimension) {
+    const box = $("cov-detail");
+    box.hidden = false;
+    let html = `<b>${esc(dimension.label)}</b>`
+      + `<table class="cmp-table"><tbody>`;
+    for (const item of dimension.items) {
+      if (item.covered) continue;
+      html += `<tr><td><code>${esc(item.id)}</code></td>`
+        + `<td>${esc(item.what || "")}</td></tr>`;
+    }
+    box.innerHTML = html + "</tbody></table>";
+  }
+
+  $("btn-cov-refresh").onclick = () => {
+    const err = $("err-cov");
+    err.hidden = true;
+    loadCoverage().catch((e) => {
+      err.hidden = false;
+      err.textContent = t("cov_failed", { error: String(e.message || e) });
+    });
+  };
+
   // -------------------------------------------------------------------- runs
   // A reader for the runs/ directory. Nothing here starts or changes a flight;
   // the one write it can make is asking the server to rebuild a report from a
@@ -1880,6 +2159,10 @@
     // to another run's name.
     $("run-compare").hidden = true;
     $("run-compare").innerHTML = "";
+    $("run-evidence").hidden = true;
+    $("run-evidence").innerHTML = "";
+    $("run-trace").hidden = true;
+    $("run-trace").innerHTML = "";
     $("sheet-run").hidden = false;
 
     const detail = await (await fetch(`/api/runs/${encodeURIComponent(runId)}`)).json();
@@ -1899,6 +2182,12 @@
       $("run-plots").append(img);
     }
     $("run-files").textContent = t("runs_files", { files: (detail.files || []).join(", ") });
+
+    // Whether the evidence is complete and whether the chain resolves. Both
+    // fail soft: a run recorded before v1.5 has neither, and saying so is a
+    // better answer than an empty box.
+    await showEvidence(runId);
+    await showTrace(runId);
   }
 
   $("btn-run-bin").onclick = () => {
@@ -2481,6 +2770,7 @@
       initPanel("err-scripts", t("panel_scripts"), loadScripts),
       initPanel("err-runs", t("panel_runs"), loadRuns),
       initPanel("err-camp", t("camp_title"), loadCampaigns),
+      initPanel("err-cov", t("cov_title"), loadCoverage),
     ]);
     if (!panels.every(Boolean)) {
       console.warn("ArgazUI: some panels failed to load; the rest of the page is live");

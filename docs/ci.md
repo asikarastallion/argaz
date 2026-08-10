@@ -39,6 +39,22 @@ starting an endless cycle:
   human editing the README should still run the tests, so the exemption is
   scoped to that one commit rather than to the file.
 
+## Coverage is generated with the status table
+
+`python3 -m argazui status` writes `docs/coverage.md` beside `docs/status.md`,
+from the same collection of runs. Two passes over the runs could produce two
+answers, and the status table's *What was NOT tested* summary and the coverage
+report's full lists have to agree — so there is one pass.
+
+`python3 -m argazui coverage` regenerates the coverage document alone. Its exit
+code is always `0`: coverage is a measurement, not a gate. Turning an uncovered
+procedure into a red build would make the honest thing to do — declaring a
+procedure before it can be flown — the thing that breaks CI.
+
+`python3 -m argazui trace runs/<id>` **is** a gate, and exits 1 when a link in
+the chain does not resolve. A traceability scheme nobody verifies degrades
+silently.
+
 ## Adding a regression gate
 
 `argazui compare` is built for this: exit `0` for no regression, `1` for a

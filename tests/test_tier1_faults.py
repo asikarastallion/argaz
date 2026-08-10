@@ -136,7 +136,12 @@ def test_the_run_record_carries_the_scenario_and_its_fault(request, runs_root):
     vehicle.recorder.finish(report=False)
     stored = read_result(vehicle.recorder)
 
-    assert stored["schema"] == 4
+    from argazui.runs import RESULT_SCHEMA
+    assert stored["schema"] == RESULT_SCHEMA
+    # The run says what it was for, so the fault's evidence has a chain to hang
+    # off — see docs/traceability.md.
+    assert stored["test_id"] == request.node.nodeid
+
     recorded = stored["procedures"][0]["result"]["faults"]
     assert recorded and recorded[0]["id"] == "gps_off_in_hover"
     assert recorded[0]["fault"] == faults.GPS_LOSS

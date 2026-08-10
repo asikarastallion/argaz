@@ -52,12 +52,12 @@ class Iteration:
     """
 
     def __init__(self, definition: campaign.Definition, index: int,
-                 runs_root, work_root) -> None:
+                 runs_root, work_root, test_id: str = "") -> None:
         self.recorder = RunRecorder(
             model=QUAD, root=runs_root,
             work_dir=work_root / f"campaign_{index}",
             launch_commands=[f"# pytest campaign {definition.id} run {index}"],
-            campaign=definition.stamp(index))
+            campaign=definition.stamp(index), test_id=test_id)
         try:
             self.sitl = sitl_mod.start(QUAD["vehicle"], QUAD["frame"],
                                        work_root / f"campaign_{index}")
@@ -110,7 +110,8 @@ def test_a_two_run_campaign_produces_two_independent_runs(request, runs_root):
     live: list[Iteration] = []
 
     def launch(index: int) -> Iteration:
-        iteration = Iteration(definition, index, runs_root, work_root)
+        iteration = Iteration(definition, index, runs_root, work_root,
+                              test_id=request.node.nodeid)
         live.append(iteration)
         return iteration
 

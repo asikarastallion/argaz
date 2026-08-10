@@ -9,6 +9,8 @@
             --baseline runs/20260802T120000Z_skywalker_x8
     python3 -m argazui campaign                     # list repeatability campaigns
     python3 -m argazui campaign 20260810T124500Z_iris.copter_takeoff
+    python3 -m argazui coverage                     # what is declared and unrun
+    python3 -m argazui trace runs/<run>             # intent -> evidence -> verdict
 """
 import argparse
 import json
@@ -23,12 +25,13 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="ArgazUI — ArduPilot SITL + Gazebo control panel")
     ap.add_argument("command", nargs="?",
                     choices=("serve", "doctor", "runs", "report", "status",
-                             "compare", "campaign"),
+                             "compare", "campaign", "coverage", "trace"),
                     default="serve")
     ap.add_argument("target", nargs="?",
                     help="report: a run directory or a .BIN dataflash log; "
                          "compare: the current run directory; "
-                         "campaign: a campaign id (omit to list them)")
+                         "campaign: a campaign id (omit to list them); "
+                         "trace: a run directory")
     ap.add_argument("--argaz-root", help="simulation root (overrides ARGAZ_ROOT / argaz.toml)")
     ap.add_argument("--ardupilot-root", help="ArduPilot root")
     ap.add_argument("--sitl-models-root", help="SITL_Models root")
@@ -84,6 +87,12 @@ def main(argv=None) -> int:
 
     if args.command == "campaign":
         return _campaign(args.target, args.as_json, args.runs, args.out)
+
+    if args.command == "coverage":
+        return _coverage(args.as_json, args.runs, args.out)
+
+    if args.command == "trace":
+        return _trace(args.target, args.as_json)
 
     if args.command == "status":
         from pathlib import Path
@@ -320,6 +329,117 @@ def _campaign(target: Optional[str], as_json: bool, roots: Optional[list],
     counts = document["counts"]
     unclean = counts["failed"] + counts["flaky"] + counts["incomplete"]
     return 1 if unclean else 0
+
+
+def _coverage(as_json: bool, roots: Optional[list], out: Optional[str]) -> int:
+    """`argazui coverage` — what is declared, what was run, and what was not.
+
+    Exit 0 always. Coverage is a measurement, not a gate: a project with an
+    uncovered procedure has a gap, and turning that into a red build would
+    make the honest thing to do — declaring a procedure before it can be flown
+    — the thing that breaks CI.
+    """
+    from . import coverage as coveragelib
+
+    roots = [Path(r) for r in (roots or [paths.RUNS_DIR])]
+    document = coveragelib.collect(roots)
+    target = Path(out) if out else (paths.ARGAZ / "docs" / "coverage.md")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(coveragelib.render(document), encoding="utf-8")
+
+    if as_json:
+        print(json.dumps(document, indent=2, ensure_ascii=False))
+    else:
+        print(coveragelib.render(document))
+    uncovered = sum(len(d["uncovered"]) for d in document["dimensions"])
+    print(f"wrote {target} — {uncovered} declared item(s) not covered by any "
+          f"run under {', '.join(str(r) for r in roots)}", file=sys.stderr)
+    return 0
+
+
+def _trace(target: Optional[str], as_json: bool) -> int:
+    """`argazui trace <run>` — the chain from intent to evidence, and its gaps.
+
+    EXIT CODES
+    ----------
+        0  every link resolves
+        1  the chain has a problem — a dangling reference, a duplicate id, an
+           artefact the chain names and the manifest does not list
+        2  the run could not be read
+
+    1 rather than 0 for a broken chain because this is meant for CI: a
+    traceability scheme nobody verifies degrades silently, and every one of the
+    problems it reports still renders a table that looks right.
+    """
+    from . import evidence as evidencelib
+    from . import trace as tracelib
+    from .runs import list_runs, run_dir
+
+    if not target:
+        recent = list_runs(limit=1)
+        if not recent:
+            print(f"ERROR: no runs recorded yet under {paths.RUNS_DIR}.",
+                  file=sys.stderr)
+            return 2
+        target = recent[0]["dir"]
+        print(f"No run given; using the most recent: {recent[0]['run_id']}",
+              file=sys.stderr)
+
+    directory = Path(target).expanduser()
+    path = directory / "result.json"
+    if not path.is_file():
+        print(f"ERROR: {directory} has no result.json.", file=sys.stderr)
+        return 2
+    try:
+        result = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"ERROR: {path} could not be read: {exc}", file=sys.stderr)
+        return 2
+
+    chain = tracelib.chain(result)
+    problems = tracelib.integrity(result, chain)
+    problems += [{"problem": item["problem"], "subject": item["artefact"],
+                  "detail": item["detail"]}
+                 for item in evidencelib.problems(evidencelib.read(directory))]
+
+    if as_json:
+        print(json.dumps({"chain": chain, "problems": problems}, indent=2,
+                         ensure_ascii=False))
+    else:
+        print(f"run       {chain['run_id']}")
+        print(f"intent    {chain['test_id']}")
+        print(f"model     {chain['model_id']}")
+        print(f"verdict   {chain['verdict']}")
+        for procedure in chain["procedures"]:
+            print(f"\n  procedure {procedure['procedure_id']} "
+                  f"-> {procedure['verdict']}")
+            for step in procedure["steps"]:
+                print(f"    step      {step['step_id']:<40s} {step['status']}")
+            for criterion in procedure["criteria"]:
+                mark = ("passed" if criterion["passed"]
+                        else "failed" if criterion["evaluated"]
+                        else "not evaluated")
+                print(f"    criterion {criterion['criterion_id']:<40s} {mark}")
+            for fault in procedure["faults"]:
+                print(f"    fault     {fault['fault_id']:<40s} "
+                      f"{'passed' if fault['passed'] else 'failed'}")
+        for metric in chain["metrics"]:
+            state = "measured" if metric["measured"] else "not measured"
+            print(f"  metric    {metric['metric_id']:<42s} {state}")
+        print(f"\n  evidence  {len(chain['evidence'])} artefact(s) present")
+        derived = tracelib.derived_ids(chain)
+        if derived:
+            print(f"\n  {len(derived)} identifier(s) derived from position "
+                  f"rather than declared: {', '.join(derived[:6])}"
+                  + (" …" if len(derived) > 6 else ""))
+        if problems:
+            print(f"\n{len(problems)} problem(s):")
+            for item in problems:
+                print(f"  - {item['problem']}: {item['subject']} — "
+                      f"{item['detail']}")
+        else:
+            print("\nEvery link in the chain resolves.")
+    return 1 if problems else 0
 
 
 def _make_report(target: str, as_json: bool) -> int:

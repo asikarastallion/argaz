@@ -6,7 +6,7 @@
 #     autopilot itself falls back to on a failsafe during a VTOL takeoff.
 #   ardupilot/ArduPlane/mode_qland.cpp and quadplane.cpp
 #     the automatic disarm after touchdown is delayed by LAND_DISARMDELAY.
-schema: 1
+schema: 4
 id: vtol_land
 name:
   en: VTOL landing (QLAND)
@@ -50,7 +50,9 @@ steps:
     timeout: 330
 
 expect:
-  - condition: {armed: false}
+  - id: disarmed
+    condition: {armed: false}
     message: {en: disarmed after landing, tr: inisten sonra disarm oldu}
-  - condition: {alt_below: 3.0}
+  - id: on-ground
+    condition: {alt_below: 3.0}
     message: {en: on the ground, tr: yerde}

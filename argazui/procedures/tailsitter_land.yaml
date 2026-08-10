@@ -10,7 +10,7 @@
 #   https://ardupilot.org/plane/docs/guide-tailsitter.html
 #   https://ardupilot.org/plane/docs/quadplane-flying.html
 #     QLAND is "an automatic descent to ground level".
-schema: 1
+schema: 4
 id: tailsitter_land
 name:
   en: Tailsitter landing (QLAND)
@@ -52,7 +52,9 @@ steps:
     timeout: 330
 
 expect:
-  - condition: {armed: false}
+  - id: disarmed
+    condition: {armed: false}
     message: {en: disarmed after landing, tr: inisten sonra disarm oldu}
-  - condition: {alt_below: 3.0}
+  - id: on-ground
+    condition: {alt_below: 3.0}
     message: {en: on the ground, tr: yerde}

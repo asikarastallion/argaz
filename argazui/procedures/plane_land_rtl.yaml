@@ -12,7 +12,7 @@
 # Sources:
 #   https://ardupilot.org/plane/docs/rtl-mode.html
 #   ardupilot/ArduPlane/mode_rtl.cpp
-schema: 1
+schema: 4
 id: plane_land_rtl
 name:
   en: Plane return (RTL — does not land)
@@ -47,9 +47,11 @@ steps:
     sleep: 20
 
 expect:
-  - condition: {mode: RTL}
+  - id: mode-rtl
+    condition: {mode: RTL}
     message: {en: in RTL, returning home, tr: RTL modunda, eve donuyor}
-  - condition: {armed: true}
+  - id: still-flying
+    condition: {armed: true}
     message:
       en: still armed and flying — RTL does not land a fixed wing
       tr: hala armli ve ucuyor — RTL sabit kanadi indirmez

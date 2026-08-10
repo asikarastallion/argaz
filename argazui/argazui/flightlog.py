@@ -44,8 +44,16 @@ from typing import Any, Optional
 from pymavlink import mavutil
 from pymavlink.DFReader import DFReader_binary
 
-from . import fingerprint, metrics
+from . import evidence, fingerprint, metrics, trace
 from .versions import build_id
+
+# 2 (v1.3): adds `metrics` and `fingerprint`. Readers of schema 1 keep working
+#   — nothing that existed then has moved or changed meaning.
+# 3 (v1.5): the markdown was restructured into the ten reviewer-oriented
+#   sections and gained a non-claims section. `report.json` itself only gained
+#   fields, but the number moves because the document a person reads is a
+#   different shape and `evidence.json` names this schema as its producer's.
+REPORT_SCHEMA = 3
 
 # ArduPilot libraries/AP_Logger/AP_Logger.h, enum class LogEvent.
 # Only the events that matter for a takeoff/landing report are named; an
@@ -426,56 +434,116 @@ def _fingerprint_rows(manifest: dict) -> list[str]:
 
 
 def _markdown(report: dict) -> str:
-    """Renders report.json as the human-readable report.md."""
+    """Renders report.json as the human-readable report.md.
+
+    THE ORDER IS THE POINT
+    ----------------------
+    The sections below are numbered and fixed, because a reviewer reading two
+    runs should not have to hunt for the same fact in two places. The order is
+    the order the questions are actually asked in:
+
+        1  Scope           what was this, and what was it for
+        2  Configuration   what was the aircraft in, and what was done to it
+        3  Procedure       what ran
+        4  Verdict         what it came to — and what did not change it
+        5  Failed criteria which claim did not hold
+        6  Metrics         the numbers, with no thresholds of their own
+        7  Evidence        is any of the above missing its proof
+        8  Environment     what produced the result
+        9  Regression      how it compares with a named baseline
+        10 Limitations     what none of it proves
+
+    Section 10 is not a disclaimer. It is the section a verification document
+    is least likely to contain and most needs: a reader who finishes this
+    report should know exactly how far its claims reach, without having to
+    infer it from what is absent.
+    """
     out: list[str] = []
     add = out.append
     meta = report.get("meta") or {}
 
     add(f"# Flight report — {meta.get('run_id') or report['log']['file']}")
     add("")
-    add(f"Generated {report['generated_utc']} by ArgazUI {meta.get('argazui_version', '?')}.")
+    add(f"Generated {report['generated_utc']} by ArgazUI "
+        f"{meta.get('argazui_version', '?')}.")
     add("")
 
-    # ------------------------------------------------------ what was changed
-    # This comes first, before any measurement. If the run reconfigured the
-    # aircraft, that has to be the first thing a reader sees — every number
-    # below was measured on a vehicle in this state, not a stock one.
+    # ------------------------------------------------------------- 1. Scope
+    add("## 1. Scope")
+    add("")
+    add("| | |")
+    add("|---|---|")
+    add(f"| Run | `{meta.get('run_id') or '—'}` |")
+    # What this run was FOR. `manual` is a real answer and the one that says
+    # no automated test asserts anything about what follows.
+    intent = meta.get("test_id") or trace.BY_HAND
+    add(f"| Test intent | `{intent}`"
+        + (" — flown by hand, so no test asserts this" if intent == trace.BY_HAND
+           else "") + " |")
+    if meta.get("model_name"):
+        add(f"| Model | {meta['model_name']} (`{meta.get('model_id', '')}`) |")
+    if meta.get("procedures"):
+        add("| Procedures | "
+            + ", ".join(f"`{p}`" for p in meta["procedures"]) + " |")
+    if meta.get("campaign_id"):
+        add(f"| Campaign | `{meta['campaign_id']}` |")
+    add(f"| Log | `{report['log']['file']}` "
+        f"({report['log']['size_bytes'] / 1e6:.1f} MB, "
+        f"{report['log']['seconds']:.1f} s) |")
+    add(f"| Armed time | {report['armed']['total_seconds']:.1f} s "
+        f"over {len(report['armed']['intervals'])} interval(s) |")
+    alt = report["altitude"]
+    add(f"| Maximum altitude | {alt.get('max', 0):.1f} m above home |" if alt
+        else "| Maximum altitude | not logged |")
+    add("")
+
+    # ----------------------------------------------------- 2. Configuration
+    # Before any measurement. If the run reconfigured the aircraft or broke
+    # something on purpose, that has to be the first thing a reader sees —
+    # every number below was measured on a vehicle in this state, not a stock
+    # one, and a reader who learns it at the bottom has already read the
+    # numbers as though it were a nominal flight.
+    add("## 2. Configuration")
+    add("")
+    add(f"Build: {report['build']['text']}")
+    add("")
     overrides = meta.get("overrides") or []
-    add("## Parameters this run changed")
+    add("### Parameters this run changed")
     add("")
     if not overrides:
-        add("None. The aircraft flew with exactly the configuration it booted with.")
+        add("None. The aircraft flew with exactly the configuration it booted "
+            "with.")
     else:
         add("| Parameter | Set to | Was | Restored | Why |")
         add("|---|---:|---:|---|---|")
         for item in overrides:
-            restored = {True: "yes", False: "**NO**", None: "n/a"}[item.get("restored")]
+            restored = {True: "yes", False: "**NO**",
+                        None: "n/a"}[item.get("restored")]
             was = item.get("restore_to")
             add(f"| `{item['param']}` | {_num(item.get('set_to'))} | {_num(was)} "
                 f"| {restored} | {item.get('reason') or '—'} |")
         if any(item.get("restored") is False for item in overrides):
             add("")
-            add("**A restore failed.** The vehicle is still configured with a value "
-                "this run wrote. Upstream `.param` files are untouched, but the "
-                "running instance is not in the state it started in.")
+            add("**A restore failed.** The vehicle is still configured with a "
+                "value this run wrote. Upstream `.param` files are untouched, "
+                "but the running instance is not in the state it started in.")
     add("")
 
-    # ----------------------------------------------------- what was injected
-    # Second, and for the same reason as the overrides above: every
-    # measurement below was taken on an aircraft something was deliberately
-    # done to, and a reader who learns that at the bottom has already read the
-    # numbers as though it were a nominal flight.
     injected = meta.get("faults") or []
-    if injected:
-        add("## Faults this run injected")
+    add("### Faults this run injected")
+    add("")
+    if not injected:
+        add("None. This was a nominal run.")
         add("")
+    else:
         add("This was an **off-nominal** run. Each fault below was declared in "
             "the procedure, applied to the simulator, held, and cleared.")
         add("")
         add("| Fault | Target | Mechanism | Held | Cleared | Criteria |")
         add("|---|---|---|---:|---|---|")
         for item in injected:
-            cleared = {True: "yes", False: "**NO**", None: "n/a"}.get(item.get("cleared"))
+            cleared = {True: "yes", False: "**NO**",
+                       None: "n/a"}.get(item.get("cleared"))
             criteria = "**not judged**" if item.get("evidence_missing") else (
                 "passed" if item.get("passed") else "**failed**")
             add(f"| `{item.get('id')}`<br><sub>{item.get('fault')}</sub> "
@@ -488,58 +556,32 @@ def _markdown(report: dict) -> str:
                 "what it says.")
         add("")
 
-    # ------------------------------------------------------- why it did not pass
-    failure = meta.get("failure")
-    if failure:
-        add("## Why this run did not pass")
-        add("")
-        add(f"**{failure.get('category')}** — `{failure.get('code')}`")
-        add("")
-        add(f"{failure.get('detail') or 'no detail recorded'}")
-        add("")
-        add(f"Recorded at `{failure.get('source') or '—'}`"
-            + (f" in `{failure['procedure']}`" if failure.get("procedure") else "")
-            + ". See docs/failure-classification.md for what this category "
-              "means and what to look at first.")
-        add("")
-
-    add("## Flight")
+    # --------------------------------------------------------- 3. Procedure
+    add("## 3. Procedure")
     add("")
-    add("| | |")
-    add("|---|---|")
-    if meta.get("model_name"):
-        add(f"| Model | {meta['model_name']} (`{meta.get('model_id', '')}`) |")
-    if meta.get("procedures"):
-        add(f"| Procedures | {', '.join(meta['procedures'])} |")
-    add(f"| Build | {report['build']['text']} |")
-    add(f"| Log | `{report['log']['file']}` ({report['log']['size_bytes'] / 1e6:.1f} MB) |")
-    add(f"| Log duration | {report['log']['seconds']:.1f} s |")
-    add(f"| Armed time | {report['armed']['total_seconds']:.1f} s "
-        f"over {len(report['armed']['intervals'])} interval(s) |")
-    alt = report["altitude"]
-    add(f"| Maximum altitude | {alt.get('max', 0):.1f} m above home |" if alt
-        else "| Maximum altitude | not logged |")
-    add("")
-
-    advisories = report["advisories"]
-    add("## Advisories")
-    add("")
-    add("*Advisories never fail a run.* Whether the flight did what it was asked "
-        "is decided by the procedure's acceptance criteria in `result.json`; "
-        "these are health measurements that crossed a threshold worth a look.")
-    add("")
-    if advisories:
-        add(f"{len(advisories)} item(s) flagged:")
+    steps = meta.get("steps") or []
+    if steps:
+        add("Every step carries the identifier it is referred to by elsewhere "
+            "— see [traceability](../../docs/traceability.md).")
         add("")
-        for item in advisories:
-            add(f"- **{item['what']}** (`{item['code']}`) — {item['detail']} "
-                f"(threshold {item['threshold']}, source: {item['source']})")
+        add("| Step | Id | Outcome | Took | What was seen |")
+        add("|---|---|---|---:|---|")
+        for step in steps:
+            mark = {"passed": "passed", "failed": "**failed**",
+                    "skipped": "*skipped*"}.get(step.get("status"),
+                                                step.get("status", "?"))
+            add(f"| {step.get('label') or step.get('kind')} "
+                f"| `{step.get('step_id') or '—'}` | {mark} "
+                f"| {step.get('seconds', 0):.1f} s "
+                f"| {(step.get('text') or '—')[:160]} |")
+        add("")
     else:
-        add("None. Vibration, EKF innovation test ratios, attitude tracking and "
-            "battery stayed inside the limits listed under *Thresholds* below.")
-    add("")
+        add("No procedure ran during this session. The model was started and "
+            "stopped, so there is a log and a parameter set, but nothing was "
+            "asserted and nothing can have passed or failed.")
+        add("")
 
-    add("## Mode timeline")
+    add("### Mode timeline")
     add("")
     if report["modes"]:
         add("| t (s) | mode | reason code |")
@@ -550,7 +592,7 @@ def _markdown(report: dict) -> str:
         add("No MODE records in this log.")
     add("")
 
-    add("## Arm / disarm")
+    add("### Arm / disarm")
     add("")
     if report["armed"]["intervals"]:
         add("| armed at (s) | disarmed at (s) | duration (s) | |")
@@ -567,13 +609,91 @@ def _markdown(report: dict) -> str:
         add("The vehicle never armed in this log.")
     add("")
 
-    add("## Measurements")
+    # ----------------------------------------------------------- 4. Verdict
+    add("## 4. Verdict")
+    add("")
+    status = meta.get("status")
+    add(f"**{str(status or 'unknown').upper()}**"
+        + (" — every acceptance criterion of every procedure held."
+           if status == "passed" else ""))
+    add("")
+    failure = meta.get("failure")
+    if failure:
+        add(f"Category **{failure.get('category')}**, code "
+            f"`{failure.get('code')}`.")
+        add("")
+        add(f"{failure.get('detail') or 'no detail recorded'}")
+        add("")
+        add(f"Recorded at `{failure.get('source') or '—'}`"
+            + (f" in `{failure['procedure']}`" if failure.get("procedure") else "")
+            + ". Only the `acceptance` category is a verdict about the "
+              "aircraft; see "
+              "[failure-classification.md](../../docs/failure-classification.md).")
+        add("")
+
+    advisories = report["advisories"]
+    add("### Advisories — these did not change the verdict")
+    add("")
+    add("*Advisories never fail a run.* Whether the flight did what it was "
+        "asked is decided by the procedure's acceptance criteria above; these "
+        "are health measurements that crossed a threshold worth a look.")
+    add("")
+    if advisories:
+        add(f"{len(advisories)} item(s) flagged:")
+        add("")
+        for item in advisories:
+            add(f"- **{item['what']}** (`{item['code']}`) — {item['detail']} "
+                f"(threshold {item['threshold']}, source: {item['source']})")
+    else:
+        add("None. Vibration, EKF innovation test ratios, attitude tracking "
+            "and battery stayed inside the limits listed under *Thresholds* "
+            "below.")
+    add("")
+
+    # ---------------------------------------------------- 5. Failed criteria
+    add("## 5. Failed criteria")
+    add("")
+    criteria = meta.get("criteria") or []
+    failed = [c for c in criteria if not c.get("passed")]
+    if not criteria:
+        add("No acceptance criteria were recorded for this run.")
+    elif not failed:
+        add(f"None. All {len(criteria)} declared criteria held.")
+    else:
+        add(f"{len(failed)} of {len(criteria)} declared criteria did not hold.")
+        add("")
+        add("| Criterion | Id | Shape | What was measured |")
+        add("|---|---|---|---|")
+        for item in failed:
+            shape = item.get("kind", "eventually")
+            if item.get("duration"):
+                shape = f"{shape} {item['duration']:g}s"
+            add(f"| {item.get('label') or '—'} "
+                f"| `{item.get('criterion_id') or '—'}` | {shape} "
+                f"| {(item.get('text') or '—')[:200]} |")
+    add("")
+    if criteria:
+        add("A criterion reported as *not judged* is neither a pass nor a "
+            "failure of the aircraft: it means the telemetry it rests on never "
+            "arrived, and nothing was measured.")
+        add("")
+
+    # ------------------------------------------------ 6. Quantitative metrics
+    add("## 6. Quantitative metrics")
+    add("")
+    add("*Metrics are measurements, not criteria.* Nothing here has a "
+        "threshold on its own and nothing here can fail a run; they exist to "
+        "be compared against a baseline (see `regression.json`) and to give "
+        "the flight numbers a later run can be held to.")
+    add("")
+
+    add("### Measurements from the log")
     add("")
     add("| Quantity | Value |")
     add("|---|---|")
     if alt:
-        add(f"| Altitude above home | max {alt['max']:.1f} m, min {alt['min']:.1f} m, "
-            f"mean {alt['mean']:.1f} m |")
+        add(f"| Altitude above home | max {alt['max']:.1f} m, "
+            f"min {alt['min']:.1f} m, mean {alt['mean']:.1f} m |")
     att = report["attitude_error"]
     if att:
         add(f"| Roll error (desired − actual) | max {att['roll_max']:.1f}°, "
@@ -583,7 +703,8 @@ def _markdown(report: dict) -> str:
     vibe = report["vibration"]
     if vibe:
         add(f"| Vibration | X {vibe['x_max']:.1f}, Y {vibe['y_max']:.1f}, "
-            f"Z {vibe['z_max']:.1f} m/s/s peak; {vibe['clip_total']} clipping event(s) |")
+            f"Z {vibe['z_max']:.1f} m/s/s peak; {vibe['clip_total']} clipping "
+            f"event(s) |")
     ekf = report["ekf"]
     if ekf:
         add(f"| EKF test ratios (peak) | velocity {ekf['sv_max']:.2f}, "
@@ -592,32 +713,24 @@ def _markdown(report: dict) -> str:
     bat = report["battery"]
     if bat:
         add(f"| Battery | {bat['volt_start']:.2f} V → {bat['volt_end']:.2f} V "
-            f"(min {bat['volt_min']:.2f} V), {bat['consumed_mah']:.0f} mAh consumed |")
+            f"(min {bat['volt_min']:.2f} V), {bat['consumed_mah']:.0f} mAh "
+            f"consumed |")
     add("")
 
-    # ------------------------------------------------------------- metrics
-    # After the measurements, before the parameter summary: these are derived
-    # numbers, and the raw quantities they come from should already have been
-    # read. Kept plainly apart from the advisories above, because one of the
-    # two has thresholds and the other deliberately does not.
-    add("## Metrics")
-    add("")
-    add("*Metrics are measurements, not criteria.* Nothing here has a "
-        "threshold on its own and nothing here can fail a run; they exist to "
-        "be compared against a baseline (see `regression.json`) and to give "
-        "the flight numbers a later run can be held to.")
+    add("### Metrics")
     add("")
     flight_metrics = report.get("metrics") or []
     if flight_metrics:
-        add("| Metric | Value | Unit | Scope | Derived from |")
-        add("|---|---:|---|---|---|")
+        add("| Metric | Id | Value | Unit | Derived from |")
+        add("|---|---|---:|---|---|")
         for item in flight_metrics:
             value = ("—" if item.get("value") is None
                      else f"{float(item['value']):.3g}")
-            scope = item.get("procedure") or item.get("scope", "run")
             note = item.get("detail") or ""
-            add(f"| {metrics.label_for(item['key'])} <br><sub>`{item['key']}`</sub> "
-                f"| {value} | {item.get('unit', '')} | `{scope}` "
+            identity = (item.get("metric_id") or item.get("identity")
+                        or item.get("key"))
+            add(f"| {metrics.label_for(item['key'])} | `{identity}` "
+                f"| {value} | {item.get('unit', '')} "
                 f"| {item.get('source', '')}"
                 + (f" <br><sub>{note}</sub>" if note else "") + " |")
         unmeasured = [i for i in flight_metrics if i.get("value") is None]
@@ -631,60 +744,32 @@ def _markdown(report: dict) -> str:
         add("No metrics were computed for this log.")
     add("")
 
-    # --------------------------------------------------- environment fingerprint
-    fingerprint = report.get("fingerprint") or {}
-    if fingerprint:
-        add("## Environment")
-        add("")
-        add("Everything needed to say what produced this result. A component "
-            "that could not be determined is recorded as unknown *with a "
-            "reason* — it is never guessed and never quietly dropped.")
-        add("")
-        add("| | |")
-        add("|---|---|")
-        for line in _fingerprint_rows(fingerprint):
-            add(line)
-        unknown = fingerprint.get("unknown") or []
-        if unknown:
-            add("")
-            add(f"{len(unknown)} field(s) could not be determined:")
-            add("")
-            for item in unknown:
-                add(f"- `{item.get('field')}` — {item.get('reason')}")
-        add("")
-
-    params = report.get("params") or {}
-    if params:
-        add("## Parameters")
-        add("")
-        add(f"{params['non_default']} of {params['total']} parameters differ from the "
-            f"firmware default — see [`{params['files']['diff']}`]"
-            f"({params['files']['diff']}). The complete set is in "
-            f"[`{params['files']['full']}`]({params['files']['full']}).")
-        add("")
-
     if report["notable_messages"]:
-        add("## Autopilot messages worth reading")
+        add("### Autopilot messages worth reading")
         add("")
         for message in report["notable_messages"]:
             add(f"- `{message['t']:.1f}s` {message['text']}")
         add("")
 
     if report["plots"]:
-        add("## Plots")
+        add("### Plots")
         add("")
         for plot in report["plots"]:
             add(f"![{Path(plot).stem}]({plot})")
             add("")
     else:
-        add("## Plots")
+        add("### Plots")
         add("")
-        add("No plots were produced — matplotlib is not installed in the interpreter "
-            "that generated this report. It is an optional dependency; everything "
-            "above comes from the log itself.")
+        add("No plots were produced — matplotlib is not installed in the "
+            "interpreter that generated this report. It is an optional "
+            "dependency; everything above comes from the log itself.")
         add("")
 
-    add("## Thresholds")
+    add("### Thresholds")
+    add("")
+    add("These belong to the advisories in section 4, not to the metrics "
+        "above. A metric has no threshold until it is compared with a "
+        "baseline.")
     add("")
     add("| Quantity | Threshold | Source |")
     add("|---|---:|---|")
@@ -696,6 +781,77 @@ def _markdown(report: dict) -> str:
         "ArgazUI review trigger, not an ArduPilot limit |")
     add("")
 
+    # -------------------------------------------------- 7. Evidence manifest
+    add("## 7. Evidence manifest")
+    add("")
+    manifest = meta.get("evidence") or {}
+    if manifest.get("artefacts"):
+        for line in evidence.render(manifest):
+            add(line)
+    else:
+        add("No evidence manifest was available when this report was written. "
+            "It is captured after the report completes; regenerate with "
+            "`python3 -m argazui report <run>` to produce one.")
+        add("")
+
+    params = report.get("params") or {}
+    if params:
+        add(f"{params['non_default']} of {params['total']} parameters differ "
+            f"from the firmware default — see [`{params['files']['diff']}`]"
+            f"({params['files']['diff']}). The complete set is in "
+            f"[`{params['files']['full']}`]({params['files']['full']}).")
+        add("")
+
+    # ------------------------------------------------------- 8. Environment
+    add("## 8. Environment")
+    add("")
+    fingerprint_doc = report.get("fingerprint") or {}
+    if fingerprint_doc:
+        add("Everything needed to say what produced this result. A component "
+            "that could not be determined is recorded as unknown *with a "
+            "reason* — it is never guessed and never quietly dropped.")
+        add("")
+        add("| | |")
+        add("|---|---|")
+        for line in _fingerprint_rows(fingerprint_doc):
+            add(line)
+        unknown = fingerprint_doc.get("unknown") or []
+        if unknown:
+            add("")
+            add(f"{len(unknown)} field(s) could not be determined:")
+            add("")
+            for item in unknown:
+                add(f"- `{item.get('field')}` — {item.get('reason')}")
+        add("")
+    else:
+        add("No environment fingerprint was recorded for this run.")
+        add("")
+
+    # ------------------------------------------------ 9. Regression comparison
+    add("## 9. Regression comparison")
+    add("")
+    comparison = meta.get("regression") or {}
+    if comparison:
+        add(f"Compared against `{(comparison.get('baseline') or {}).get('run_id')}`: "
+            f"**{comparison.get('verdict')}**. "
+            f"See `regression.md` beside this file for the full table.")
+        if comparison.get("degraded"):
+            add("")
+            add("Degraded past threshold: "
+                + ", ".join(f"`{item}`" for item in comparison["degraded"]) + ".")
+    else:
+        add("This run has not been compared against a baseline. Run "
+            "`python3 -m argazui compare <run> --baseline <run>` to produce "
+            "one; a comparison across a different model, procedure, ArduPilot "
+            "commit or firmware is refused unless asked for explicitly.")
+    add("")
+
+    # ------------------------------------------------------- 10. Limitations
+    add("## 10. Limitations and non-claims")
+    add("")
+    for line in _non_claims(report, meta):
+        add(line)
+
     add("## Open this log yourself")
     add("")
     add("```")
@@ -703,6 +859,74 @@ def _markdown(report: dict) -> str:
     add("```")
     add("")
     return "\n".join(out)
+
+
+def _non_claims(report: dict, meta: dict) -> list[str]:
+    """What this run does NOT prove — stated, not left to be inferred.
+
+    WHY A VERIFICATION DOCUMENT NEEDS THIS SECTION
+    ----------------------------------------------
+    A reader who finishes a green report and is not told where its claims stop
+    will decide for themselves, and they will decide generously — that is what
+    a page of passing checks is for. The limits below are the ones that apply
+    to every run this tool produces, plus the ones that apply to this one, and
+    they are written out because "the report did not say otherwise" is how an
+    unearned claim gets made by somebody who never intended to make one.
+    """
+    lines: list[str] = [
+        "This run is **verification**, not validation: it shows the "
+        "implementation met criteria somebody declared. It does not show the "
+        "criteria, the model or the scenario are representative of the "
+        "behaviour anyone actually cares about. See "
+        "[verification-vs-validation.md](../../docs/verification-vs-validation.md).",
+        "",
+        "Specifically, this report does not claim:",
+        "",
+        "- **that the aircraft would behave this way in the air.** Everything "
+        "here happened in a simulator. No dynamics model, however good, is "
+        "evidence about hardware.",
+        "- **that anything not listed above was checked.** The criteria in "
+        "section 5 are the whole of what was asserted; nothing else in the "
+        "flight was judged, only recorded.",
+        "- **that this result would repeat.** One run is one run. See "
+        "[campaigns.md](../../docs/campaigns.md) for the layer that can say "
+        "anything about repeatability.",
+    ]
+
+    if not (meta.get("procedures") or []):
+        lines.append(
+            "- **anything at all about the aircraft.** No procedure ran during "
+            "this session, so nothing was asserted and nothing passed.")
+
+    intent = meta.get("test_id")
+    if not intent or intent == trace.BY_HAND:
+        lines.append(
+            "- **that any automated test covers this.** The run was flown by "
+            "hand, so no test in this repository asserts what it shows.")
+
+    if not report.get("plots"):
+        lines.append(
+            "- **anything about the figures.** None were produced; matplotlib "
+            "is not installed in the interpreter that wrote this report.")
+
+    manifest = meta.get("evidence") or {}
+    if manifest and not manifest.get("complete"):
+        lines.append(
+            "- **that the evidence above is complete.** "
+            + ", ".join(f"`{name}`" for name in
+                        (manifest.get("missing_required") or []))
+            + " is missing — see section 7.")
+
+    unknown = (report.get("fingerprint") or {}).get("unknown") or []
+    if unknown:
+        lines.append(
+            f"- **that this run can be reproduced exactly.** "
+            f"{len(unknown)} field(s) of the environment fingerprint could not "
+            f"be determined, so a later run cannot be shown to have matched "
+            f"them.")
+
+    lines.append("")
+    return lines
 
 
 def analyse(bin_path: Path, out_dir: Optional[Path] = None,
@@ -860,9 +1084,7 @@ def analyse(bin_path: Path, out_dir: Optional[Path] = None,
         context=(meta or {}).get("metrics_context"))
 
     report = {
-        # 2: adds `metrics` and `fingerprint`. Readers of schema 1 keep
-        # working — nothing that existed then has moved or changed meaning.
-        "schema": 2,
+        "schema": REPORT_SCHEMA,
         "generated_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "meta": meta or {},
         "log": {
@@ -905,6 +1127,34 @@ def analyse(bin_path: Path, out_dir: Optional[Path] = None,
                   json.dumps(report, indent=2, ensure_ascii=False) + "\n")
     _write_atomic(out_dir / "report.md", _markdown(report))
     return report
+
+
+def refresh_evidence(directory: Path, embedded: dict) -> bool:
+    """Rewrites a stored report with a fresh evidence manifest. True if it did.
+
+    WHY THE REPORT HAS TO BE WRITTEN TWICE
+    --------------------------------------
+    The report is itself one of the artefacts the manifest lists, along with
+    the parameter dumps and the plots it produces. A manifest taken before it
+    runs describes a run that had not finished being written, and one taken
+    after cannot be inside the document it describes. So the report is written,
+    the manifest is taken, and section 7 is filled in — and the manifest is
+    then taken once more so its digests cover the final files.
+
+    Nothing embedded here carries a hash (see `evidence.for_report`), so the
+    two captures embed identical content and the second pass changes only the
+    digests in `evidence.json` — which is where they belong.
+    """
+    directory = Path(directory)
+    path = directory / "report.json"
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    report.setdefault("meta", {})["evidence"] = embedded
+    _write_atomic(path, json.dumps(report, indent=2, ensure_ascii=False) + "\n")
+    _write_atomic(directory / "report.md", _markdown(report))
+    return True
 
 
 def _write_atomic(path: Path, text: str) -> None:

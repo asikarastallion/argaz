@@ -140,6 +140,18 @@
     <div id="camp-detail" class="cmp" hidden></div>
   </section>
 
+  <!-- -------------------------------------------------------- coverage (v1.5) -->
+  <!-- What this project declares and has never run. The uncovered lists are
+       the payload; a percentage on its own invites a reader to stop. -->
+  <section class="panel" id="cov-panel">
+    <h2><span data-i18n="cov_title">Coverage</span>
+        <button class="btn link" id="btn-cov-refresh" data-i18n="btn_refresh">⟳ refresh</button></h2>
+    <p class="hint" data-i18n="cov_hint"></p>
+    <div class="runs-wrap"><table class="runs" id="cov-table"><tbody></tbody></table></div>
+    <div id="cov-detail" class="cmp" hidden></div>
+    <p class="panel-error" id="err-cov" hidden></p>
+  </section>
+
   <!-- -------------------------------------------------------------- run list -->
   <!-- Every START..STOP leaves a directory under runs/. This panel is a
        reader for those directories: nothing here changes a run. -->
@@ -316,6 +328,33 @@
                 wrong.</td></tr>
       </table>
 
+      <h3>Following a claim, and what was never run</h3>
+      <table class="tbl">
+        <tr><th>Traceability</th>
+            <td>Every link from a test's intent to its verdict has a name:
+                intent → procedure → step → criterion → metric → run → artefact
+                → verdict. The run sheet shows the chain and flags any link
+                that does not resolve. A run flown by hand carries
+                <code>manual</code> as its intent — which says no test asserts
+                what it shows.</td></tr>
+        <tr><th>Evidence manifest</th>
+            <td>Each run records what it was <b>expected</b> to leave behind and
+                what it did. A missing <b>required</b> artefact fails the run on
+                its evidence. A missing optional one is fine — but only with a
+                stated reason, because "no plots because matplotlib is missing"
+                and "no plots" are different facts.</td></tr>
+        <tr><th>Coverage</th>
+            <td>What this project declares and has never run, across models,
+                procedures, acceptance criteria and faults. Deliberately not a
+                test count, and deliberately not a gate.</td></tr>
+        <tr><th>What a green run does not say</th>
+            <td>It is <b>verification</b>: the implementation met criteria
+                somebody here declared. It is not <b>validation</b> — nothing
+                here shows those were the right criteria, or that a real
+                aircraft would agree. The last section of every flight report
+                says so.</td></tr>
+      </table>
+
       <p class="note">For more detail (adding models, buttons and scripts,
         troubleshooting) see <code>argazui/USAGE.md</code> in the project folder.</p>
     </div>
@@ -418,6 +457,34 @@
                 Yalnızca <b>kabul kriteri</b> araç hakkında bir ifadedir;
                 diğerleri simülasyonun, araçların ya da kanıtın bozulduğunu
                 söyler.</td></tr>
+      </table>
+
+      <h3>Bir iddiayı izlemek ve hiç koşulmayanlar</h3>
+      <table class="tbl">
+        <tr><th>İzlenebilirlik</th>
+            <td>Bir testin amacından hükmüne kadar her bağın bir adı var:
+                amaç → prosedür → adım → kriter → metrik → koşu → artefakt →
+                hüküm. Koşu sayfası zinciri gösterir ve çözülmeyen bağları
+                işaretler. Elle uçurulan bir koşunun amacı
+                <code>manual</code>'dır; bu, gösterdiğini iddia eden bir test
+                olmadığını söyler.</td></tr>
+        <tr><th>Kanıt listesi</th>
+            <td>Her koşu, geriye <b>bırakması beklenen</b> şeyleri ve ne
+                bıraktığını kaydeder. <b>Gereken</b> bir artefaktın eksikliği
+                koşuyu kanıtı üzerinden düşürür. İsteğe bağlı birinin eksikliği
+                sorun değildir — ama yalnızca gerekçesi belirtilmişse; çünkü
+                "matplotlib yok diye grafik yok" ile "grafik yok" farklı
+                olgulardır.</td></tr>
+        <tr><th>Kapsam</th>
+            <td>Bu projenin beyan ettiği ve hiç koşmadığı şeyler: modeller,
+                prosedürler, kabul kriterleri ve arızalar. Bilerek bir test
+                sayısı değildir ve bilerek bir kapı değildir.</td></tr>
+        <tr><th>Yeşil bir koşunun söylemedikleri</th>
+            <td>Bu bir <b>doğrulamadır</b>: uygulama, buradaki birilerinin beyan
+                ettiği kriterleri karşıladı. <b>Geçerleme</b> değildir —
+                buradaki hiçbir şey bunların doğru kriterler olduğunu ya da
+                gerçek bir aracın aynı fikirde olacağını göstermez. Her uçuş
+                raporunun son bölümü bunu yazar.</td></tr>
       </table>
 
       <p class="note">Daha ayrıntılı bilgi (yeni model/buton/script ekleme, sorun
@@ -543,6 +610,11 @@
         <span class="hint" id="run-action-hint"></span>
       </div>
       <div id="run-compare" class="run-compare" hidden></div>
+      <!-- Is this run's evidence complete, and does its chain resolve? Both
+           come before the report, because they say whether the report can be
+           read as evidence at all. -->
+      <div id="run-evidence" class="run-evidence" hidden></div>
+      <div id="run-trace" class="run-trace" hidden></div>
       <div id="run-plots" class="run-plots"></div>
       <pre class="report" id="run-report"></pre>
       <p class="hint" id="run-files"></p>

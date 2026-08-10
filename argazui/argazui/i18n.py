@@ -469,6 +469,13 @@ CATALOG: dict[str, dict[str, str]] = {
                           "tr": "'{id}' kosusu: ucus raporu {seconds} sn sonra hala "
                                 "uretiliyordu ve daha fazla beklenmedi — kosu "
                                 "klasorunde report.json eksik olabilir"},
+    "run_evidence_failed": {"en": "the evidence manifest could not be written "
+                                  "for this run: {err}. The artefacts are still "
+                                  "there; what is missing is the record of "
+                                  "which of them were expected.",
+                            "tr": "bu kosu icin kanit listesi yazilamadi: {err}. "
+                                  "Artefaktlar yerinde; eksik olan, hangilerinin "
+                                  "beklendigini soyleyen kayittir."},
     "run_fingerprint_failed": {"en": "the environment fingerprint could not be "
                                      "written for this run: {err}. The run is "
                                      "still archived, but it cannot be compared "
@@ -482,6 +489,20 @@ CATALOG: dict[str, dict[str, str]] = {
                                "tr": "'{model}' modelinin karsilastirilacak, "
                                      "metrigi olan daha eski bir kosusu yok. Bir "
                                      "kez daha ucur ya da referansi acikca belirt."},
+    "run_no_evidence":   {"en": "run '{id}' has no evidence manifest — it was "
+                                "recorded before ArgazUI 1.5, or the manifest "
+                                "could not be written. Run "
+                                "`python3 -m argazui report {id}` to produce one.",
+                          "tr": "'{id}' kosusunun kanit listesi yok — ArgazUI "
+                                "1.5'ten once kaydedilmis ya da liste "
+                                "yazilamamis olabilir. Uretmek icin "
+                                "`python3 -m argazui report {id}` calistir."},
+    "run_no_result":     {"en": "run '{id}' has no result.json, so there is no "
+                                "chain to follow — it is a session that never "
+                                "finished",
+                          "tr": "'{id}' kosusunda result.json yok, dolayisiyla "
+                                "izlenecek bir zincir de yok — hic tamamlanmamis "
+                                "bir oturum"},
     "run_no_file":       {"en": "no such file in this run: {name}",
                           "tr": "bu kosuda boyle bir dosya yok: {name}"},
     "run_bin_copy_failed": {"en": "the dataflash log at {path} could not be copied "

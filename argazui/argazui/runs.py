@@ -39,11 +39,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from . import evidence as evidencelib
 from . import failures as failurelib
 from . import fingerprint as fp
 from . import metrics as metricslib
 from . import paths
-from .flightlog import analyse, newest_log, verify_dataflash
+from .flightlog import (analyse, newest_log, refresh_evidence,
+                        verify_dataflash)
 from .i18n import t
 from .versions import environment
 
@@ -57,7 +59,11 @@ from .versions import environment
 # 4 (v1.4): `failure` — the classified reason a run did not pass — and
 #   `campaign`, the repeatability campaign this run belongs to. Both are null
 #   on an ordinary passing run, and again nothing that existed moved.
-RESULT_SCHEMA = 4
+# 5 (v1.5): `test_id` — the intent this run served — and `evidence`, the
+#   manifest of what the run was expected to leave behind and what it did.
+#   Steps and criteria inside `procedures` also gained `step_id` and
+#   `criterion_id`. Nothing that existed moved.
+RESULT_SCHEMA = 5
 
 # What a run's acceptance verdict can be. Health findings live in
 # `advisory_count` and never appear here.
@@ -140,8 +146,14 @@ class RunRecorder:
                  launch_commands: Optional[list[str]] = None,
                  work_dir: Optional[Path] = None,
                  on_log: Optional[Callable[[str], None]] = None,
-                 campaign: Optional[dict] = None) -> None:
+                 campaign: Optional[dict] = None,
+                 test_id: Optional[str] = None) -> None:
         self.model = model
+        # What this run was FOR. A pytest node id when a test drove it, and
+        # None when a person pressed START — which is recorded as `manual`
+        # rather than left blank, because "flown by hand" is a real answer and
+        # it is the one that says no test asserts anything about this.
+        self.test_id = test_id
         # The repeatability campaign this run is one iteration of, or None.
         # Stamped into result.json rather than kept in an index file: a
         # campaign is found by reading its runs, so a run that was moved or
@@ -321,8 +333,13 @@ class RunRecorder:
 
         dataflash = self._copy_dataflash()
         result = self._result(finished, dataflash)
-        (self.dir / "result.json").write_text(
-            json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        self._write_result(result)
+        # The manifest is taken AFTER result.json is on disk, because
+        # result.json is one of the artefacts it describes. It is captured
+        # again once the flight report has run — the report is what produces
+        # half the optional entries — for the same reason versions.txt and the
+        # fingerprint are written twice.
+        result = self._capture_evidence(result)
 
         if report and dataflash:
             thread = threading.Thread(target=self._make_report,
@@ -343,6 +360,32 @@ class RunRecorder:
                                   seconds=f"{report_timeout:g}"))
         elif report:
             self.on_log(t("run_no_report", id=self.run_id))
+        return result
+
+    def _write_result(self, result: dict) -> None:
+        (self.dir / "result.json").write_text(
+            json.dumps(result, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8")
+
+    def _capture_evidence(self, result: dict) -> dict:
+        """Writes evidence.json and folds its verdict back into the run record.
+
+        The full manifest lives in its own file; the run record carries only
+        the pointer and the one line a reader needs first — whether every
+        required artefact is actually there.
+        """
+        try:
+            manifest = evidencelib.capture(self.dir, result)
+            evidencelib.write(self.dir, manifest)
+        except OSError as exc:
+            self.on_log(t("run_evidence_failed", err=exc))
+            return result
+        result["evidence"] = evidence_summary(manifest)
+        # A run whose procedures all passed can still fail on its evidence, and
+        # that verdict is only knowable once the directory has been looked at.
+        failure = failurelib.classify_run(result, manifest)
+        result["failure"] = failure.as_dict() if failure else None
+        self._write_result(result)
         return result
 
     def model_record(self) -> dict:
@@ -455,6 +498,7 @@ class RunRecorder:
             "seconds": round(finished.timestamp() - self.started_monotonic, 1),
             "status": status,
             "campaign": self.campaign,
+            "test_id": self.test_id,
             "advisory_count": None,
             # Both stay None until the flight report has been produced. "not
             # computed yet" and "nothing to report" are different answers and
@@ -488,33 +532,15 @@ class RunRecorder:
         return record
 
     def _make_report(self, dataflash: Path, result: dict) -> None:
-        meta = {
-            "run_id": self.run_id,
-            "argazui_version": result["argazui_version"],
-            "model_id": self.model.get("id"),
-            "model_name": self.model.get("name"),
-            "procedures": [entry["procedure"] for entry in self._procedures],
-            "status": result["status"],
-            "overrides": result.get("overrides") or [],
-            "faults": injected_faults(result),
-            "failure": result.get("failure"),
-            # The firmware string only exists once the log has been parsed, so
-            # the manifest is taken inside `analyse()` rather than handed to
-            # it. What is handed over is the part the log cannot know.
-            "fingerprint_context": {
-                # The recorded subset, not the live dict: a report regenerated
-                # from this directory can only see what was archived, and both
-                # must hash to the same thing or the two runs refuse to be
-                # compared with each other. See MODEL_RECORD_KEYS.
-                "model": self.model_record(),
-                "procedures": list(self._procedure_sources.values()),
-                "scenario": declared_faults(
-                    list(self._procedure_sources.values())),
-            },
-            # What the procedures asked for. The log knows what the aircraft
-            # did and nothing about what it was told to do.
-            "metrics_context": metricslib.context_from_result(result),
-        }
+        sources = list(self._procedure_sources.values())
+        # The recorded subset, not the live dict: a report regenerated from
+        # this directory can only see what was archived, and both must hash to
+        # the same thing or the two runs refuse to be compared with each other.
+        # See MODEL_RECORD_KEYS.
+        meta = report_meta(result, self.dir, sources, declared_faults(sources))
+        meta["model_id"] = self.model.get("id")
+        meta["model_name"] = self.model.get("name")
+        meta["fingerprint_context"]["model"] = self.model_record()
         try:
             report = analyse(dataflash, self.dir, meta=meta)
         except Exception as exc:                     # a bad log must not be fatal
@@ -545,6 +571,76 @@ class RunRecorder:
             except (OSError, json.JSONDecodeError):
                 pass
         return {"run_id": self.run_id, "status": "running"}
+
+
+def evidence_summary(manifest: dict) -> dict:
+    """The part of the manifest a run record carries.
+
+    A pointer plus the verdict, not the whole list. The full manifest is in
+    `evidence.json`, and copying it into `result.json` would mean the run
+    record contained a hash of itself taken before its own last write.
+    """
+    return {"schema": manifest.get("schema"),
+            "file": evidencelib.FILENAME,
+            "complete": manifest.get("complete"),
+            "counts": manifest.get("counts"),
+            "missing_required": manifest.get("missing_required") or [],
+            "absent_unexplained": manifest.get("absent_unexplained") or []}
+
+
+def report_meta(result: dict, directory: Path, procedure_sources: list,
+                scenario: list) -> dict:
+    """What the flight report needs that a dataflash log cannot know.
+
+    One builder for both paths — a freshly flown run and a regenerated one —
+    because the report is a verification document and two versions of it that
+    disagreed about which steps ran would be worse than one that was late.
+    """
+    manifest = evidencelib.read(directory)
+    comparison: dict = {}
+    path = directory / "regression.json"
+    if path.is_file():
+        try:
+            comparison = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            comparison = {}
+
+    steps: list[dict] = []
+    criteria: list[dict] = []
+    last: dict = {}
+    for entry in result.get("procedures") or []:
+        last[(entry.get("procedure"), entry.get("role"))] = entry
+    for entry in last.values():
+        outcome = entry.get("result") or {}
+        steps += list(outcome.get("steps") or [])
+        criteria += list(outcome.get("expect") or [])
+
+    return {
+        "run_id": result.get("run_id", directory.name),
+        "argazui_version": result.get("argazui_version", ""),
+        "model_id": (result.get("model") or {}).get("id"),
+        "model_name": (result.get("model") or {}).get("name"),
+        "procedures": [entry.get("procedure") for entry in
+                       result.get("procedures") or [] if entry.get("procedure")],
+        "status": result.get("status"),
+        "test_id": result.get("test_id"),
+        "campaign_id": (result.get("campaign") or {}).get("id"),
+        "overrides": overrides_of(result),
+        "faults": injected_faults(result),
+        "failure": result.get("failure"),
+        "steps": steps,
+        "criteria": criteria,
+        # Hash-free: the report is one of the artefacts the manifest
+        # covers, so the digests stay in evidence.json alone.
+        "evidence": evidencelib.for_report(manifest),
+        "regression": comparison,
+        "fingerprint_context": {
+            "model": result.get("model") or {},
+            "procedures": procedure_sources,
+            "scenario": scenario,
+        },
+        "metrics_context": metricslib.context_from_result(result),
+    }
 
 
 def injected_faults(result: dict) -> list[dict]:
@@ -620,11 +716,44 @@ def attach_report(directory: Path, report: dict) -> None:
     # schema-4 document: it carries the fields schema 4 defines. Leaving the
     # old number on it would make the version say less than the file does.
     result.setdefault("campaign", None)
-    failure = failurelib.classify_run(result)
-    result["failure"] = failure.as_dict() if failure else None
+    result.setdefault("test_id", None)
     result["schema"] = RESULT_SCHEMA
     path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n",
                     encoding="utf-8")
+
+    # Re-taken now, not at STOP: the report is what produces report.json,
+    # report.md, the parameter dumps and the plots, so a manifest captured
+    # before it describes a run that had not finished being written.
+    directory = Path(directory)
+    manifest = _refresh_evidence(directory, result)
+    result["evidence"] = evidence_summary(manifest) if manifest else None
+    failure = failurelib.classify_run(result, manifest)
+    result["failure"] = failure.as_dict() if failure else None
+    path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n",
+                    encoding="utf-8")
+
+
+def _refresh_evidence(directory: Path, result: dict) -> dict:
+    """Manifest, report section 7, manifest again — in that order.
+
+    The second capture is not belt and braces. The first one is what fills in
+    the report's evidence section, and writing that section changes the report,
+    so the digests the first capture took of it are already out of date by the
+    time they are written. The second covers the final files. Nothing embedded
+    in the report carries a hash, so both captures embed the same content.
+    """
+    try:
+        manifest = evidencelib.capture(directory, result)
+        evidencelib.write(directory, manifest)
+    except OSError:
+        return evidencelib.read(directory)
+    if refresh_evidence(directory, evidencelib.for_report(manifest)):
+        try:
+            manifest = evidencelib.capture(directory, result)
+            evidencelib.write(directory, manifest)
+        except OSError:
+            pass
+    return manifest
 
 
 def aggregate_status(procedures: list[dict]) -> str:
@@ -743,7 +872,7 @@ def describe_run(directory: Path) -> dict:
     # available.
     failure = result.get("failure")
     if failure is None and result:
-        classified = failurelib.classify_run(result)
+        classified = failurelib.classify_run(result, evidencelib.read(directory))
         failure = classified.as_dict() if classified else None
 
     return {
@@ -752,6 +881,10 @@ def describe_run(directory: Path) -> dict:
         "status": result.get("status", "incomplete") if result else "incomplete",
         "failure": failure,
         "campaign": result.get("campaign"),
+        "test_id": result.get("test_id"),
+        # The verdict on the run's own evidence, not the whole manifest: the
+        # panel needs one line, and `evidence.json` is one fetch away.
+        "evidence": result.get("evidence"),
         "metrics": run_metrics,
         "fingerprint": manifest,
         "started_utc": result.get("started_utc"),
@@ -812,27 +945,11 @@ def regenerate_report(run_id: str, root: Optional[Path] = None) -> dict:
             result = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             result = {}
+    # The YAML is read back out of the run's own scenario.yaml, so a
+    # regenerated report hashes what the flight actually executed and not
+    # whatever the procedure file says today.
     recorded = _recorded_procedures(base, result)
-    meta = {
-        "run_id": result.get("run_id", base.name),
-        "argazui_version": result.get("argazui_version", ""),
-        "model_id": (result.get("model") or {}).get("id"),
-        "model_name": (result.get("model") or {}).get("name"),
-        "procedures": [entry.get("procedure") for entry in result.get("procedures", [])],
-        "status": result.get("status"),
-        "overrides": overrides_of(result),
-        "faults": injected_faults(result),
-        "failure": result.get("failure"),
-        "fingerprint_context": {
-            "model": result.get("model") or {},
-            # The YAML is read back out of the run's own scenario.yaml, so a
-            # regenerated report hashes what the flight actually executed and
-            # not whatever the procedure file says today.
-            "procedures": recorded,
-            "scenario": declared_faults(recorded),
-        },
-        "metrics_context": metricslib.context_from_result(result),
-    }
+    meta = report_meta(result, base, recorded, declared_faults(recorded))
     report = analyse(logs[0], base, meta=meta)
     # Same completion path as a freshly flown run, so a regenerated run and a
     # new one cannot end up describing themselves differently.

@@ -14,7 +14,7 @@
 # Schema 2 (v1.3) added the temporal criteria at the bottom of this file. The
 # steps are untouched: what changed is what the flight has to prove, not what
 # it does.
-schema: 2
+schema: 4
 id: copter_takeoff
 name:
   en: Copter takeoff (GUIDED)
@@ -71,7 +71,8 @@ steps:
     timeout: 120
 
 expect:
-  - condition: {alt_above: "{alt*0.9}"}
+  - id: alt-reached
+    condition: {alt_above: "{alt*0.9}"}
     within: 20s
     message:
       en: reached at least 90% of the requested altitude within 20 s
@@ -81,7 +82,8 @@ expect:
   # an instantaneous check at the end of the climb cannot tell the two apart.
   # Five seconds of vehicle time is long enough for a collapse to show and
   # short enough not to lengthen the flight noticeably.
-  - condition: {alt_above: "{alt*0.9}", armed: true, mode: GUIDED}
+  - id: alt-held
+    condition: {alt_above: "{alt*0.9}", armed: true, mode: GUIDED}
     for: 5s
     message:
       en: held the altitude, the arm state and GUIDED for 5 s
@@ -92,7 +94,8 @@ expect:
   # for. The envelope criterion below judges the whole climb in accumulated
   # seconds; this one says the aircraft was not seen there even once while it
   # sat at altitude.
-  - condition: {angular_rate_above: 180}
+  - id: no-rate-excursion
+    condition: {angular_rate_above: 180}
     never: 5s
     message:
       en: never turned faster than 180°/s while holding altitude
@@ -105,7 +108,8 @@ expect:
   # somewhere nobody asked it to. 60°/s likewise: a copter correcting itself
   # turns at a few tens of degrees per second, and only a loss of control
   # keeps it above 60 for longer than a moment.
-  - condition:
+  - id: attitude-envelope
+    condition:
       attitude_stable: {roll: [-20, 20], pitch: [-20, 20], max_rate: 60,
                         tolerance: 2}
     message:

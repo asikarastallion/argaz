@@ -27,7 +27,7 @@
 #   https://ardupilot.org/plane/docs/quadplane-flying.html
 #   ardupilot/ArduPlane/quadplane.cpp  (Q_OPTIONS bitmask documentation)
 #   ardupilot/Tools/autotest/arduplane.py, takeoff_in_QHOVER()  (1700/1500 PWM)
-schema: 1
+schema: 4
 id: tailsitter_takeoff
 name:
   en: Tailsitter takeoff (QSTABILIZE arm, QHOVER climb)
@@ -120,14 +120,17 @@ steps:
     rc_override: {channels: {3: 1500}, hold: 3}
 
 expect:
-  - condition: {alt_above: "{alt*0.85}"}
+  - id: alt-reached
+    condition: {alt_above: "{alt*0.85}"}
     timeout: 20
     message:
       en: reached at least 85% of the requested altitude
       tr: istenen irtifanin en az %85'ine ulasti
-  - condition: {armed: true}
+  - id: still-armed
+    condition: {armed: true}
     message: {en: still armed, tr: hala armli}
-  - condition: {mode: QHOVER}
+  - id: mode-qhover
+    condition: {mode: QHOVER}
     message: {en: hovering in QHOVER, tr: QHOVER modunda havada duruyor}
 
   # WHY THIS CRITERION EXISTS, AND WHY IT HAS NO ROLL BAND
@@ -152,7 +155,8 @@ expect:
   # so they mean the same thing nose-up as they do level. A tailsitter holding
   # station turns at a few tens of degrees per second; sustained rates beyond
   # 90°/s are a vehicle being thrown around by its own controller.
-  - condition:
+  - id: attitude-envelope
+    condition:
       attitude_stable: {pitch: [55, 115], max_rate: 90, tolerance: 3}
     message:
       en: held a nose-up hover instead of tumbling

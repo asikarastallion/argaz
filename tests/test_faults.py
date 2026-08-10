@@ -441,7 +441,10 @@ def test_the_shipped_scenarios_load_and_declare_a_fault_each():
     everything = procs.load_all(force=True)
     for name in ("copter_gps_loss", "copter_link_loss"):
         scenario = everything[name]
-        assert scenario.schema == 3
+        # 3 is the schema that introduced `failures:`; a shipped file may
+        # declare a later one, and asserting equality would make every future
+        # schema bump look like a broken scenario.
+        assert scenario.schema >= 3
         assert scenario.role == "scenario"
         assert scenario.failures, f"{name} declares no fault"
         for fault in scenario.failures:

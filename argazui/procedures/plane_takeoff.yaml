@@ -22,7 +22,7 @@
 #   ardupilot/ArduPlane/mode_takeoff.cpp
 #     the takeoff only locks in once groundspeed exceeds GPS_GND_CRS_MIN_SPD,
 #     which is why the acceptance criteria check climb rate and not just an ACK.
-schema: 1
+schema: 4
 id: plane_takeoff
 name:
   en: Plane takeoff (TAKEOFF mode)
@@ -151,14 +151,17 @@ steps:
     timeout: 150
 
 expect:
-  - condition: {alt_above: "{alt*0.85}"}
+  - id: alt-reached
+    condition: {alt_above: "{alt*0.85}"}
     timeout: 30
     message:
       en: climbed to at least 85% of TKOFF_ALT
       tr: TKOFF_ALT'in en az %85'ine tirmandi
-  - condition: {armed: true}
+  - id: still-armed
+    condition: {armed: true}
     message: {en: still armed, tr: hala armli}
-  - condition: {mode: TAKEOFF}
+  - id: mode-held
+    condition: {mode: TAKEOFF}
     message:
       en: still in TAKEOFF mode, loitering at altitude
       tr: hala TAKEOFF modunda, irtifada bekliyor
@@ -171,7 +174,8 @@ expect:
   # beyond LIM_ROLL_CD's 45° default only if the aircraft has stopped obeying
   # it. Rate: 90°/s is far above anything a plane does deliberately at these
   # speeds; a wing does not roll that fast without departing.
-  - condition:
+  - id: attitude-envelope
+    condition:
       attitude_stable: {roll: [-45, 45], pitch: [-15, 45], max_rate: 90,
                         tolerance: 3}
     message:

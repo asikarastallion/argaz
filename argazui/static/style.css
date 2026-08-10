@@ -533,6 +533,18 @@ pre.report {
 /* ------------------------------------------------------ failure visibility */
 /* A panel that could not load says so in its own place, and the rest of the
    page keeps working. Silence was the v1.1 regression. */
+/* ------------------------------------- evidence, trace & coverage (v1.5) */
+.run-evidence, .run-trace {
+  margin: 12px 0; padding: 10px 12px;
+  border: 1px solid var(--line, #2a3340); border-radius: 6px;
+}
+.run-evidence h3, .run-trace h3 { margin: 0 0 6px; font-size: 13px; }
+.run-evidence .ok { color: #4fbf74; }
+.run-evidence .bad, .run-trace .bad { color: #e0603a; }
+.run-evidence small, .run-trace small { opacity: .7; }
+.run-trace code { font-size: 11px; }
+#cov-detail code { font-size: 11px; }
+
 /* ------------------------------------------------- scenarios & campaigns (v1.4) */
 .scen-list { display: flex; flex-direction: column; gap: 10px; }
 .scen {

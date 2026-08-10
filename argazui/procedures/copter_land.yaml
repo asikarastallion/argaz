@@ -5,7 +5,7 @@
 #     "Upon reaching the ground the copter will automatically shut-down the
 #      motors and disarm the copter if the pilot's throttle is at minimum."
 #     Descent uses LAND_SPD_HIGH_MS down to LAND_ALT_LOW_M, then LAND_SPD_MS.
-schema: 1
+schema: 4
 id: copter_land
 name:
   en: Copter landing (LAND)
@@ -45,7 +45,9 @@ steps:
     timeout: 240
 
 expect:
-  - condition: {armed: false}
+  - id: disarmed
+    condition: {armed: false}
     message: {en: disarmed after landing, tr: inisten sonra disarm oldu}
-  - condition: {alt_below: 3.0}
+  - id: on-ground
+    condition: {alt_below: 3.0}
     message: {en: on the ground, tr: yerde}

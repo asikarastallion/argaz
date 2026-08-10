@@ -516,6 +516,74 @@ other is how a broken harness comes to be reported as a broken aircraft. See
 [docs/failure-investigation.md](../docs/failure-investigation.md) for the path
 from a category to the file that explains it.
 
+## 5c-6. Following a claim back to its evidence
+
+Every link between an intention and the proof of it has a name, so one claim
+can be followed backwards in one command:
+
+```
+test intent -> procedure -> step -> criterion -> metric -> run -> artefact -> verdict
+```
+
+```bash
+python3 -m argazui trace runs/<run-id>      # exit 1 if a link does not resolve
+```
+
+The run sheet shows the same chain under **Traceability**, and the flight
+report names every step and every failed criterion by its identifier.
+
+A criterion **declares its own id** in the procedure (`id: alt-reached`); a
+step derives one from its position (`copter_takeoff#s3`). The difference is
+deliberate: a step id is only read inside its own run, while a criterion id is
+quoted in the coverage report and in a comparison of two runs months apart, so
+it needs a name that survives somebody inserting a criterion above it. A
+derived id is **marked as derived**, because an identifier whose stability the
+reader cannot see is worse than one they can.
+
+A run flown by hand carries `manual` as its intent — a real answer, and the one
+that says no test in this repository asserts what it shows.
+
+See [docs/traceability.md](../docs/traceability.md).
+
+## 5c-7. Is the evidence actually there?
+
+Each run writes `evidence.json`: what it was **expected** to leave behind, and
+what happened to each artefact — path, type, whether it exists, size, hash, and
+the module and schema version that produced it.
+
+| level | meaning |
+|---|---|
+| `required` | the run is not evidence without it. Absent → an `evidence` failure. |
+| `conditional` | required only when a stated condition held — the dataflash log is required *if the vehicle armed* |
+| `optional` | absent is fine, **but only with a stated reason** |
+
+That last rule is the point. "There are no plots because matplotlib is not
+installed" and "there are no plots" are different facts, and only the first is
+an answer — so an optional artefact absent with no explanation is reported as a
+gap.
+
+The run sheet shows this above the report, and section 7 of `report.md` renders
+the same table. See
+[docs/evidence-manifest.md](../docs/evidence-manifest.md).
+
+## 5c-8. What has never been run
+
+```bash
+python3 -m argazui coverage        # writes docs/coverage.md
+```
+
+Four dimensions — models, procedures, acceptance criteria, faults — each
+reporting the items it did **not** reach, by name.
+
+It is deliberately not a test count. That number goes up when somebody adds a
+test and never down when somebody adds an aircraft, a procedure or a criterion
+nobody runs. And it is not a gate: the exit code is always `0`, because turning
+an uncovered procedure into a red build would make the honest thing to do —
+declaring a procedure before it can be flown — the thing that breaks CI.
+
+`docs/status.md` carries a **What was NOT tested** summary from the same
+collection. See [docs/coverage-model.md](../docs/coverage-model.md).
+
 ## 5d. Live telemetry in PlotJuggler
 
 The report in section 5c is what you read *after* a flight. This is how you

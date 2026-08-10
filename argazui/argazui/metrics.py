@@ -126,7 +126,12 @@ class Metric:
 
     def as_dict(self) -> dict:
         out = asdict(self)
-        out["identity"] = f"{self.key}@{self.procedure}" if self.procedure else self.key
+        composed = f"{self.key}@{self.procedure}" if self.procedure else self.key
+        out["identity"] = composed
+        # The same string under the name the traceability chain uses for every
+        # other link (v1.5). `identity` stays because runs recorded since v1.3
+        # carry it and a reader of those must keep working.
+        out["metric_id"] = composed
         return out
 
     def label(self, lang: str = "en") -> str:

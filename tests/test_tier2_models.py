@@ -110,7 +110,8 @@ def test_model_takes_off_changes_mode_and_lands(request, tier2_runs_root, model)
 
     work_dir = paths.RUN_DIR / model["id"]
     recorder = RunRecorder(model=model, root=tier2_runs_root, work_dir=work_dir,
-                           launch_commands=gazebo.launch_commands(model))
+                           launch_commands=gazebo.launch_commands(model),
+                           test_id=request.node.nodeid)
 
     try:
         sim = gazebo.start(model, log_dir=work_dir, on_event=recorder.event,
@@ -190,7 +191,8 @@ def test_a_model_survives_a_gps_loss_in_the_hover(request, tier2_runs_root, mode
 
     work_dir = paths.RUN_DIR / model["id"]
     recorder = RunRecorder(model=model, root=tier2_runs_root, work_dir=work_dir,
-                           launch_commands=gazebo.launch_commands(model))
+                           launch_commands=gazebo.launch_commands(model),
+                           test_id=request.node.nodeid)
     try:
         sim = gazebo.start(model, log_dir=work_dir, on_event=recorder.event,
                            on_log=lambda text: recorder.console(text.encode()))

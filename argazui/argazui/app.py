@@ -20,7 +20,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import campaign as campaignlib
+from . import coverage as coveragelib
 from . import docs
+from . import evidence as evidencelib
 from . import failures as failurelib
 from . import faults as faultlib
 from . import metrics as metricslib
@@ -28,6 +30,7 @@ from . import paths
 from . import procedures as procs
 from . import regression
 from . import runs as runlib
+from . import trace as tracelib
 from .i18n import t, set_language, get_language, LANGUAGES
 from .mavlink_link import MavlinkLink, substitute
 from .procrunner import ProcedureRunner, probe_capabilities
@@ -931,6 +934,68 @@ def api_run_compare(run_id: str, baseline: Optional[str] = None,
     # and it belongs beside the run rather than only in a tab someone closed.
     regression.write(directory, comparison)
     return {"ok": True, "comparison": comparison}
+
+
+@app.get("/api/runs/{run_id}/evidence")
+def api_run_evidence(run_id: str):
+    """The manifest of what this run was expected to leave behind, and did.
+
+    Served rather than only written so the panel can say "complete" or name
+    what is missing without the reader opening a file — which is the whole
+    point of having a manifest instead of a directory listing.
+    """
+    directory = runlib.run_dir(run_id)
+    if directory is None:
+        return JSONResponse({"ok": False, "text": t("run_unknown", id=run_id)},
+                            status_code=404)
+    manifest = evidencelib.read(directory)
+    if not manifest:
+        # 200, not 404. The endpoint exists and answered; the answer is "this
+        # run predates the manifest". That is an ordinary outcome — every run
+        # recorded before v1.5 has one — and a 404 would make the browser log
+        # an error for it, on a page whose first promise is a clean console.
+        # 404 stays for a run id that does not exist.
+        return JSONResponse({"ok": False,
+                             "text": t("run_no_evidence", id=run_id)})
+    return {"ok": True, "evidence": manifest,
+            "problems": evidencelib.problems(manifest)}
+
+
+@app.get("/api/runs/{run_id}/trace")
+def api_run_trace(run_id: str):
+    """Intent -> procedure -> step -> criterion -> metric -> evidence -> verdict.
+
+    Computed from the run record every time it is asked for. Nothing about the
+    chain is stored, so it cannot drift from the run it describes.
+    """
+    directory = runlib.run_dir(run_id)
+    if directory is None:
+        return JSONResponse({"ok": False, "text": t("run_unknown", id=run_id)},
+                            status_code=404)
+    path = directory / "result.json"
+    if not path.is_file():
+        # Same rule as the manifest above: a session that never finished is an
+        # ordinary thing to open, not a client error.
+        return JSONResponse({"ok": False, "text": t("run_no_result", id=run_id)})
+    try:
+        result = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return JSONResponse({"ok": False, "text": str(exc)}, status_code=409)
+    chain = tracelib.chain(result)
+    return {"ok": True, "trace": chain,
+            "problems": tracelib.integrity(result, chain),
+            "derived_ids": tracelib.derived_ids(chain)}
+
+
+@app.get("/api/coverage")
+def api_coverage():
+    """What this project declares, what has been run, and what has not.
+
+    The uncovered lists are the payload. A percentage on its own invites a
+    reader to stop, and the point of the endpoint is the names underneath it.
+    """
+    document = coveragelib.collect([paths.RUNS_DIR])
+    return {"schema": coveragelib.SCHEMA, "coverage": document}
 
 
 @app.get("/api/runs/{run_id}/file/{relative:path}")

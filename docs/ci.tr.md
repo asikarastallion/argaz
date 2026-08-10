@@ -38,6 +38,22 @@ döngüye dönüşmesini engeller:
   **değildir**. README'yi elle düzenleyen bir insan testleri yine koşturmalıdır,
   bu yüzden muafiyet dosyaya değil o tek commit'e verilmiştir.
 
+## Kapsam, durum tablosuyla birlikte üretilir
+
+`python3 -m argazui status`, `docs/coverage.md` dosyasını `docs/status.md` ile
+aynı koşu derlemesinden yazar. Koşular üzerinde iki ayrı geçiş iki farklı cevap
+üretebilir; durum tablosundaki *Neler test edilmedi* özeti ile kapsam
+raporundaki tam listelerin uyuşması gerekir — bu yüzden tek geçiş vardır.
+
+`python3 -m argazui coverage` yalnızca kapsam belgesini yeniden üretir. Çıkış
+kodu her zaman `0`'dır: kapsam bir ölçümdür, bir kapı değil. Kapsanmayan bir
+prosedürü kırmızı bir derlemeye çevirmek, doğru olan şeyi — bir prosedürü
+uçurulabilmeden önce beyan etmeyi — CI'ı bozan şey hâline getirirdi.
+
+`python3 -m argazui trace runs/<id>` ise bir **kapıdır** ve zincirdeki bir bağ
+çözülmediğinde 1 ile çıkar. Kimsenin denetlemediği bir izlenebilirlik şeması
+sessizce çürür.
+
 ## Regresyon kapısı eklemek
 
 `argazui compare` tam olarak bunun için yazıldı: regresyon yoksa `0`,

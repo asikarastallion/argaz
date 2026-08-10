@@ -191,14 +191,17 @@ def test_run_directory_is_complete_and_parseable(request, runs_root, frame):
 
     directory = vehicle.recorder.dir
     for name in ("console.log", "mavlink_events.jsonl", "scenario.yaml",
-                 "result.json", "versions.txt", "fingerprint.json"):
+                 "result.json", "versions.txt", "fingerprint.json",
+                 "evidence.json"):
         assert (directory / name).is_file(), f"{name} is missing from {directory}"
 
-    assert result["schema"] == 4
+    assert result["schema"] == 5
     assert result["status"] in ("passed", "failed", "error")
     # A nominal procedure declares no fault, and the field says so with an
     # empty list rather than by being absent.
     assert result["procedures"][0]["result"]["faults"] == []
+    # The run says what it was FOR, so the traceability chain has a start.
+    assert result["test_id"] == request.node.nodeid
     assert result["procedures"], "the procedure was not recorded in result.json"
 
     # The environment manifest is written before the report, so that a session

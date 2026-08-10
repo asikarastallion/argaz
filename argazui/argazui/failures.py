@@ -181,6 +181,7 @@ CODE_FAULT_NOT_APPLIED = "fault-not-applied"
 CODE_FAULT_NOT_CLEARED = "fault-not-cleared"
 CODE_NO_DATAFLASH = "dataflash-missing"
 CODE_TRUNCATED_DATAFLASH = "dataflash-truncated"
+CODE_MISSING_ARTEFACT = "evidence-artefact-missing"
 CODE_RUNNER_ERROR = "runner-error"
 CODE_METRIC_DEGRADED = "metric-degraded"
 CODE_NOT_COMPARABLE = "runs-not-comparable"
@@ -352,7 +353,7 @@ def classify_procedure(result: dict) -> Optional[Failure]:
 
 
 # --------------------------------------------------------------------- runs
-def classify_run(result: dict) -> Optional[Failure]:
+def classify_run(result: dict, manifest: Optional[dict] = None) -> Optional[Failure]:
     """Why a whole run failed, from its own `result.json`.
 
     Reads only the LAST attempt of each procedure, for the same reason
@@ -363,6 +364,11 @@ def classify_run(result: dict) -> Optional[Failure]:
     A run whose procedures all passed can still fail on its evidence. That is
     not a technicality — a flight nobody can prove happened is worth exactly as
     much as one that did not.
+
+    `manifest` is the run's evidence manifest (v1.5) when one has been taken.
+    It is what turns "the dataflash log is missing" into the general statement
+    "a required artefact is missing", so a report that was expected and never
+    written is caught by the same rule rather than by nobody.
     """
     last: dict[tuple, dict] = {}
     for entry in result.get("procedures") or []:
@@ -373,6 +379,17 @@ def classify_run(result: dict) -> Optional[Failure]:
         failure = classify_procedure(entry.get("result") or {})
         if failure is not None:
             return failure
+
+    # The manifest generalises the dataflash rules below to every artefact a
+    # run was expected to leave. Checked first because it is the broader
+    # statement: "a required artefact is missing" covers the log and the report
+    # and the fingerprint, and the specific checks after it stay for runs
+    # recorded before v1.5, which carry no manifest.
+    for problem in ((manifest or {}).get("missing_required") or []):
+        return Failure(EVIDENCE, CODE_MISSING_ARTEFACT,
+                       detail=f"the run was expected to produce '{problem}' "
+                              f"and did not; see evidence.json",
+                       source=f"evidence.{problem}")
 
     artefacts = result.get("artefacts") or {}
     check = artefacts.get("dataflash_check") or {}

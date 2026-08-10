@@ -79,7 +79,7 @@ class Server:
     """One ArgazUI process, started the way a user starts it."""
 
     def __init__(self, port: int, process: subprocess.Popen, log: Path,
-                 tree: Path) -> None:
+                 tree: Path, runs_root: Optional[Path] = None) -> None:
         self.port = port
         self.process = process
         self.log = log
@@ -87,6 +87,10 @@ class Server:
         # so tests edit files here and never in the checkout.
         self.tree = tree
         self.static_root = tree / "static"
+        # Where this server writes its runs. Exposed so a test can seed one:
+        # several panels only have anything to show once a run exists, and
+        # flying one to test a table would be an hour for a rendering check.
+        self.runs_root = runs_root or (tmp_path_of(log) / "runs")
 
     @property
     def url(self) -> str:
@@ -128,6 +132,11 @@ class Server:
                 pass
 
 
+def tmp_path_of(log: Path) -> Path:
+    """The sandbox a server's log sits in — its runs root is beside it."""
+    return log.parent
+
+
 def start_server(tmp_path: Path, port: Optional[int] = None,
                  tree: Optional[Path] = None,
                  env_extra: Optional[dict] = None) -> Server:
@@ -152,7 +161,8 @@ def start_server(tmp_path: Path, port: Optional[int] = None,
         cwd=str(tree), stdout=handle, stderr=subprocess.STDOUT,
         stdin=subprocess.DEVNULL, start_new_session=True, env=env)
 
-    server = Server(port, process, log, tree)
+    server = Server(port, process, log, tree,
+                    runs_root=Path(env["ARGAZ_RUNS_ROOT"]))
     deadline = time.time() + 60
     while time.time() < deadline:
         if process.poll() is not None:

@@ -14,7 +14,7 @@
 #     "if bit is not set then NAV_TAKEOFF command on quadplanes will instead
 #     perform a NAV_VTOL takeoff". This procedure deliberately does not use
 #     NAV_TAKEOFF at all, so it behaves the same whichever way that bit is set.
-schema: 1
+schema: 4
 id: vtol_takeoff
 name:
   en: VTOL takeoff (QLOITER)
@@ -122,14 +122,17 @@ steps:
     rc_override: {channels: {3: 1500}, hold: 3}
 
 expect:
-  - condition: {alt_above: "{alt*0.85}"}
+  - id: alt-reached
+    condition: {alt_above: "{alt*0.85}"}
     timeout: 20
     message:
       en: reached at least 85% of the requested altitude
       tr: istenen irtifanin en az %85'ine ulasti
-  - condition: {armed: true}
+  - id: still-armed
+    condition: {armed: true}
     message: {en: still armed, tr: hala armli}
-  - condition: {mode: QLOITER}
+  - id: mode-qloiter
+    condition: {mode: QLOITER}
     message: {en: hovering in QLOITER, tr: QLOITER modunda havada duruyor}
 
   # A quadplane in its VTOL modes is flying as a multirotor and is held to the
@@ -137,7 +140,8 @@ expect:
   # crosswind pushes it around more than a bare multirotor and Q_ANGLE_MAX
   # ships at 30°. Beyond that band, sustained, the wing is flying the aircraft
   # rather than the rotors.
-  - condition:
+  - id: attitude-envelope
+    condition:
       attitude_stable: {roll: [-30, 30], pitch: [-30, 30], max_rate: 60,
                         tolerance: 2}
     message:
