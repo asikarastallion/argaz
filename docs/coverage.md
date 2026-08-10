@@ -1,18 +1,18 @@
 # Coverage
 
 <!-- GENERATED FILE — DO NOT EDIT BY HAND.
-     Generated:  2026-08-10T14:48:10Z
-     Source:     ../runs
+     Generated:  2026-08-10T15:08:01Z
+     Source:     artefacts/tier1, artefacts/tier2
      Regenerate: python3 -m argazui coverage --runs runs --out docs/coverage.md
      Any edit here is overwritten by the next CI run. -->
 
-Computed from **51** recorded run(s) and the procedure files in this checkout, at **2026-08-10T14:48:10Z**.
+Computed from **33** recorded run(s) and the procedure files in this checkout, at **2026-08-10T15:08:01Z**.
 
 **This is not a test count.** A test count goes up when somebody adds a test and never goes down when somebody adds an aircraft, a procedure or a criterion nobody runs. Every dimension below is measured over named things that could be exercised, and every one of them lists what it did not reach.
 
 | Dimension | Covered | Declared | |
 |---|---:|---:|---|
-| Model coverage | 1 | 11 | 9% |
+| Model coverage | 10 | 11 | 91% |
 | Procedure coverage | 9 | 13 | 69% |
 | Acceptance-criterion coverage | 24 | 32 | 75% |
 | Fault and scenario coverage | 4 | 6 | 67% |
@@ -21,20 +21,11 @@ Computed from **51** recorded run(s) and the procedure files in this checkout, a
 
 Registry entries that tier 2 has flown in Gazebo. Tier 1 does not count: it flies SITL's own generic frames and says nothing about an airframe.
 
-**10 of 11 not covered:**
+**1 of 11 not covered:**
 
 | Item | What it is |
 |---|---|
 | `iris` | Iris Quadcopter (ROS2 + RViz) (Copter) |
-| `zephyr` | Zephyr Delta Wing (Plane) |
-| `alti_transition_quad` | Alti Transition QuadPlane (VTOL) |
-| `bicopter` | BiCopter (Copter) |
-| `skycat_tvbs` | SkyCat TVBS QuadPlane (VTOL) |
-| `skywalker_x8` | Skywalker X8 QuadPlane (skywalker_x8) (Plane) |
-| `skywalker_x8_quad` | Skywalker X8 QuadPlane (skywalker_x8_quad) (VTOL) |
-| `swan_k1_hwing` | Swan-K1 Copter Tailsitter Quadplane (VTOL) |
-| `wsc_aircraft` | Weight-Shift Aircraft (Plane) |
-| `mini_talon_vtail` | X-UAV Mini Talon V-Tail (Plane) |
 
 ## Procedure coverage
 
@@ -53,7 +44,7 @@ Procedure files that some recorded run actually executed.
 
 Acceptance criteria that were actually evaluated. A criterion the procedure never reached is not covered — it produced no information about the aircraft.
 
-**48 evaluated criterion result(s) could not be attributed to a declared criterion.** They come from runs recorded before criterion identifiers existed (ArgazUI v1.5). They are not matched by position — the procedure may have been edited since, and a coverage figure inflated by a guess is the thing this project exists to remove. Fly the procedures once more to cover them.
+**50 evaluated criterion result(s) could not be attributed to a declared criterion.** They come from runs recorded before criterion identifiers existed (ArgazUI v1.5). They are not matched by position — the procedure may have been edited since, and a coverage figure inflated by a guess is the thing this project exists to remove. Fly the procedures once more to cover them.
 
 **8 of 32 not covered:**
 
