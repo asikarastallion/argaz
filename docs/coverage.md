@@ -1,12 +1,12 @@
 # Coverage
 
 <!-- GENERATED FILE — DO NOT EDIT BY HAND.
-     Generated:  2026-08-11T00:52:53Z
+     Generated:  2026-08-11T04:45:35Z
      Source:     artefacts/tier1, artefacts/tier2
      Regenerate: python3 -m argazui coverage --runs runs --out docs/coverage.md
      Any edit here is overwritten by the next CI run. -->
 
-Computed from **35** recorded run(s) and the procedure files in this checkout, at **2026-08-11T00:52:53Z**.
+Computed from **35** recorded run(s) and the procedure files in this checkout, at **2026-08-11T04:45:35Z**.
 
 **This is not a test count.** A test count goes up when somebody adds a test and never goes down when somebody adds an aircraft, a procedure or a criterion nobody runs. Every dimension below is measured over named things that could be exercised, and every one of them lists what it did not reach.
 
@@ -44,8 +44,6 @@ Procedure files that some recorded run actually executed.
 ## Acceptance-criterion coverage
 
 Acceptance criteria that were actually evaluated. A criterion the procedure never reached is not covered — it produced no information about the aircraft.
-
-**50 evaluated criterion result(s) could not be attributed to a declared criterion.** They come from runs recorded before criterion identifiers existed (ArgazUI v1.5). They are not matched by position — the procedure may have been edited since, and a coverage figure inflated by a guess is the thing this project exists to remove. Fly the procedures once more to cover them.
 
 **8 of 32 not covered:**
 
