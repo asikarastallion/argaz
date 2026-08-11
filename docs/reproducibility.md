@@ -83,6 +83,7 @@ it did:
 | `ardupilot.firmware_commit` | a different binary actually flew |
 | `ardupilot.dirty_digest` | different uncommitted changes in ArduPilot |
 | `gazebo.version` | a different simulator — half the physics |
+| `sitl_models.pin.identity` | different model assets — a different airframe |
 
 A difference in any of them makes a comparison `incomparable` unless it is
 overridden explicitly. So does an *unknown* value on either side: that is not a
@@ -111,6 +112,128 @@ only then; unknown on one side remains a real asymmetry and is still reported.
 The exemption is a named set (`OPTIONAL_IDENTITY`), not a general rule —
 `ardupilot.firmware_commit` is also null on both sides of a tier-1 comparison,
 and that has always been, and remains, incomparable.
+
+## The pinned model environment
+
+`ardupilot` has been pinned by SHA in both Dockerfiles since the first tier
+image, and the reason is written there: an image that tracked a branch would
+fly a different autopilot on every build, and no two CI results could be
+compared. `SITL_Models` — the source of every airframe, world, mesh and
+parameter file tier 2 exists to verify — was cloned at HEAD, so half the
+environment was still moving.
+
+The fingerprint has recorded `sitl_models.commit` since v1.3, so drift was
+*visible after the fact*. That is not reproducibility: it tells a reader that
+the experiment they are looking at cannot be repeated, which is later than they
+needed to know.
+
+### The declaration
+
+```toml
+[model_environment]
+repository = "https://github.com/ArduPilot/SITL_Models.git"
+revision   = "25bc38ed8c6c0345840159a8cbc0b02781d52f3c"
+```
+
+`ARGAZ_SITL_MODELS_REF` overrides it, following the same precedence chain every
+other setting uses. `docker/Dockerfile.tier2` fetches that exact SHA and
+asserts it at build time, and the suite checks that the two declarations agree
+— two statements of one fact drift, and this one would drift silently.
+
+**`revision` must be an exact commit SHA or an immutable tag.** `HEAD`, `main`,
+`master`, `latest` and `current` are refused outright, because they name
+whatever is there today, which is the one thing a pin may not mean. A
+declaration naming one of them is a configuration error, not a pin.
+
+### The six states
+
+| state | meaning | usable | reproducible |
+|---|---|:-:|:-:|
+| `pinned` | declared, resolved, and they are the same | yes | **yes** |
+| `unpinned` | nothing is declared; the run records the absence | yes | no |
+| `modified` | the declared revision, with uncommitted edits on top | yes | no |
+| `mismatch` | declared and resolved, and they differ | **no** | no |
+| `unresolved` | declared, and the checkout cannot say what it is | **no** | no |
+| `invalid` | the declaration names something that moves | **no** | no |
+
+Two thresholds, because there are two questions. *Is the declaration being
+honoured?* and *is this environment reproducible?* are not the same, and
+collapsing them makes the check either useless or unusable.
+
+`unpinned` is usable because a developer working without a declaration has
+violated nothing — the run records the absence rather than inventing a pin.
+`modified` is usable for the same reason `dirty` became a digest: the declared
+revision *was* obtained, the edits on top of it are hashed into the identity,
+so two runs with the same edits are still the same experiment. Refusing every
+working tree with edits would make the mechanism unusable during exactly the
+work it is most wanted for.
+
+`python3 -m argazui doctor --release` demands `pinned` and nothing else, and
+`tier2.yml` runs it before a single model is launched.
+
+### The failure is an environment failure
+
+A revision that cannot be obtained **does not fall back to HEAD**. The run
+fails as a configuration problem, at the environment layer, before anything
+flies — so no model is ever recorded `failed` for it, and no aircraft is
+blamed for a checkout. See [Simulation lifecycle](simulation-lifecycle.md).
+
+Nothing fetches, checks out or pulls. `modelenv.reconcile_command()` prints the
+`git checkout` a person would run; it never runs it. A tool that rearranged its
+own inputs so a check would pass has removed the check.
+
+### What a run records
+
+Inside the existing fingerprint, not in a second store:
+
+```json
+"sitl_models": {
+  "commit": "25bc38ed8c6c0345840159a8cbc0b02781d52f3c",
+  "pin": {
+    "repository":      "https://github.com/ArduPilot/SITL_Models.git",
+    "revision":        "25bc38ed8c6c0345840159a8cbc0b02781d52f3c",
+    "revision_kind":   "commit",
+    "resolved_commit": "25bc38ed8c6c0345840159a8cbc0b02781d52f3c",
+    "identity":        "sha256:f12cd220cd53e7587ba770a49da0774e",
+    "state": "pinned", "ok": true, "reproducible": true, "reason": ""
+  }
+}
+```
+
+`identity` is what the comparison uses rather than `commit`, because it folds
+in the working-tree digest — the same reasoning that made `dirty_digest` an
+identity field rather than `dirty`.
+
+## Process and port isolation
+
+Two runs that shared a port did not share an experiment. A crashed server used
+to leave `gz sim`, SITL and MAVProxy holding 14550, and the next START bound
+`udpin:14550` beside them and could receive the *previous* vehicle's telemetry
+— a run whose evidence came from an aircraft nobody in it launched.
+
+Every run now declares a boundary before it starts anything, and checks it
+again after it stops:
+
+```json
+"isolation": {
+  "session_id": 481923,
+  "ports": {"mavlink": 14550, "script_mavlink": 14551, "plotjuggler": 14552},
+  "conflicts_at_start": [],
+  "released": true,
+  "survivors": []
+}
+```
+
+Ownership is established by the kernel — session id, process group id, and the
+socket inode a port is held by — and never by a process name. A holder that
+this run did not start is **reported and never signalled**: a developer running
+their own SITL on 14550 in another terminal gets a clear message, not a dead
+process. `pkill -f` is still never used, and the ownership layer has no way to
+signal anything at all.
+
+`released: true` is the claim that cleanup worked, and it is checked rather
+than assumed — the processes are gone according to `/proc`, and the ports are
+free according to a real bind.
 
 ### Why `dirty` is a digest and not a flag
 

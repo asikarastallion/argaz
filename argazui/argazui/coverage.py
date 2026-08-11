@@ -41,6 +41,7 @@ from typing import Optional
 
 from . import experiments as experimentlib
 from . import faults as faultlib
+from . import mechanisms
 from . import paths
 from . import procedures as procs
 from . import trace
@@ -333,6 +334,13 @@ def collect(runs_roots: Optional[list[Path]] = None,
             _dimension(FAULTS, declared_faults(procedures_dir), injected),
             _dimension(EXPERIMENTS, declared_experiments(experiments_dir), flown),
         ],
+        # Per-mechanism states beside the per-dimension fractions (v1.7).
+        # Computed from the same run directories in a separate pass rather than
+        # threaded through `_exercised`: the two ask different questions of the
+        # same evidence, and one function answering both would answer neither
+        # clearly. Deliberately NOT a sixth dimension — it is not a fraction,
+        # and forcing it into one would lose the states.
+        "mechanism_matrix": mechanisms.collect(roots, procedures_dir),
     }
 
 
@@ -425,6 +433,19 @@ def render(document: dict) -> str:
         "project declares and has never run, which is exactly the gap a "
         "verification claim must not be read across.")
     add("")
+
+    # THE MATRIX, IN THE SAME DOCUMENT AND NOT A SECOND ONE (v1.7)
+    # ------------------------------------------------------------
+    # "Covered" is one bit, and the fractions above are the right summary of
+    # it. What they cannot say is whether a declared mechanism is even
+    # EXECUTABLE, or whether a run that exercised one ever judged the result —
+    # and those are the two questions that separate a mechanism this project
+    # has proven from one it has merely written down. The matrix answers them
+    # per mechanism, here, rather than in a report of its own that would drift
+    # from this one within a release.
+    matrix = document.get("mechanism_matrix")
+    if matrix:
+        add(mechanisms.render(matrix))
     return "\n".join(out).rstrip() + "\n"
 
 

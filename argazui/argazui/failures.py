@@ -196,6 +196,19 @@ CODE_PROCEDURE_TIMEOUT = "procedure-timeout"
 CODE_CANCELLED = "procedure-cancelled"
 CODE_NO_VEHICLE = "vehicle-never-connected"
 CODE_CONFIG_ERROR = "procedure-config-error"
+# Added by v1.7, one per lifecycle rung a start-up can stop on. v1.6.1 could
+# already say "no vehicle ever connected"; these say WHICH part of the
+# environment did not come up, which is the difference between a category and a
+# diagnosis. See simlifecycle.PHASE_FAILURES.
+#
+# There is deliberately no separate code for a model environment that is not
+# the declared one. That refusal happens BEFORE the simulator is launched, so
+# the environment genuinely never became ready, and `environment-not-ready` is
+# the accurate answer — the specific reason is in the failure's `detail`, which
+# names the revision and the reconciling command. A third code would let two
+# strings describe one state, and they would eventually disagree.
+CODE_ENVIRONMENT_NOT_READY = "environment-not-ready"
+CODE_VEHICLE_START_FAILED = "vehicle-start-failed"
 
 # WHY AN ABORT REASON IS A TABLE AND NOT A CHAIN OF `if`s
 # -------------------------------------------------------
@@ -465,6 +478,27 @@ def classify_run(result: dict, manifest: Optional[dict] = None) -> Optional[Fail
     "a required artefact is missing", so a report that was expected and never
     written is caught by the same rule rather than by nobody.
     """
+    # BEFORE THE PROCEDURES: DID THE ENVIRONMENT COME UP? (v1.7)
+    # -----------------------------------------------------------
+    # A start-up that stopped at a lifecycle rung produced no procedures at
+    # all, or produced ones that timed out against a simulator that was not
+    # there. The layer that launched already knows which rung it stopped on and
+    # recorded it, so this reads that answer rather than reconstructing one
+    # from the residue — the same reasoning that put `abort.kind` on a
+    # procedure result in v1.6.1, applied one level out.
+    #
+    # An acceptance failure is deliberately NOT taken from here: whether the
+    # aircraft met its criteria is a question about the flight, and the
+    # procedure loop below has the measurement that answers it.
+    lifecycle = result.get("lifecycle") or {}
+    lifecycle_failure = lifecycle.get("failure") or {}
+    if lifecycle_failure.get("category") and lifecycle_failure["category"] != ACCEPTANCE:
+        return Failure(lifecycle_failure["category"], lifecycle_failure["code"],
+                       detail=lifecycle_failure.get("detail")
+                              or f"the simulation stopped at "
+                                 f"{lifecycle_failure.get('phase')}",
+                       source=f"lifecycle.{lifecycle_failure.get('phase')}")
+
     last: dict[tuple, dict] = {}
     for entry in result.get("procedures") or []:
         key = (entry.get("procedure"), entry.get("role"))

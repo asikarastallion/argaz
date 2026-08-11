@@ -184,7 +184,26 @@ def _port(port: int, label: str, kind: int = socket.SOCK_STREAM) -> Check:
         sock.close()
 
 
-def run(tier: str = "full") -> dict:
+def _model_environment(release: bool) -> Check:
+    """Are the model assets the revision the configuration declared? (v1.7)
+
+    Two thresholds, because there are two questions — see modelenv.SATISFIED.
+    A developer wants to know that nothing contradicts the declaration; a
+    release verification wants to know the environment is one immutable
+    revision and nothing else, which `--release` asks for.
+    """
+    from . import modelenv
+
+    document = modelenv.verify()
+    ok = document["reproducible"] if release else document["ok"]
+    detail = (f"model assets: {document['state']}"
+              + (f" at {document['resolved_short_commit']}"
+                 if document.get("resolved_short_commit") else ""))
+    fix = "" if ok else (document["reason"] or modelenv.reconcile_command())
+    return Check("model_environment", ok, True, detail, fix)
+
+
+def run(tier: str = "full", release: bool = False) -> dict:
     """Return all checks. ``tier1`` intentionally excludes Gazebo/ROS assets."""
     if tier not in ("full", "tier1"):
         raise ValueError("tier must be 'full' or 'tier1'")
@@ -212,11 +231,13 @@ def run(tier: str = "full") -> dict:
                         description="SITL_Models Gazebo assets"),
             _configured_command("gz", ["sim", "--version"]),
             _configured_command("ros2", ["--help"]),
+            _model_environment(release),
         ])
         checks.append(_configured_ros_distro())
 
     critical_ok = all(check.ok for check in checks if check.critical)
-    return {"ok": critical_ok, "tier": tier, "config": paths.source_summary(),
+    return {"ok": critical_ok, "tier": tier, "release": release,
+            "config": paths.source_summary(),
             "checks": [check.as_dict() for check in checks]}
 
 

@@ -15,7 +15,27 @@
 # using ArgazUI (dataflash logs, parameter dumps, reports) — they belong to
 # the flight, not to the source tree. CI uploads them as build artefacts
 # instead of committing them.
-/runs/
+#
+# EXCEPT the regression baselines (v1.7). A baseline is the run a later flight
+# is measured against, so it is an INPUT to CI rather than an output of it, and
+# a gate whose reference lived only in a 30-day build artefact would have
+# nothing to compare against on day 31.
+#
+# Written as "exclude the contents, re-include four names" rather than
+# "exclude runs/, re-include baselines/": git does not descend into an excluded
+# DIRECTORY, so a negation inside one is never reached. The dataflash logs and
+# plots stay out because the re-inclusions are this narrow, not by accident.
+# See runs/baselines/README.md.
+/runs/*
+!/runs/baselines/
+/runs/baselines/*
+!/runs/baselines/README.md
+!/runs/baselines/*/
+/runs/baselines/*/*
+!/runs/baselines/*/result.json
+!/runs/baselines/*/fingerprint.json
+!/runs/baselines/*/versions.txt
+!/runs/baselines/*/scenario.yaml
 
 # Suite records collected per tier, the way `status.yml` lays them out when it
 # downloads each workflow's artefact before regenerating docs/status.md. The

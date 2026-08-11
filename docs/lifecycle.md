@@ -52,6 +52,42 @@ file open, and including the test runner itself. Every process ArgazUI starts
 runs in its own session (`start_new_session=True`) and is terminated by its
 process group.
 
+## What a run owns, checked before and after
+
+A run owns exactly what it started, and ownership is established by the kernel
+— session id, process group id, and the socket inode a port is held by — never
+by a process name.
+
+**Before launch**, the ports the run needs are checked. A port held by anything
+this run did not start makes it refuse to launch, because a link that silently
+attaches to a stranger's vehicle produces evidence about an aircraft nobody in
+this run started. That was reachable before v1.7: a crashed server left
+`gz sim`, SITL and MAVProxy holding 14550, and the next START bound
+`udpin:14550` beside them and could receive the *previous* vehicle's telemetry.
+
+The holder is **reported and never signalled**. A developer running their own
+SITL on 14550 in another terminal gets a clear message, not a dead process, and
+the ownership layer has no way to signal anything at all — asserted by a test
+that parses it rather than by convention.
+
+**After teardown**, cleanup is checked rather than assumed. `stop_children`
+already reported survivors it could not kill, and that report went to the
+console and nowhere else; the same two questions are now asked again and land
+in the run record:
+
+* are the owned processes gone, according to `/proc`?
+* are the owned ports free, according to a real bind?
+
+```json
+"isolation": {"session_id": 481923, "ports": {"mavlink": 14550},
+              "released": true, "survivors": []}
+```
+
+`released: true` is what makes "no orphan was left" a claim with evidence under
+it instead of an absence of complaint. It is asked whatever ended the run — a
+pass, a failure, a timeout, a cancellation or an exception — because the stop
+path is the same in all five cases.
+
 ## Shutting the server down
 
 A server stopped with Ctrl+C finishes its run first. Otherwise a real flight's

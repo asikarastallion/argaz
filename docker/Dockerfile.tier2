@@ -8,6 +8,19 @@ FROM ubuntu:24.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG ARDUPILOT_REF=0b38722bd5a46099dbe7d50074624680f58ce584
+# THE AIRFRAMES ARE PINNED FOR THE SAME REASON THE AUTOPILOT IS (v1.7)
+# --------------------------------------------------------------------
+# ARDUPILOT_REF above has been a SHA since the first tier image: an image that
+# tracked a branch would fly a different autopilot on every build, and no two
+# CI results could be compared. SITL_Models was cloned at HEAD, so half the
+# environment — every airframe, world, mesh and parameter file tier 2 exists to
+# verify — was still moving. Two builds of this file could fly different
+# aircraft under the same model name.
+#
+# This SHA must equal [model_environment].revision in argaz.toml. The suite
+# checks that they agree rather than trusting it: see
+# tests/test_model_pinning.py::test_the_image_pin_and_the_configured_pin_agree.
+ARG SITL_MODELS_REF=25bc38ed8c6c0345840159a8cbc0b02781d52f3c
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl gnupg lsb-release software-properties-common && \
@@ -52,7 +65,17 @@ RUN mkdir -p /opt/argaz/ardupilot && cd /opt/argaz/ardupilot && \
 #                       Both are in upstream's README; the meta package is not.
 #   cppzmq              gz-transport13's own CMake config declares a
 #                       CPPZMQ::CPPZMQ target that nothing installs for it.
-RUN git clone --depth 1 https://github.com/ArduPilot/SITL_Models.git /opt/argaz/SITL_Models && \
+#
+# SITL_Models is fetched at one exact revision, the same way ArduPilot is: a
+# `git init` + `fetch <sha>` + `checkout FETCH_HEAD`, which is the only clone
+# form that cannot end up somewhere else. `--depth 1` on a branch would have
+# been a clone of whatever HEAD meant that morning.
+RUN mkdir -p /opt/argaz/SITL_Models && cd /opt/argaz/SITL_Models && \
+    git init -q && \
+    git remote add origin https://github.com/ArduPilot/SITL_Models.git && \
+    git fetch -q --depth 1 origin "${SITL_MODELS_REF}" && \
+    git checkout -q FETCH_HEAD && \
+    test "$(git rev-parse HEAD)" = "${SITL_MODELS_REF}" && \
     git clone --depth 1 https://github.com/ArduPilot/ardupilot_gazebo.git /opt/argaz/ardupilot_gazebo && \
     cmake -S /opt/argaz/ardupilot_gazebo -B /opt/argaz/ardupilot_gazebo/build -G Ninja && \
     cmake --build /opt/argaz/ardupilot_gazebo/build

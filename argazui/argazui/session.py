@@ -196,6 +196,52 @@ def headless() -> bool:
     return not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
 
 
+# ------------------------------------------------------- gazebo readiness
+# How long the launch script waits for Gazebo to serve a world before starting
+# the vehicle anyway. Generous because it covers a cold asset cache and a large
+# world; bounded because a launch that waits forever is a launch nobody can
+# diagnose. The vehicle is started at the end of it either way — SITL's
+# `--model JSON` retries its physics backend, and refusing to start the
+# autopilot would remove the console output that says what went wrong.
+GAZEBO_READY_TIMEOUT_S = 60
+GAZEBO_READY_POLL_S = 2
+
+
+def gazebo_ready_wait(timeout_s: int = GAZEBO_READY_TIMEOUT_S,
+                      poll_s: int = GAZEBO_READY_POLL_S) -> str:
+    """The shell line that waits for Gazebo to be SERVING, not merely started.
+
+    WHY THIS REPLACED `sleep 6`
+    ---------------------------
+    `sleep 6` asserts that six seconds is enough and then assumes success. On a
+    cold cache it is not enough, and the vehicle starts against a physics
+    backend that is not there yet; on a fast machine it is five seconds of
+    waiting for nothing. Neither case can tell a Gazebo that is slow from a
+    Gazebo that died, and both report the same thing to the run: nothing.
+
+    `gz topic -l` only lists `/world/<name>/…` once a world is loaded and the
+    server is stepping it, so the loop below exits on the simulator doing its
+    job rather than on a clock. It stays a visible shell line for the same
+    reason every other launch line is one: the commands in the terminal are the
+    commands a user could have typed, and a readiness check hidden in Python
+    would be the first exception to that rule.
+
+    The fallback is deliberate and stated in the output. `gz topic` may be
+    absent from a PATH that has `gz sim`, and a launch that refused to proceed
+    on a missing diagnostic tool would fail a simulation that was working.
+    """
+    return (
+        f'for i in $(seq 1 {max(1, timeout_s // max(1, poll_s))}); do '
+        f'gz topic -l 2>/dev/null | grep -q "^/world/" && '
+        f'{{ echo "[argaz] gazebo is serving a world"; break; }}; '
+        f'sleep {poll_s}; '
+        f'done; '
+        f'gz topic -l 2>/dev/null | grep -q "^/world/" || '
+        f'echo "[argaz] gazebo did not report a world within {timeout_s}s — '
+        f'starting the vehicle anyway; see the lifecycle record"'
+    )
+
+
 # --------------------------------------------------------------------------- komutlar
 def build_launch_commands(model: dict) -> list[str]:
     """Bir model tanimindan, terminale yazilacak kabuk komutlarini uretir.
@@ -257,7 +303,7 @@ def build_launch_commands(model: dict) -> list[str]:
         server_only = " -s" if no_display else ""
         lines.append(f"gz sim -v4 -r{server_only} "
                      f"{shell_word(world, 'world')} &")
-        lines.append("sleep 6")
+        lines.append(gazebo_ready_wait())
 
     vehicle = model.get("vehicle") or "ArduPlane"
 

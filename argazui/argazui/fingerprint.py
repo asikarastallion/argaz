@@ -223,6 +223,20 @@ def capture(model: Optional[dict] = None,
                    "dirty": models_git["dirty"],
                    "dirty_digest": models_git.get("dirty_digest"),
                    "root": models_git["root"]}
+    # WHAT THE RUN WAS ENTITLED TO FLY, BESIDE WHAT IT DID FLY (v1.7)
+    # ---------------------------------------------------------------
+    # `commit` above has been recorded since v1.3 and answers "which model
+    # assets were these". It cannot answer "were they the ones this
+    # verification declared", because until v1.7 nothing declared any. The pin
+    # block carries the declaration and the verdict on it, inside the existing
+    # fingerprint rather than in a second metadata store — a reader holding one
+    # run directory can see the repository, the revision, the commit that
+    # answered for it and whether the two agreed.
+    from . import modelenv
+    pin = modelenv.evidence()
+    sitl_models["pin"] = pin
+    if not pin["ok"]:
+        _note("sitl_models.pin", pin["reason"])
 
     # ------------------------------------------------------------ simulators
     gz_version, gz_reason = _tool_version("gz", ["gz", "sim", "--version"])
@@ -322,6 +336,24 @@ IDENTITY_FIELDS = (
     # The simulator is half the physics. A Gazebo upgrade between two runs
     # changes what the aircraft flew through, and it moves no commit here.
     ("gazebo.version", "the Gazebo that provided the physics"),
+    # ------------------------------------------------------------ added by v1.7
+    # THE AIRFRAME IS NOT THE AUTOPILOT
+    # ---------------------------------
+    # `model.config_hash` covers the registry entry and every `.param` file it
+    # names, byte for byte — which is most of what defines a tier-2 aircraft,
+    # and not all of it. The `.sdf` world, the mesh, the inertia tensor and the
+    # ardupilot_gazebo plugin configuration all live in SITL_Models and are
+    # named by none of those hashes. A revision change there alters the
+    # aircraft that flew while moving nothing else in this table.
+    #
+    # `sitl_models.pin.identity` rather than `sitl_models.commit`, because the
+    # identity folds in the working-tree digest: the same reasoning that put
+    # `ardupilot.dirty_digest` here rather than `ardupilot.dirty`. It is
+    # OPTIONAL_IDENTITY because the tier-1 image ships no SITL_Models at all,
+    # so the field is null on both sides of every comparison made there — the
+    # exact shape that made two tier-1 tests fail when v1.6.1 first got this
+    # wrong.
+    ("sitl_models.pin.identity", "the model assets (airframe, world, meshes)"),
 )
 
 # Identity fields describing a component that is not always PRESENT.
@@ -341,7 +373,7 @@ IDENTITY_FIELDS = (
 #
 # So for these fields, unknown on BOTH sides is not reported. Unknown on ONE
 # side still is: that is a real asymmetry between two runs.
-OPTIONAL_IDENTITY = frozenset({"gazebo.version"})
+OPTIONAL_IDENTITY = frozenset({"gazebo.version", "sitl_models.pin.identity"})
 
 
 def field(manifest: dict, dotted: str) -> Any:

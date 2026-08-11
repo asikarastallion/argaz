@@ -1,0 +1,178 @@
+# Copter GPS degradation in a hover — an off-nominal scenario, schema 4.
+#
+# WHY THIS FILE EXISTS
+#   `gps_degradation` has been implemented in faults.py since v1.4, has unit
+#   tests, and had never been pointed at an aircraft: no scenario named it, so
+#   nothing could execute it. The v1.6 audit recorded that as F-19, and the
+#   mechanism coverage matrix reported it as DEFINED — declared in code and
+#   unreachable from any procedure.
+#
+#   This adds no mechanism. It is the declaration that makes the existing one
+#   executable, so the matrix can move it to EXERCISED and then to VERIFIED on
+#   the strength of a recorded flight rather than on the strength of it being
+#   in KINDS.
+#
+# WHY DEGRADATION IS A DIFFERENT QUESTION FROM LOSS
+#   `copter_gps_loss` switches the receiver off, and ArduCopter's answer is the
+#   EKF failsafe: a mode change this project can watch happen. Degradation is
+#   the harder and more common case — the receiver is still there, still
+#   reporting, and reporting badly. A 2D fix with four satellites is exactly
+#   the input a position estimator is least protected against, because nothing
+#   in the message says "do not trust me".
+#
+#   What is asked here is therefore NOT "does a failsafe fire". It is the
+#   weaker and more honest claim: an airborne multirotor whose position source
+#   has become unreliable must not disarm and must not tumble, whatever the
+#   estimator decides to do about it.
+#
+# WHAT IS DELIBERATELY NOT ASSERTED
+#   No mode. FS_EKF_ACTION and EK3_* thresholds are parameters, a model may
+#   ship any values of them, and a criterion demanding LAND or ALTHOLD would be
+#   testing this repository's assumption rather than the aircraft. The mode the
+#   vehicle chooses is recorded in the run's timeline for a person to read.
+#
+#   No claim that the EKF rejected the degraded fix. Nothing here reads the
+#   estimator's innovations, so a criterion about them would be a claim with no
+#   measurement under it.
+#
+# Sources:
+#   https://ardupilot.org/copter/docs/ekf-inav-failsafe.html
+#   https://ardupilot.org/dev/docs/using-sitl-for-ardupilot-testing.html
+schema: 4
+id: copter_gps_degradation
+name:
+  en: Copter GPS degradation in a hover (scenario)
+  tr: Copter askidayken GPS bozulmasi (senaryo)
+description:
+  en: >-
+    Climbs to a hover in GUIDED, then degrades the simulated GPS receiver
+    rather than switching it off — four satellites and a 2D fix — for a
+    declared window, and judges what the aircraft did about a position source
+    that is still present and no longer trustworthy. The receiver is restored
+    before the run ends, whether the scenario passed or failed.
+  tr: >-
+    GUIDED modunda askiya tirmanir, sonra simule GPS alicisini kapatmak yerine
+    bozar — dort uydu ve 2B fix — ve hala mevcut olan ama artik guvenilmeyen
+    bir konum kaynagi karsisinda aracin ne yaptigina hukum verir. Senaryo gecse
+    de kalsa da alici, kosu bitmeden geri duzeltilir.
+sources:
+  - https://ardupilot.org/copter/docs/ekf-inav-failsafe.html
+  - https://ardupilot.org/dev/docs/using-sitl-for-ardupilot-testing.html
+
+applies_to:
+  role: scenario
+  autopilot: ArduCopter
+
+inputs:
+  - name: alt
+    label: {en: "hover altitude (m)", tr: "aski irtifasi (m)"}
+    type: number
+    default: 20
+    min: 10
+    max: 120
+
+timeout: 420
+
+steps:
+  - name: {en: Switch to GUIDED, tr: GUIDED moduna gec}
+    set_mode: GUIDED
+    timeout: 10
+
+  - name: {en: Arm the motors, tr: Motorlari kur}
+    arm: {recover: true}
+    timeout: 70
+
+  - name: {en: Send the takeoff command, tr: Kalkis komutunu gonder}
+    send_command:
+      command: MAV_CMD_NAV_TAKEOFF
+      type: long
+      params: {p7: "{alt}"}
+    timeout: 15
+
+  - name: {en: Confirm the vehicle is actually climbing, tr: Aracin gercekten tirmandigini dogrula}
+    wait_for: {alt_above: 1.0, climb_rate_above: 0.3}
+    timeout: 30
+
+  - name: {en: Settle into the hover, tr: Askiya otur}
+    wait_for: {alt_above: "{alt*0.9}"}
+    timeout: 150
+
+failures:
+  - id: gps_degraded_in_hover
+    fault: gps_degradation
+    target: gps1
+
+    # Four satellites and a 2D fix. Chosen rather than picked: ArduCopter's
+    # own arming check wants a 3D fix and GPS_HDOP under GPS_HDOP_GOOD, so
+    # this is below what the aircraft would have accepted on the ground while
+    # remaining a receiver that is reporting rather than one that is gone.
+    # `fix_type` is AP_GPS_FixType; 2 is 2D.
+    options:
+      satellites: 4
+      fix_type: 2
+
+    # After the climb, never during it — the same reasoning copter_gps_loss
+    # states: degrading position part way up would confound "what does a bad
+    # fix do" with "what does a bad fix do to a climb".
+    inject_after_step: 5
+
+    start:
+      condition: {alt_above: "{alt*0.85}", armed: true}
+      within: 60s
+
+    duration: 12s
+
+    expected:
+      en: >-
+        The receiver keeps reporting and reports badly. Whether ArduCopter's
+        estimator rejects the degraded fix, raises an EKF failsafe or carries on
+        is a matter of this model's parameters, and none of those outcomes is
+        asserted here. What is required is the part that holds whatever the
+        estimator decides: an airborne multirotor stays armed and stays the
+        right way up. A vehicle that disarms in the air or tumbles because its
+        position source got worse has failed.
+      tr: >-
+        Alici bildirmeye devam eder ve kotu bildirir. ArduCopter'in kestiricisi
+        bozuk fix'i reddeder mi, EKF failsafe baslatir mi yoksa devam mi eder —
+        bu, modelin parametrelerine baglidir ve burada bunlarin hicbiri iddia
+        edilmez. Kestirici ne karar verirse versin gecerli olan sudur: havadaki
+        bir cok rotorlu arac armli kalir ve dogru tarafi yukari durur. Konum
+        kaynagi kotulestigi icin havada disarm eden ya da takla atan bir arac
+        basarisizdir.
+
+    # Judged WHILE the receiver is degraded. Both are claims about the degraded
+    # aircraft and neither would mean the same thing measured after the fix.
+    expect:
+      - condition: {armed: true}
+        for: 8s
+        message:
+          en: stayed armed for 8 s on a degraded position source
+          tr: bozuk konum kaynagiyla 8 sn boyunca armli kaldi
+      - condition: {angular_rate_above: 150}
+        never: 8s
+        message:
+          en: never turned faster than 150°/s while the fix was degraded
+          tr: fix bozukken hicbir an 150°/sn ustunde donmedi
+
+    # Judged AFTER the receiver is restored. "It survived the degradation" and
+    # "it is flyable again" are two results, and a scenario that only checked
+    # the first would pass an aircraft left oscillating.
+    recovery:
+      - condition: {angular_rate_above: 150}
+        never: 5s
+        message:
+          en: settled without a rate excursion once the fix was restored
+          tr: fix duzeldiginde hiz sicramasi olmadan kararli kaldi
+
+    # The verdict rests on attitude telemetry. Without it the two rate criteria
+    # would read 0°/s for a tumbling aircraft, so the run reports "not judged"
+    # rather than a pass.
+    evidence: [attitude]
+
+expect:
+  - id: rate-bounded
+    condition:
+      attitude_stable: {max_rate: 150, tolerance: 3}
+    message:
+      en: never spent more than 3 s turning faster than 150°/s
+      tr: 150°/sn ustunde donerek toplam 3 sn'den fazla vakit gecirmedi

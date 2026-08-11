@@ -36,6 +36,26 @@ plotjuggler_port = 14552
 [regression]
 default_tolerance = 0.10
 
+# --------------------------------------------------------- model environment
+# Which revision of the model assets a verification is entitled to fly.
+#
+# ArduPilot has been pinned by SHA in both Dockerfiles since the first tier
+# image, for a reason stated there: an image that tracked a branch would fly a
+# different autopilot on every build and no two CI results could be compared.
+# SITL_Models — the airframes, worlds and parameter files tier 2 exists to
+# verify — was cloned at HEAD, so half the environment was still moving.
+#
+# `revision` must be an exact commit SHA or an immutable tag. HEAD, main,
+# master, latest and current are refused: they name whatever is there today,
+# which is the one thing a pin may not mean. A revision that cannot be
+# obtained is an ENVIRONMENT failure and never an aircraft one.
+#
+# Leave the table out entirely and runs record `unpinned` — an honest answer
+# for local work, and not one a release verification should be making.
+[model_environment]
+repository = "https://github.com/ArduPilot/SITL_Models.git"
+revision = "25bc38ed8c6c0345840159a8cbc0b02781d52f3c"
+
 [regression.tolerance]
 # peak_angular_rate = 0.25
 

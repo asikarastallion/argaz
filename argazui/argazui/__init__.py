@@ -7,4 +7,4 @@
 # that could pass on telemetry that never arrived, and a simulator failure
 # reported as an aircraft failure — plus the HIGH findings beside them. See
 # docs/V1.6_CORRECTIVE_RELEASE_VERIFICATION.md.
-__version__ = "1.6.1"
+__version__ = "1.7.0"

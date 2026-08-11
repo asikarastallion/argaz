@@ -163,3 +163,45 @@ tumble. The mode it chooses is recorded in the run's mode timeline, as evidence
 for a person to read.
 
 Fault injection was added in ArgazUI v1.4.
+
+## All four mechanisms are now exercised
+
+Two of the four — `gps_degradation` and `mavlink_degradation` — were in
+`faults.KINDS` from v1.4 with unit tests behind them, and no scenario named
+either. Nothing could point them at an aircraft, so they were code paths with
+no flight evidence: `DEFINED` in the
+[mechanism matrix](coverage-model.md), which is a weaker state than
+"uncovered".
+
+v1.7 adds the two declarations that make them reachable. **No mechanism was
+added** — `faults.py` is unchanged.
+
+| scenario | mechanism | what it asks |
+|---|---|---|
+| `copter_gps_degradation` | `gps_degradation` | a receiver that is still reporting, and reporting badly: four satellites and a 2D fix |
+| `copter_link_degradation` | `mavlink_degradation` | a link that is lossy rather than silent: one received message in four discarded |
+
+`tests/test_tier1_degradation_faults.py` flies both against a real SITL and
+asserts the seven properties in turn — the fault starts, the condition is
+observable, the expected response occurs, a criterion evaluates it, evidence is
+generated, the verdict follows from the criteria, and cleanup restores the
+environment.
+
+### Why degradation is a different question from loss
+
+`copter_gps_loss` switches the receiver off, and ArduCopter's answer is the EKF
+failsafe: a mode change a run can watch happen. Degradation is the harder and
+more common case — the receiver is still there and reporting badly, and nothing
+in the message says *do not trust me*. So the criteria do not demand a
+failsafe; they demand the part that holds whatever the estimator decides: an
+airborne multirotor stays armed and stays the right way up.
+
+`copter_link_loss` silences the link completely, and every one of its criteria
+has to be a `recovery:` one — there is no telemetry during a blackout, so there
+is nothing to judge from while it is happening.
+`copter_link_degradation` is **the only fault in the catalogue whose window can
+be judged from inside itself**: three received messages in four still arrive,
+so `for` and `never` have samples to work with. The evidence guard is what
+makes that a measurement rather than an assumption — had the drop rate in fact
+silenced the stream, those criteria would report *not judged* instead of
+passing on a state nothing wrote to.

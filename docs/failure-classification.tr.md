@@ -60,8 +60,40 @@ noktasıdır. Kategori "kim inceleyecek" sorusunu, kod "bu geçen seferkiyle ayn
 | `procedure-timeout`, `fault-start-missed` | `procedure` |
 | `fault-mechanism-unavailable` | `environment` |
 | `vehicle-never-connected` | `environment` |
+| `environment-not-ready` | `environment` |
+| `vehicle-start-failed` | `environment` |
 | `procedure-config-error` | `environment` |
 | `iteration-launch-failed` | `environment` |
+
+## Ortamın hangi parçası: yaşam döngüsü kodları
+
+`environment` her zaman "SITL ya da Gazebo başlamadı" durumunu kapsadı. v1.7'ye
+kadar **hangisi** olduğunu söyleyemiyordu, çünkü hiçbir şey ikisini ayırmıyordu:
+tüm el sıkışma `gz sim … &` ardından `sleep 6` idi; ölen bir Gazebo, yeniden
+derlemeye karar veren bir `sim_vehicle.py`, eksik bir dünya dosyası ve yanlış
+bir `--frame` sınıflandırıcıya zaman aşımına uğramış adımlar olarak varıyordu.
+
+İki kod, bir açılışın durduğu basamağı adlandırır:
+
+| kod | başarısız olan katman |
+|---|---|
+| `environment-not-ready` | simülatör hiçbir zaman bir dünya sunmadı |
+| `vehicle-start-failed` | simülatör sundu, otopilot hiç görünmedi |
+
+Bunlar iki ayrı incelemedir — ilki Gazebo'nun varlıkları ya da eklenti yolu,
+ikincisi SITL derlemesi ya da frame'dir. İkisi de `environment`'tır ve hiçbiri
+`acceptance` değildir. Basamakların nasıl kanıtlandığı için bkz.
+[Simülasyon yaşam döngüsü](simulation-lifecycle.tr.md).
+
+`vehicle-start-failed` bilerek `vehicle_readiness` **değildir**. SITL'in
+başlayamaması, simülatörün ayağa kalkmamasıdır. `vehicle_readiness`, *çalışan*
+ve kendini elverişsiz bildiren bir araca ayrılmıştır; bu, ana makineyle değil
+aracın yapılandırmasıyla ilgili bir olgudur.
+
+`classify_run`, tek bir prosedüre bakmadan önce `lifecycle.failure` alanını
+okur; çünkü duran bir açılış geride atlanmış adımlardan başka bir şey bırakmaz —
+ve nedeni o kalıntıdan yeniden kurmak, ölü bir Gazebo'yu tam olarak bir
+`procedure` arızası yapan şeydi. Başlatan katman bilir ve söyler.
 
 ## İnceleme sırası
 

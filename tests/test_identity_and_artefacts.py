@@ -30,7 +30,7 @@ from pathlib import Path
 
 import pytest
 
-from argazui import coverage, fingerprint, metrics, status
+from argazui import coverage, fingerprint, mechanisms, metrics, status
 
 pytestmark = pytest.mark.tier1
 
@@ -148,12 +148,54 @@ def test_only_genuinely_optional_components_get_the_exemption():
     `ardupilot.firmware_commit` is null on both sides of any tier-1 comparison
     too — a run that never armed writes no log — and that has always been
     reported as incomparable. The exemption is a named set, not a rule.
+
+    The set is asserted exactly rather than by membership, so adding a field to
+    it is a deliberate edit here with a reason beside it. Both entries describe
+    a component that is ABSENT FROM THE ENVIRONMENT ENTIRELY in tier 1, which
+    is the only thing that qualifies: the tier-1 image ships neither Gazebo nor
+    SITL_Models, so both fields are null for the same structural reason on both
+    sides and discriminate nothing.
     """
-    assert fingerprint.OPTIONAL_IDENTITY == {"gazebo.version"}
+    assert fingerprint.OPTIONAL_IDENTITY == {"gazebo.version",
+                                             "sitl_models.pin.identity"}
     both_missing = _fp(ardupilot__firmware_commit=None)
     fields = {d["field"] for d in
               fingerprint.differences(both_missing, both_missing)}
     assert "ardupilot.firmware_commit" in fields
+
+
+def test_the_model_assets_are_an_identity_field():
+    """A different airframe is a different aircraft, and no other field says so.
+
+    `model.config_hash` covers the registry entry and every `.param` file it
+    names. It does not cover the `.sdf` world, the mesh or the inertia tensor,
+    which is most of what makes a tier-2 model the aircraft it is — so before
+    v1.7 two runs across a SITL_Models change compared as the same experiment.
+    """
+    assert "sitl_models.pin.identity" in dict(fingerprint.IDENTITY_FIELDS)
+    diff = fingerprint.differences(
+        _fp(sitl_models__pin__identity="sha256:aaaa"),
+        _fp(sitl_models__pin__identity="sha256:bbbb"))
+    assert [d["field"] for d in diff] == ["sitl_models.pin.identity"]
+    assert diff[0]["reason"] == "changed"
+
+
+def test_model_assets_absent_on_both_sides_do_not_refuse_a_comparison():
+    """Tier 1 has no SITL_Models, exactly as it has no Gazebo.
+
+    This is the shape that broke two tier-1 tests when v1.6.1 first added
+    identity fields without the exemption, and it is asserted here so the same
+    mistake cannot be made again by a later field.
+    """
+    assert fingerprint.differences(_container_fp(), _container_fp()) == []
+
+
+def test_model_assets_known_on_one_side_only_are_still_a_difference():
+    """Unknown on BOTH sides does not discriminate. Unknown on one side does."""
+    with_models = _container_fp(sitl_models__pin__identity="sha256:aaaa")
+    fields = {d["field"] for d in
+              fingerprint.differences(_container_fp(), with_models)}
+    assert "sitl_models.pin.identity" in fields
 
 
 def test_a_gazebo_upgrade_is_a_configuration_difference():
@@ -207,13 +249,47 @@ def test_the_published_coverage_report_has_every_dimension_the_code_declares():
         f"python3 -m argazui coverage --runs runs --out docs/coverage.md")
 
 
+# Sections the generator writes that are not one of the declared dimensions.
+# Named rather than pattern-matched, for the same reason the dimension check
+# exists: a section that appeared from an older generator and a section this
+# one deliberately writes look identical in the output, and only one of them is
+# a defect.
+GENERATOR_SECTIONS = {
+    "What a covered item does and does not mean",
+    # The per-mechanism matrix (v1.7). Not a dimension — it is not a fraction,
+    # and forcing it into `DIMENSIONS` would lose the states it exists for.
+    "Mechanism coverage",
+}
+
+
 @pytest.mark.skipif(not COVERAGE_MD.is_file(), reason="no generated coverage.md")
 def test_the_published_coverage_report_names_no_dimension_the_code_dropped():
     text = COVERAGE_MD.read_text(encoding="utf-8")
     headings = set(re.findall(r"^## (.+)$", text, re.MULTILINE))
     known = {coverage.LABELS[name]["en"] for name in coverage.DIMENSIONS}
-    known.add("What a covered item does and does not mean")
+    known |= GENERATOR_SECTIONS
     assert not headings - known, f"sections from an older generator: {headings - known}"
+
+
+@pytest.mark.skipif(not COVERAGE_MD.is_file(), reason="no generated coverage.md")
+def test_the_published_coverage_report_carries_the_mechanism_matrix():
+    """The same structural-staleness rule, applied to the section v1.7 added.
+
+    F-03 was `coverage.md` describing four dimensions against five-dimension
+    code, and the fix was to make that a test failure rather than something a
+    reader had to notice. A published report that lost the matrix would be the
+    identical defect one release later.
+    """
+    text = COVERAGE_MD.read_text(encoding="utf-8")
+    assert "## Mechanism coverage" in text, (
+        "docs/coverage.md carries no mechanism matrix. Regenerate it: "
+        "python3 -m argazui coverage --runs runs --out docs/coverage.md")
+    for column in ("Defined", "Executable", "Exercised", "Verified"):
+        assert column in text, column
+    # Every state the code can produce has to be renderable, or a mechanism in
+    # that state would appear with a blank cell.
+    for state in mechanisms.STATES:
+        assert state in mechanisms.STATE_ORDER, state
 
 
 @pytest.mark.skipif(not STATUS_MD.is_file(), reason="no generated status.md")

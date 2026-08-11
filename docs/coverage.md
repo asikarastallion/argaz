@@ -1,22 +1,22 @@
 # Coverage
 
 <!-- GENERATED FILE — DO NOT EDIT BY HAND.
-     Generated:  2026-08-11T11:20:45Z
-     Source:     artefacts/tier1, artefacts/tier2
+     Generated:  2026-08-11T18:38:53Z
+     Source:     ../artefacts/tier1, ../artefacts/tier2, ../runs
      Regenerate: python3 -m argazui coverage --runs runs --out docs/coverage.md
      Any edit here is overwritten by the next CI run. -->
 
-Computed from **35** recorded run(s) and the procedure files in this checkout, at **2026-08-11T11:20:45Z**.
+Computed from **197** recorded run(s) and the procedure files in this checkout, at **2026-08-11T18:38:53Z**.
 
 **This is not a test count.** A test count goes up when somebody adds a test and never goes down when somebody adds an aircraft, a procedure or a criterion nobody runs. Every dimension below is measured over named things that could be exercised, and every one of them lists what it did not reach.
 
 | Dimension | Covered | Declared | |
 |---|---:|---:|---|
 | Model coverage | 10 | 11 | 91% |
-| Procedure coverage | 9 | 13 | 69% |
-| Acceptance-criterion coverage | 24 | 32 | 75% |
-| Fault and scenario coverage | 4 | 6 | 67% |
-| Experiment coverage | 0 | 5 | 0% |
+| Procedure coverage | 12 | 15 | 80% |
+| Acceptance-criterion coverage | 28 | 34 | 82% |
+| Fault and scenario coverage | 8 | 8 | 100% |
+| Experiment coverage | 3 | 5 | 60% |
 
 ## Model coverage
 
@@ -32,11 +32,10 @@ Registry entries that tier 2 has flown in Gazebo. Tier 1 does not count: it flie
 
 Procedure files that some recorded run actually executed.
 
-**4 of 13 not covered:**
+**3 of 15 not covered:**
 
 | Item | What it is |
 |---|---|
-| `plane_land_rtl` | Plane return (RTL — does not land) [land] |
 | `plane_takeoff_auto` | Plane takeoff (AUTO mission) [takeoff] |
 | `tailsitter_land` | Tailsitter landing (QLAND) [land] |
 | `vtol_takeoff_mission` | VTOL takeoff (AUTO mission) [takeoff] |
@@ -45,12 +44,12 @@ Procedure files that some recorded run actually executed.
 
 Acceptance criteria that were actually evaluated. A criterion the procedure never reached is not covered — it produced no information about the aircraft.
 
-**8 of 32 not covered:**
+**48 evaluated criterion result(s) could not be attributed to a declared criterion.** They come from runs recorded before criterion identifiers existed (ArgazUI v1.5). They are not matched by position — the procedure may have been edited since, and a coverage figure inflated by a guess is the thing this project exists to remove. Fly the procedures once more to cover them.
+
+**6 of 34 not covered:**
 
 | Item | What it is |
 |---|---|
-| `plane_land_rtl#mode-rtl` | in RTL |
-| `plane_land_rtl#still-flying` | still armed and flying — RTL does not land a fixed wing |
 | `plane_takeoff_auto#alt-reached` | climbed to at least 85% of the commanded takeoff altitude |
 | `plane_takeoff_auto#still-armed` | still armed |
 | `tailsitter_land#disarmed` | disarmed after landing |
@@ -62,24 +61,16 @@ Acceptance criteria that were actually evaluated. A criterion the procedure neve
 
 Fault kinds the code implements, and the faults scenarios declare, that some run actually injected.
 
-**2 of 6 not covered:**
-
-| Item | What it is |
-|---|---|
-| `gps_degradation` | mechanism: GPS degradation |
-| `mavlink_degradation` | mechanism: MAVLink degradation |
+All 8 covered.
 
 ## Experiment coverage
 
 Declared experiments, and each arm of them, that some recorded run actually flew. An arm is listed on its own because an experiment half of whose arms were flown has answered nothing — a comparison needs both sides.
 
-**5 of 5 not covered:**
+**2 of 5 not covered:**
 
 | Item | What it is |
 |---|---|
-| `copter_gps_loss_vs_nominal` | GPS loss against a nominal climb |
-| `copter_gps_loss_vs_nominal#nominal` | copter_takeoff × 3 [reference] |
-| `copter_gps_loss_vs_nominal#gps_loss` | copter_gps_loss × 3 [treatment] |
 | `copter_takeoff_repeatability` | Copter takeoff repeatability |
 | `copter_takeoff_repeatability#repeat` | copter_takeoff × 5 [treatment] |
 
@@ -88,3 +79,41 @@ Declared experiments, and each arm of them, that some recorded run actually flew
 Covered means *some recorded run exercised this and produced a result*. It does not mean the result was a pass, it does not mean the item was exercised recently, and it does not mean it was exercised more than once — see [status.md](status.md) for verdicts and [campaigns.md](campaigns.md) for repetition.
 
 An **uncovered** item is the more useful entry. It is something this project declares and has never run, which is exactly the gap a verification claim must not be read across.
+
+## Mechanism coverage
+
+What this installation DECLARES it can do, against what a run directory on disk shows it has actually done. `Verified` is the only column that says anything about an aircraft, and it requires a recorded flight in which a criterion judged the result — a mechanism that was invoked and left unjudged is `Exercised`, not `Verified`.
+
+Read from 197 run(s) under `../artefacts/tier1`, `../artefacts/tier2`, `../runs`.
+
+| Mechanism | Kind | Defined | Executable | Exercised | Verified | Evidence | State |
+|---|---|:-:|:-:|:-:|:-:|---|---|
+| `gps_degradation` | fault | yes | yes | yes | yes | `20260811T131040Z_sitl_quad_degradation`, `20260811T131105Z_sitl_quad_degradation` | **VERIFIED** |
+| `gps_loss` | fault | yes | yes | yes | yes | `20260811T055759Z_iris`, `20260811T055912Z_iris` | **VERIFIED** |
+| `mavlink_degradation` | fault | yes | yes | yes | yes | `20260811T131131Z_sitl_quad_degradation`, `20260811T181718Z_sitl_quad_degradation` | **VERIFIED** |
+| `mavlink_interrupt` | fault | yes | yes | yes | yes | `20260811T082500Z_sitl_quad_scenario`, `20260811T085923Z_sitl_quad_scenario` | **VERIFIED** |
+| `copter_gps_degradation` | procedure | yes | yes | yes | yes | `20260811T131040Z_sitl_quad_degradation`, `20260811T131105Z_sitl_quad_degradation` | **VERIFIED** |
+| `copter_gps_loss` | procedure | yes | yes | yes | yes | `20260811T055759Z_iris`, `20260811T055912Z_iris` | **VERIFIED** |
+| `copter_land` | procedure | yes | yes | yes | yes | `20260811T082557Z_sitl_quad`, `20260811T083305Z_bicopter` | **VERIFIED** |
+| `copter_link_degradation` | procedure | yes | yes | yes | yes | `20260811T131131Z_sitl_quad_degradation`, `20260811T181718Z_sitl_quad_degradation` | **VERIFIED** |
+| `copter_link_loss` | procedure | yes | yes | yes | yes | `20260811T082500Z_sitl_quad_scenario`, `20260811T085923Z_sitl_quad_scenario` | **VERIFIED** |
+| `copter_takeoff` | procedure | yes | yes | yes | yes | `20260101T000000Z_sitl_quad`, `20260802T204936Z_iris` | **VERIFIED** |
+| `plane_land` | procedure | yes | yes | yes | yes | `20260802T103545Z_skywalker_x8`, `20260803T190242Z_skywalker_x8` | **VERIFIED** |
+| `plane_land_rtl` | procedure | yes | yes | yes | yes | `20260811T131521Z_sitl_plane`, `20260811T182533Z_sitl_plane` | **VERIFIED** |
+| `plane_takeoff` | procedure | yes | yes | yes | yes | `20260802T103545Z_skywalker_x8`, `20260803T190242Z_skywalker_x8` | **VERIFIED** |
+| `tailsitter_takeoff` | procedure | yes | yes | yes | yes | `20260811T082724Z_sitl_tailsitter`, `20260811T083629Z_skycat_tvbs` | **VERIFIED** |
+| `vtol_land` | procedure | yes | yes | yes | yes | `20260802T105117Z_alti_transition_quad`, `20260811T082655Z_sitl_quadplane` | **VERIFIED** |
+| `vtol_takeoff` | procedure | yes | yes | yes | yes | `20260802T105117Z_alti_transition_quad`, `20260802T204603Z_alti_transition_quad` | **VERIFIED** |
+| `tailsitter_land` | procedure | yes | yes | — | — | — | **NOT_EXERCISED** |
+| `plane_takeoff_auto` | procedure | yes | — | — | — | — | **UNSUPPORTED** |
+| `vtol_takeoff_mission` | procedure | yes | — | — | — | — | **UNSUPPORTED** |
+
+Counts: VERIFIED 16, NOT_EXERCISED 1, UNSUPPORTED 2.
+
+### Declared and unproven
+
+Named rather than left to be discovered. None of these is a defect on its own; each is a claim this project has not earned yet, and publishing the list is the point.
+
+* **`tailsitter_land`** (NOT_EXERCISED) — needs a tailsitter airframe. The only one in this suite is SITL's generic `plane-tailsitter`, which ArduPilot's own test suite lists as unstable in hover and unflyable in cruise — `tailsitter_takeoff` already fails on it deliberately, at 1882°/s. Flying a landing procedure on an aircraft that is tumbling would produce a verdict about the frame and record it against the procedure. Tier 2's `skycat_tvbs` is the real tailsitter, and it does not currently reach a hover to land from
+* **`plane_takeoff_auto`** (UNSUPPORTED) — declares an `upload_mission` step; no tier in this suite flies a mission, so nothing here has ever executed it
+* **`vtol_takeoff_mission`** (UNSUPPORTED) — declares an `upload_mission` step; no tier in this suite flies a mission, so nothing here has ever executed it

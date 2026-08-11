@@ -78,21 +78,81 @@ Bunlar `tests/test_identity_and_artefacts.py` içindedir, `tier1` olarak
 işaretlidir ve dolayısıyla hâlihazırda var olan işte, her push'ta koşarlar. Yeni
 bir iş akışı ya da yeni bir CI adımı yoktur.
 
-## Regresyon kapısı eklemek
+## Regresyon kapısı
 
-`argazui compare` tam olarak bunun için yazıldı: regresyon yoksa `0`,
-kötüleşme varsa `1`, karşılaştırılamayan koşular için `2`. Bkz.
-[Regresyon](regression.tr.md).
+v1.7'ye kadar bu bölüm, okuyucunun *ekleyebileceği* bir parçacığı anlatıyordu.
+Hiçbir şey `argazui compare` çağırmıyordu; yani eşiğini aşarak kötüleşen bir
+metriğin hiçbir otomatik tüketicisi yoktu — yalnızca kod olarak var olan bir
+regresyon sistemi henüz bir sürüm kapısı değildir.
+
+Artık `tier2.yml`, modeller uçtuktan sonra onu koşturuyor:
 
 ```yaml
-- name: Referansla karşılaştır
-  run: |
-    python3 -m argazui compare "runs/$CURRENT" --baseline "runs/$BASELINE"
+- name: Regresyon kapısı
+  if: always()
+  run: python3 -m argazui gate --runs runs --baselines runs/baselines
 ```
 
-Referansı açıkça ver. Referanssız biçim aynı modelin en yeni önceki koşusunu
-seçer; bu arayüz için bir kolaylıktır — bir hatta ise karşılaştırmanın neye
-karşı yapıldığını o gün diskte ne varsa ona bağımlı kılardı.
+İşin uçurduğu her modelin en yeni koşusunu, `runs/baselines/<model_id>/`
+altındaki işlenmiş referansla karşılaştırır ve tek bir hüküm döndürür.
+
+### Beş sonuç ve neden beş
+
+| sonuç | anlamı | çıkış | sürümü engeller mi |
+|---|---|---:|---|
+| `PASS` | karşılaştırılan her metrik eşiğini korudu | 0 | hayır |
+| `FAIL` | bir metrik eşiğini aşarak kötüleşti | 1 | **evet** |
+| `ERROR` | karşılaştırma yapılamadı | 2 | hayır — ama işi başarısız kılar |
+| `SKIPPED` | karşılaştırılacak koşu yoktu | 0 | hayır |
+| `NOT_APPLICABLE` | bu modelin henüz işlenmiş bir referansı yok | 0 | hayır |
+
+`FAIL` ve `ERROR` ikisi de işi başarısız kılar ve bilerek farklı haberlerdir.
+Okunamayan bir koşu ya da parmak izleri örtüşmeyen iki koşu bir **altyapı**
+sonucudur: `evidence` sınıflandırmasını korur ve hiçbir şey onu araçla ilgili
+bir hüküm olarak okumaz. İkisini birleştirmek, yanlış belirtilmiş bir referans
+yolunun kötüleşmiş bir araç olarak raporlanmasına giden yoldur.
+
+`SKIPPED`, `PASS` değildir. Hiçbir şey uçurmamış bir iş hiçbir şey doğrulamamıştır
+ve buna yeşil demek, bu dosyanın `if-no-files-found` notunun zaten uyardığı
+sessiz kanıt buharlaşmasıdır.
+
+### Kapı neden bir katman-2 adımı
+
+Bir karşılaştırma uçuş ister ve modeller katman 2'de uçar. Her itmede koşabilen
+şey, karşılaştırmanın hava aracı **gerektirmeyen** her yanıdır: uyumluluk
+kuralları, fark aritmetiği ve tabanları, beş sonuç ve bir altyapı hatasının
+kötüleşmiş bir araç olarak raporlanmaması. Bunlar saf testlerdir, yaklaşık bir
+saniye sürerler ve `tier1.yml` onları *Deterministik regresyon doğrulaması*
+adımında adlarıyla koşturur; böylece sonuçları altı yüzlük bir toplamın içinde
+kaybolmak yerine görünür olur.
+
+```
+PR / her itme            birim + entegrasyon + deterministik regresyon
+gecelik / sürüm          yukarıdakiler, artı modeller, artı kapı
+```
+
+### Referanslar
+
+Bir referans, kendine ait bir biçim değil, `runs/baselines/` altına işlenmiş
+sıradan bir koşu dizinidir — bkz. [README dosyası](../runs/baselines/README.md).
+Kapıya referans kökünü açıkça ver. `argazui compare`'in referanssız biçimi aynı
+modelin en yeni önceki koşusunu seçer; bu arayüz için bir kolaylıktır — bir
+hatta ise karşılaştırmanın neye karşı yapıldığını o gün diskte ne varsa ona
+bağımlı kılardı.
+
+## Model ortamı, hiçbir şey uçmadan önce doğrulanır
+
+`tier2.yml`, tek bir model başlatmadan önce
+`python3 -m argazui doctor --release` koşturur. `--release`, iki model-ortamı
+eşiğinden katı olanını uygular: varlıklar, yalnızca tartışmasız değil, üzerinde
+hiçbir işlenmemiş değişiklik bulunmayan tek ve değişmez bir revizyon olmalıdır.
+Bkz. [Tekrarlanabilirlik](reproducibility.tr.md).
+
+`argaz.toml`'un beyan ettiğinden farklı bir `SITL_Models` uçuran bir gecelik iş,
+kimsenin tekrarlayamayacağı model satırları yayımlardı ve hata görünmez olurdu,
+çünkü her satır yine yeşil kalırdı. Bu yüzden iş başarısız olur — ve bir
+**yapılandırma** sorunu olarak, hiçbir model başlatılmadan önce; böylece hiçbir
+model bunun yüzünden `failed` diye kaydedilmez.
 
 ## Katman 2 barındırılan runner'da koşamıyorsa
 

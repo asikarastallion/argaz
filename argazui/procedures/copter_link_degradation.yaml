@@ -1,0 +1,177 @@
+# Copter ground-station link degradation — an off-nominal scenario, schema 4.
+#
+# WHY THIS FILE EXISTS
+#   `mavlink_degradation` has been implemented in faults.py since v1.4, has
+#   unit tests, and had never been pointed at an aircraft: no scenario named
+#   it, so nothing could execute it. The v1.6 audit recorded that as F-19, and
+#   the mechanism coverage matrix reported it as DEFINED — declared in code and
+#   unreachable from any procedure.
+#
+#   This adds no mechanism. It is the declaration that makes the existing one
+#   executable.
+#
+# WHY DEGRADATION IS A DIFFERENT QUESTION FROM INTERRUPTION
+#   `copter_link_loss` silences the link completely, and the header of that
+#   file explains why every one of its criteria has to be a `recovery:` one:
+#   there is no telemetry during a full blackout, so there is nothing to judge
+#   from while it is happening.
+#
+#   A degraded link is the case that file could not ask about. One message in
+#   four is discarded and three in four still arrive, so ArgazUI CAN see the
+#   aircraft throughout — at a quarter less resolution. That makes this the
+#   only fault in the catalogue whose window can be judged from measurements
+#   taken inside it, and the criteria below are written to use that.
+#
+# WHAT IS DELIBERATELY NOT ASSERTED
+#   Nothing about ArduPilot's GCS failsafe. It keys on `sysid_mygcs_seen`,
+#   which is refreshed by any HEARTBEAT that arrives — and at drop_one_in 4,
+#   three quarters of them do. So a stock aircraft should notice nothing at
+#   all, and the claim here is exactly that: a link that is lossy but alive is
+#   not a link that is gone, and the aircraft should carry on as instructed.
+#
+#   Nothing about which packets were dropped. `drop_one_in` counts RECEIVED
+#   messages (`_rx_seen % drop_one_in`), so the discard pattern is
+#   deterministic across two runs of this file — but which MESSAGE TYPES land
+#   on the discarded counts depends on the vehicle's stream rates, and a
+#   criterion about that would be testing ArduPilot's scheduler.
+#
+# Sources:
+#   https://ardupilot.org/copter/docs/gcs-failsafe.html
+#   https://ardupilot.org/dev/docs/mavlink-basics.html
+schema: 4
+id: copter_link_degradation
+name:
+  en: Copter ground-station link degradation (scenario)
+  tr: Copter yer istasyonu baglanti bozulmasi (senaryo)
+description:
+  en: >-
+    Climbs to a hover in GUIDED, then discards one received message in four for
+    a declared window — a lossy link rather than a silent one — and judges the
+    aircraft from the telemetry that still arrives while it is happening.
+  tr: >-
+    GUIDED modunda askiya tirmanir, sonra beyan edilen bir pencere boyunca
+    alinan her dort mesajdan birini atar — sessiz degil kayipli bir baglanti —
+    ve bu sirada hala gelen telemetriden araca hukum verir.
+sources:
+  - https://ardupilot.org/copter/docs/gcs-failsafe.html
+  - https://ardupilot.org/dev/docs/mavlink-basics.html
+
+applies_to:
+  role: scenario
+  autopilot: ArduCopter
+
+inputs:
+  - name: alt
+    label: {en: "hover altitude (m)", tr: "aski irtifasi (m)"}
+    type: number
+    default: 20
+    min: 10
+    max: 120
+
+timeout: 420
+
+steps:
+  - name: {en: Switch to GUIDED, tr: GUIDED moduna gec}
+    set_mode: GUIDED
+    timeout: 10
+
+  - name: {en: Arm the motors, tr: Motorlari kur}
+    arm: {recover: true}
+    timeout: 70
+
+  - name: {en: Send the takeoff command, tr: Kalkis komutunu gonder}
+    send_command:
+      command: MAV_CMD_NAV_TAKEOFF
+      type: long
+      params: {p7: "{alt}"}
+    timeout: 15
+
+  - name: {en: Confirm the vehicle is actually climbing, tr: Aracin gercekten tirmandigini dogrula}
+    wait_for: {alt_above: 1.0, climb_rate_above: 0.3}
+    timeout: 30
+
+  - name: {en: Settle into the hover, tr: Askiya otur}
+    wait_for: {alt_above: "{alt*0.9}"}
+    timeout: 150
+
+failures:
+  - id: gcs_link_lossy
+    fault: mavlink_degradation
+    target: gcs_link
+
+    # One in four. Chosen so the link stays usable on purpose: at one in two
+    # the criteria below would be measuring ArgazUI's sample rate rather than
+    # the aircraft, and at one in ten the fault would be indistinguishable from
+    # ordinary jitter. `drop_one_in: 1` is refused at load time — that is
+    # `mavlink_interrupt`, and copter_link_loss declares it.
+    options:
+      drop_one_in: 4
+
+    inject_after_step: 5
+
+    start:
+      condition: {alt_above: "{alt*0.85}", armed: true}
+      within: 60s
+
+    duration: 12s
+
+    expected:
+      en: >-
+        Three received messages in four still arrive, so ArgazUI can see the
+        aircraft throughout. ArduPilot's ground-station failsafe keys on any
+        HEARTBEAT arriving, and most of them do, so a stock ArduCopter should
+        treat a lossy link as no event at all: it stays armed, stays in the
+        mode it was left in, and holds the hover. The measurable claim is that
+        a link which is degraded but alive is not a link that is gone.
+      tr: >-
+        Alinan her dort mesajdan ucu hala geliyor, yani ArgazUI araci tum
+        pencere boyunca gorebilir. ArduPilot'un yer istasyonu failsafe'i gelen
+        herhangi bir HEARTBEAT'e bakar ve cogu geliyor; bu yuzden fabrika
+        ArduCopter kayipli baglantiyi hicbir olay saymamalidir: armli kalir,
+        birakildigi modda kalir ve askiyi korur. Olculebilir iddia sudur:
+        bozulmus ama yasayan bir baglanti, kopmus bir baglanti degildir.
+
+    # THE ONLY FAULT IN THE CATALOGUE THAT CAN BE JUDGED FROM INSIDE ITS OWN
+    # WINDOW. Three quarters of the telemetry still arrives, so `for` and
+    # `never` have samples to work with — and the evidence guard below is what
+    # makes that a measurement rather than an assumption: if the drop rate had
+    # in fact silenced the stream, these would report "not judged" instead of
+    # passing on a state nothing wrote to.
+    expect:
+      - condition: {armed: true}
+        for: 8s
+        message:
+          en: stayed armed for 8 s across a link dropping one message in four
+          tr: dort mesajdan birini dusuren bir baglantida 8 sn armli kaldi
+      - condition: {mode: GUIDED}
+        for: 8s
+        message:
+          en: held GUIDED throughout — a lossy link raised no failsafe
+          tr: boyunca GUIDED'da kaldi — kayipli baglanti failsafe baslatmadi
+      - condition: {angular_rate_above: 120}
+        never: 8s
+        message:
+          en: never turned faster than 120°/s while the link was degraded
+          tr: baglanti bozukken hicbir an 120°/sn ustunde donmedi
+
+    recovery:
+      - condition: {angular_rate_above: 120}
+        never: 5s
+        message:
+          en: steady once every message was being delivered again
+          tr: her mesaj yeniden iletilmeye baslayinca kararli kaldi
+
+    # `heartbeat` and `attitude`: the first because every criterion above rests
+    # on the arm state and the mode, which arrive in HEARTBEAT, and the second
+    # because the rate criteria rest on ATTITUDE. A window in which the drop
+    # rate silenced either stream reports "not judged" rather than a pass.
+    evidence: [heartbeat, attitude]
+
+expect:
+  - id: attitude-envelope
+    condition:
+      attitude_stable: {roll: [-25, 25], pitch: [-25, 25], max_rate: 120,
+                        tolerance: 3}
+    message:
+      en: stayed level and unhurried across the whole scenario
+      tr: senaryo boyunca seviyede ve sakin kaldi

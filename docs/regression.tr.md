@@ -128,3 +128,41 @@ Metrikler ölçümdür, kabul kriteri değil. Buradaki bir regresyon, bir kriter
 düştüğü anlamına gelmez. Aracın aynı işi, referansa göre ölçülebilir biçimde
 daha kötü yaptığı anlamına gelir — bakmak için bir sebeptir, bazen de referansı
 ilerletmek için.
+
+## CI kapısı
+
+`argazui compare`, tek bir koşu çifti hakkında tek bir soruyu yanıtlar. CI'nin
+ihtiyacı bir üst seviyedeki sorudur — *bu işin uçurduğu herhangi bir şey,
+işlenmiş referansına göre kötüleşti mi* — tek bir hükümle ve sonuçlar birbirinden
+ayrı tutularak.
+
+```
+python3 -m argazui gate --runs runs --baselines runs/baselines
+```
+
+Denetimin bulgusu, bu katmanı hiçbir şeyin tüketmediğiydi: yukarıdaki çıkış kodu
+sözleşmesi belgelenmişti ve hiçbir iş akışı onu çağırmıyordu. Artık `tier2.yml`,
+modeller uçtuktan sonra çağırıyor.
+
+| sonuç | anlamı | çıkış | sürümü engeller mi |
+|---|---|---:|---|
+| `PASS` | karşılaştırılan her metrik eşiğini korudu | 0 | hayır |
+| `FAIL` | bir metrik eşiğini aşarak kötüleşti | 1 | **evet** |
+| `ERROR` | karşılaştırma yapılamadı | 2 | hayır — ama işi başarısız kılar |
+| `SKIPPED` | karşılaştırılacak koşu yoktu | 0 | hayır |
+| `NOT_APPLICABLE` | bu modelin henüz işlenmiş bir referansı yok | 0 | hayır |
+
+Modeller ayrıştığında `FAIL`, `ERROR`'ın önüne bilerek geçer: ölçülmüş bir
+kötüleşme hava aracıyla ilgili bir olgudur ve onu "diğer modellerden birinin
+referansı okunamadı" ifadesinin altına gömmek, ikisinin daha pahalı hatasıdır.
+
+`SKIPPED`, `PASS` değildir; atlanan bir testin geçen bir test olmaması gibi.
+Hiçbir şey uçurmamış bir iş hiçbir şey doğrulamamıştır.
+
+Kapının hüküm verdiği her çift, koşu dizinine yine olağan `regression.json` ve
+`regression.md` dosyalarını yazar; böylece bir kapı kararının kanıtı, herkesin
+açabileceği bir artefakttır — ayrı bir CI raporlama biçimi yoktur.
+
+Bir referans, `runs/baselines/` altına işlenmiş sıradan bir koşu dizinidir;
+neyin saklandığı ve nedeni için bkz.
+[README dosyası](../runs/baselines/README.md).

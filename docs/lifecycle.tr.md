@@ -52,6 +52,42 @@ editörü ve test koşucusunun kendisini dahil. ArgazUI'nin başlattığı her s
 kendi oturumunda (`start_new_session=True`) çalışır ve süreç grubuyla
 sonlandırılır.
 
+## Bir koşu neye sahiptir; öncesinde ve sonrasında denetlenir
+
+Bir koşu tam olarak başlattığı şeye sahiptir ve sahiplik çekirdek tarafından
+kurulur — oturum kimliği, süreç grubu kimliği ve bir portu tutan soket inode'u
+— asla bir süreç adıyla değil.
+
+**Başlatmadan önce** koşunun ihtiyaç duyduğu portlar denetlenir. Bu koşunun
+başlatmadığı bir şeyin tuttuğu bir port, başlatmayı reddettirir; çünkü sessizce
+bir yabancının aracına bağlanan bir bağlantı, bu koşuda kimsenin başlatmadığı
+bir hava aracı hakkında kanıt üretir. v1.7'den önce buna ulaşılabiliyordu: çöken
+bir sunucu `gz sim`, SITL ve MAVProxy'yi 14550'i tutar hâlde bırakır, sonraki
+BAŞLAT onların yanında `udpin:14550`'ye bağlanır ve *önceki* aracın telemetrisini
+alabilirdi.
+
+Tutucu **raporlanır ve asla sinyallenmez**. Başka bir terminalde kendi SITL'ini
+14550'de koşturan bir geliştirici, ölü bir süreç değil açık bir mesaj alır; ve
+sahiplik katmanının herhangi bir şeye sinyal gönderecek hiçbir yolu yoktur — bu,
+gelenekle değil, kaynağı ayrıştıran bir testle dayatılır.
+
+**Kapatmadan sonra** temizlik varsayılmak yerine denetlenir. `stop_children`
+öldüremediği süreçleri zaten raporluyordu ama bu rapor yalnızca konsola
+gidiyordu; artık aynı iki soru yeniden sorulur ve koşu kaydına düşer:
+
+* `/proc`'a göre sahip olunan süreçler gitti mi?
+* Gerçek bir bind'a göre sahip olunan portlar boş mu?
+
+```json
+"isolation": {"session_id": 481923, "ports": {"mavlink": 14550},
+              "released": true, "survivors": []}
+```
+
+`released: true`, "hiçbir yetim bırakılmadı" ifadesini bir şikâyet yokluğu
+olmaktan çıkarıp altında kanıt olan bir iddiaya çevirir. Koşuyu ne bitirmiş
+olursa olsun sorulur — geçme, başarısızlık, zaman aşımı, iptal ya da istisna —
+çünkü durdurma yolu beş durumda da aynıdır.
+
 ## Sunucuyu kapatmak
 
 Ctrl+C ile durdurulan bir sunucu önce koşusunu tamamlar. Aksi hâlde gerçek bir

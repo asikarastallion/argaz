@@ -440,3 +440,238 @@ def write(directory: Path, comparison: dict) -> tuple[Path, Path]:
                        encoding="utf-8")
     as_text.write_text(render(comparison), encoding="utf-8")
     return as_json, as_text
+
+
+# ============================================================== the CI gate
+# WHY A GATE AND NOT A LOOP IN A WORKFLOW FILE
+# --------------------------------------------
+# `compare` answers one question about one pair of runs, and it has answered it
+# correctly since v1.3. What CI needs is the question one level out — "did
+# anything this job flew get worse than its committed baseline" — with a single
+# verdict, and with the five outcomes kept apart. Written in a workflow file
+# that would be shell arithmetic over exit codes, in a language with no way to
+# say NOT_APPLICABLE, and the audit's own finding was that nothing consumed the
+# regression layer at all.
+#
+# So it lives here, beside the comparison it aggregates, and reuses the same
+# documents: every pair still produces a `regression.json` in the run
+# directory. The gate adds one summary over them and no new storage.
+
+# The five outcomes the brief names, kept distinct because they mean five
+# different things to whoever reads the build.
+GATE_PASS = "PASS"                    # every comparison held
+GATE_FAIL = "FAIL"                    # a metric degraded — this may block a release
+GATE_ERROR = "ERROR"                  # the comparison could not be made
+GATE_SKIPPED = "SKIPPED"              # there was nothing to compare
+GATE_NOT_APPLICABLE = "NOT_APPLICABLE"  # this run has no declared baseline
+
+GATE_OUTCOMES = (GATE_PASS, GATE_FAIL, GATE_ERROR, GATE_SKIPPED,
+                 GATE_NOT_APPLICABLE)
+
+# Exit codes, matching `argazui compare`'s existing contract so a pipeline
+# reads one convention:
+#     0  PASS / SKIPPED / NOT_APPLICABLE — nothing got worse
+#     1  FAIL   a metric degraded past its threshold
+#     2  ERROR  the comparison could not be made
+#
+# 1 and 2 both fail the job and are NOT the same news. A mis-specified
+# baseline, an unreadable run and a fingerprint mismatch are infrastructure
+# problems and keep an `evidence` classification; only 1 is a statement that
+# something measurably got worse. Collapsing them is how a broken baseline path
+# comes to be reported as a degraded aircraft.
+GATE_EXIT = {GATE_PASS: 0, GATE_SKIPPED: 0, GATE_NOT_APPLICABLE: 0,
+             GATE_FAIL: 1, GATE_ERROR: 2}
+
+# Where a committed baseline for a model lives. One directory per model id,
+# holding the same files any run directory holds — because a baseline IS a run,
+# and inventing a second format for it would be a claim with no flight under it.
+BASELINES_DIRNAME = "baselines"
+
+
+def baseline_for(model_id: str, root: Path) -> Optional[Path]:
+    """The committed baseline run for a model, or None if none is declared."""
+    candidate = Path(root) / str(model_id)
+    return candidate if (candidate / "result.json").is_file() else None
+
+
+def _newest_per_model(runs_root: Path) -> dict[str, Path]:
+    """The most recent run directory per model under `runs_root`.
+
+    Recursive, because a CI job's artefacts arrive as `runs/` with the suite's
+    own subdirectories inside it. Sorted by the run id, which starts with a UTC
+    timestamp — so "newest" is a string comparison and needs no file mtimes,
+    which do not survive an artefact upload.
+    """
+    newest: dict[str, Path] = {}
+    root = Path(runs_root)
+    if not root.is_dir():
+        return newest
+    for result in sorted(root.rglob("result.json")):
+        directory = result.parent
+        if directory.parent.name == BASELINES_DIRNAME:
+            continue
+        try:
+            run = load_run(directory)
+        except RunNotReadable:
+            continue
+        model = run.get("model_id")
+        if not model:
+            continue
+        current = newest.get(model)
+        if current is None or directory.name > current.name:
+            newest[model] = directory
+    return newest
+
+
+def gate(runs_root: Path, baselines_root: Path,
+         config: Optional[dict] = None,
+         ignore_config_drift: bool = False) -> dict:
+    """Compare every model this job flew against its committed baseline.
+
+    Returns one document with an overall outcome and a row per model. The rows
+    are what makes the summary readable: an overall FAIL that does not say
+    which model degraded is a red build nobody can act on.
+    """
+    runs = _newest_per_model(runs_root)
+    rows: list[dict] = []
+
+    for model_id in sorted(runs):
+        directory = runs[model_id]
+        row: dict[str, Any] = {"model_id": model_id, "run_dir": str(directory),
+                               "run_id": directory.name, "baseline_dir": None,
+                               "outcome": GATE_NOT_APPLICABLE, "verdict": None,
+                               "degraded": [], "detail": "", "failure": None}
+        baseline_dir = baseline_for(model_id, baselines_root)
+        if baseline_dir is None:
+            row["detail"] = (f"no baseline is committed for {model_id} under "
+                             f"{Path(baselines_root)}/, so there is nothing to "
+                             f"compare this run against")
+            rows.append(row)
+            continue
+        row["baseline_dir"] = str(baseline_dir)
+        try:
+            current = load_run(directory)
+            reference = load_run(baseline_dir)
+        except RunNotReadable as exc:
+            # Infrastructure, and it keeps that classification: a baseline that
+            # cannot be read has not shown that anything got worse.
+            row["outcome"] = GATE_ERROR
+            row["detail"] = str(exc)
+            rows.append(row)
+            continue
+
+        comparison = compare(reference, current, config=config,
+                             ignore_config_drift=ignore_config_drift)
+        # Written into the run directory, exactly as `argazui compare` writes
+        # it, so the evidence for a gate decision is the ordinary artefact and
+        # not something only the gate can read.
+        write(directory, comparison)
+        row["verdict"] = comparison["verdict"]
+        row["degraded"] = list(comparison["degraded"])
+        row["failure"] = comparison["failure"]
+        if comparison["verdict"] == NOT_COMPARABLE:
+            row["outcome"] = GATE_ERROR
+            reasons = ([b["reason"] for b in comparison["compatibility"]["blocking"]]
+                       + [d.get("what") or d.get("field", "")
+                          for d in comparison["compatibility"]["configuration_drift"]])
+            row["detail"] = "; ".join(r for r in reasons if r)
+        elif comparison["verdict"] == REGRESSED:
+            row["outcome"] = GATE_FAIL
+            row["detail"] = "degraded: " + ", ".join(comparison["degraded"])
+        else:
+            row["outcome"] = GATE_PASS
+            row["detail"] = f"{len(comparison['metrics'])} metric(s) compared"
+        rows.append(row)
+
+    outcome = _gate_outcome(rows)
+    return {
+        "schema": SCHEMA,
+        "generated_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "outcome": outcome,
+        "exit_code": GATE_EXIT[outcome],
+        # Only a real degradation may block a release. An ERROR fails the job
+        # — a gate that could not run is not a gate that passed — while keeping
+        # its infrastructure classification, so nobody reads it as an aircraft
+        # verdict.
+        "blocks_release": outcome == GATE_FAIL,
+        "runs_root": str(runs_root),
+        "baselines_root": str(baselines_root),
+        "counts": {name: sum(1 for r in rows if r["outcome"] == name)
+                   for name in GATE_OUTCOMES},
+        "models": rows,
+    }
+
+
+def _gate_outcome(rows: list[dict]) -> str:
+    """One outcome from many, worst-news-first.
+
+    FAIL outranks ERROR deliberately: a measured degradation is a fact about
+    the aircraft, and burying it under "one of the other models had an
+    unreadable baseline" would lose the finding. NOT_APPLICABLE outranks
+    nothing — a job where no model has a baseline yet has not verified
+    anything, and SKIPPED says so rather than PASS.
+    """
+    if not rows:
+        return GATE_SKIPPED
+    outcomes = {row["outcome"] for row in rows}
+    if GATE_FAIL in outcomes:
+        return GATE_FAIL
+    if GATE_ERROR in outcomes:
+        return GATE_ERROR
+    if GATE_PASS in outcomes:
+        return GATE_PASS
+    return GATE_NOT_APPLICABLE
+
+
+def render_gate(document: dict) -> str:
+    """The gate as a document a person reads. Same facts, no new ones."""
+    out: list[str] = []
+    add = out.append
+    add(f"# Regression gate — {document['outcome']}")
+    add("")
+    add(f"Generated {document['generated_utc']}.")
+    add("")
+    add(f"Runs: `{document['runs_root']}` · "
+        f"baselines: `{document['baselines_root']}`")
+    add("")
+    add("| model | outcome | run | baseline | detail |")
+    add("|---|---|---|---|---|")
+    for row in document["models"]:
+        baseline = (Path(row["baseline_dir"]).name if row["baseline_dir"]
+                    else "—")
+        add(f"| `{row['model_id']}` | **{row['outcome']}** "
+            f"| `{row['run_id']}` | `{baseline}` | {row['detail'] or '—'} |")
+    add("")
+    counts = ", ".join(f"{name} {document['counts'][name]}"
+                       for name in GATE_OUTCOMES if document["counts"][name])
+    add(f"Counts: {counts or 'nothing compared'}.")
+    add("")
+    add("## What each outcome means")
+    add("")
+    add("| outcome | meaning | blocks a release |")
+    add("|---|---|---|")
+    add("| PASS | every compared metric held its threshold | no |")
+    add("| FAIL | a metric degraded past its threshold | **yes** |")
+    add("| ERROR | the comparison could not be made — an unreadable run, or "
+        "two runs whose fingerprints do not line up. An infrastructure "
+        "result, not a verdict about an aircraft | no, and it fails the job |")
+    add("| SKIPPED | there were no runs to compare | no |")
+    add("| NOT_APPLICABLE | this model has no committed baseline yet | no |")
+    add("")
+    add("A regression here is not a failed acceptance criterion. It means the "
+        "aircraft is doing the same thing measurably less well than the "
+        "baseline did.")
+    add("")
+    return "\n".join(out)
+
+
+def write_gate(directory: Path, document: dict) -> tuple[Path, Path]:
+    """Writes regression-gate.json and regression-gate.md."""
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    as_json = directory / "regression-gate.json"
+    as_text = directory / "regression-gate.md"
+    as_json.write_text(json.dumps(document, indent=2, ensure_ascii=False) + "\n",
+                       encoding="utf-8")
+    as_text.write_text(render_gate(document), encoding="utf-8")
+    return as_json, as_text

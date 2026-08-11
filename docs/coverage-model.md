@@ -94,3 +94,50 @@ in the other can never disagree about which runs they read.
 An **uncovered** item is the more useful entry: something this project declares
 and has never run, which is exactly the gap a verification claim must not be
 read across.
+
+## The mechanism matrix: five answers instead of one bit
+
+A fraction per dimension is the right summary and it cannot answer the question
+v1.7 asks: *is the mechanism this project SAYS it has actually executable, and
+has anything ever executed it?*
+
+"Covered" is one bit, and there are five distinguishable answers. A fault kind
+that exists in `faults.KINDS` with unit tests and no scenario is not the same
+as one with a scenario that no run has flown, and neither is the same as one
+flown and judged by criteria. Reporting all three as "uncovered" loses the
+distinction that says what to do next.
+
+| state | meaning |
+|---|---|
+| `DEFINED` | the code or a document declares it |
+| `EXECUTABLE` | something can actually invoke it — a scenario points at it |
+| `EXERCISED` | a recorded run invoked it against a vehicle |
+| `VERIFIED` | a recorded run invoked it **and** a criterion judged the result |
+| `NOT_EXERCISED` | definable and executable, and nothing has run it |
+| `UNSUPPORTED` | declared and known not to be executable here, with a reason |
+
+### `VERIFIED` is the only one that says anything about an aircraft
+
+And it is deliberately hard to reach. A fault that was injected and left
+unjudged is `EXERCISED`, not `VERIFIED`, because *the mechanism worked* and
+*the aircraft handled it* are two different claims — the same distinction
+`FaultResult` enforces with four separate fields. A procedure whose every
+criterion was refused for missing evidence has been exercised and has verified
+nothing.
+
+`VERIFIED` means **judged**, not **passed**. A criterion that was measured and
+did not hold has verified exactly as much as one that passed: the mechanism ran
+and produced a verdict about the aircraft. Requiring a pass would make the
+matrix reward green rather than evidence.
+
+### Nothing may be promoted without a run directory
+
+Every cell above `EXECUTABLE` names the run ids behind it, so a claim in the
+matrix can be opened and checked. A mechanism that cannot be exercised here is
+marked `UNSUPPORTED` with the reason and is **not** faked — a report that
+punished a project for an absent dependency would push somebody to invent the
+evidence, which is the failure this matrix exists to make visible.
+
+The matrix is rendered into `docs/coverage.md` beside the dimensions, from the
+same run directories, recomputed on every call. It is not a sixth dimension: it
+is not a fraction, and forcing it into one would lose the states.

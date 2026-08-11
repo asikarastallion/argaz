@@ -1,5 +1,151 @@
 # Changelog
 
+## v1.7.0 — 2026-08-11 — reproducible and reliable verification execution
+
+### What this release is about
+
+v1.6.1 made a PASS mean *measured*. This one makes the run underneath it
+repeatable: the same pinned model environment, an ownership boundary around
+what a run starts, a start-up that says which layer it failed at, a regression
+gate CI actually runs, and a coverage matrix that refuses to call a mechanism
+verified because it exists in source.
+
+No new execution engine, no second `ProcedureRunner`, no new failure category.
+Three new modules, all of them small and none of them orchestrating anything.
+
+### The model environment is pinned (F-09)
+
+`ardupilot` has been pinned by SHA in both Dockerfiles since the first tier
+image, with the reason written there: an image that tracked a branch would fly
+a different autopilot on every build. `SITL_Models` — every airframe, world,
+mesh and parameter file tier 2 exists to verify — was cloned at HEAD, so half
+the environment was still moving, and two builds of one Dockerfile could fly
+different aircraft under the same model name.
+
+`argaz.toml` now declares `[model_environment].revision`, `Dockerfile.tier2`
+fetches that exact SHA and asserts it at build time, and the suite checks the
+two declarations agree — two statements of one fact drift, and this one would
+drift silently.
+
+`HEAD`, `main`, `master`, `latest` and `current` are **refused** as a
+declaration. They name whatever is there today, which is the one thing a pin
+may not mean. A revision that cannot be obtained does not fall back: the run
+fails as a configuration problem, at the environment layer, before anything
+flies — so no model is ever recorded `failed` for a checkout.
+
+Two thresholds, because there are two questions. A working tree with edits on
+top of the declared revision is *usable* and not *reproducible*, for the same
+reason `dirty` became a digest in v1.6.1: refusing every dirty tree would make
+the mechanism unusable during exactly the work it is most wanted for. `doctor
+--release` demands the strict one, and `tier2.yml` runs it before a single
+model is launched.
+
+### A start-up says which layer it failed at (F-14)
+
+`gz sim … &` followed by `sleep 6` was the entire Gazebo handshake, and no exit
+status of any launched command was ever read. So a missing world file, a
+`sim_vehicle.py` that decided to rebuild, a wrong `--frame` and a Gazebo that
+started and died all arrived at the classifier wearing the same costume: a step
+that timed out.
+
+Seven rungs and five failure branches, and **no new category** — the point is
+that a failure is reported at the layer it happened in, not that there is a new
+vocabulary for layers. `simlifecycle.Lifecycle` is a record and a classifier: it
+starts nothing, launches nothing and owns no process. `Manager` and
+`tests/gazebo.py` drive it, because they are the two places that already know
+what was started.
+
+Each rung is reached by the component doing its job rather than by a clock.
+Gazebo is ready when `gz topic -l` lists a topic under `/world/…`, which its
+transport only advertises once a world is loaded and the server is stepping it.
+SITL is operational when its serial0 TCP port accepts a connection — the probe
+`tests/sitl.py` has used since the suite was written, and which the audit named
+as the asymmetry between the test path and the real one. Both paths use it now.
+
+`sleep 6` in the launch commands became a bounded readiness loop, and it stays
+a visible shell line for the same reason every other launch line is one.
+
+### A run owns what it started, and nothing else (F-12)
+
+Teardown was already correct while the server lived. What it could not survive
+was the server dying: the session id went with it, and a crashed ArgazUI left
+`gz sim`, SITL and MAVProxy holding 14550 — after which the next START bound
+`udpin:14550` beside them and could receive the *previous* vehicle's telemetry.
+A run whose evidence came from an aircraft nobody in it launched.
+
+Ports are checked before launch and re-checked after teardown, by socket inode
+and kernel session id, never by process name. A holder this run did not start
+is **reported and never signalled**: a developer running their own SITL on
+14550 in another terminal gets a message, not a dead process. `pkill -f` is
+still never used, and the ownership layer has no way to signal anything at all
+— asserted by a test that parses it rather than by convention.
+
+`released: true` in the run record is what turns "no orphan was left" from an
+absence of complaint into a claim with evidence under it.
+
+### The regression layer has a consumer (F-16)
+
+`argazui compare` implemented a three-way exit-code contract from v1.3 and no
+workflow invoked it, so a metric degrading past its threshold had no automated
+consumer anywhere. A regression system that exists only as code is not a
+release gate.
+
+`argazui gate` compares every model a job flew against its committed baseline
+under `runs/baselines/<model_id>/` and returns one verdict, keeping five
+outcomes apart: `PASS`, `FAIL`, `ERROR`, `SKIPPED`, `NOT_APPLICABLE`. `FAIL`
+and `ERROR` both fail the job and are different news — an unreadable run or two
+runs whose fingerprints do not line up keeps its `evidence` classification, so
+nobody reads it as a verdict about an aircraft. `SKIPPED` is not `PASS`,
+because a job that flew nothing has verified nothing.
+
+A baseline is an ordinary run directory, not a format of its own.
+
+### Coverage that distinguishes five answers (F-18/F-19)
+
+"Covered" is one bit. A fault kind that exists in `faults.KINDS` with unit
+tests and no scenario is not the same as one with a scenario nothing has flown,
+and neither is the same as one flown and judged — and reporting all three as
+"uncovered" loses the distinction that says what to do next.
+
+The matrix reports `DEFINED` / `EXECUTABLE` / `EXERCISED` / `VERIFIED` /
+`NOT_EXERCISED` / `UNSUPPORTED` per mechanism, into `docs/coverage.md` beside
+the dimensions. `VERIFIED` is deliberately hard to reach: an injected fault
+left unjudged is `EXERCISED`, because *the mechanism worked* and *the aircraft
+handled it* are two claims. It means **judged**, not **passed** — a criterion
+that was measured and did not hold verified as much as one that passed.
+
+Nothing may be promoted without a run directory on disk, and every cell names
+the runs behind it.
+
+`gps_degradation` and `mavlink_degradation` had been in `faults.KINDS` since
+v1.4 with unit tests and no scenario naming either. Two declarations make them
+reachable — **no mechanism was added**, `faults.py` is unchanged — and
+`tests/test_tier1_degradation_faults.py` flies both against a real SITL.
+`plane_land_rtl` is flown by name for the first time. `tailsitter_land` remains
+`NOT_EXERCISED` with the reason stated rather than faked: the only tailsitter
+frame in this suite is the one ArduPilot's own tests call unflyable.
+
+### Documentation
+
+New: `docs/simulation-lifecycle.{md,tr.md}`, and a Simulation Lifecycle page in
+the portal. `docs/coverage.md` and `docs/status.md` are now reachable *from*
+the portal — the two documents that say what has not been verified were the two
+a portal reader could not open (audit F-27).
+
+Updated in both languages in the same pass: reproducibility (the pin, the six
+states, process and port isolation), failure classification (the two lifecycle
+codes), regression (the gate), CI (the gate and the pre-flight environment
+check), coverage model (the matrix), process lifecycle (ownership).
+
+### Not done, and named
+
+`ardupilot_gazebo` is still cloned unpinned in `Dockerfile.tier2` — the same
+class of defect as F-09, one repository over. The launch commands still read no
+exit status per line; the readiness loop covers the case the audit cared about
+and a mid-flight Gazebo death is still seen as a link loss. `tailsitter_land`
+and the two mission procedures remain unexercised, with reasons. Full list in
+[docs/V1.7_ENGINEERING_VERIFICATION.md](docs/V1.7_ENGINEERING_VERIFICATION.md).
+
 ## v1.6.1 — 2026-08-11 — corrective release
 
 ### What this release is about

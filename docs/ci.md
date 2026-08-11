@@ -79,22 +79,80 @@ These live in `tests/test_identity_and_artefacts.py`, are marked `tier1`, and
 therefore run on every push in the job that already exists. No new workflow and
 no new CI step.
 
-## Adding a regression gate
+## The regression gate
 
-`argazui compare` is built for this: exit `0` for no regression, `1` for a
-degradation, `2` for runs that could not be compared. See
-[Regression](regression.md).
+Until v1.7 this section described a snippet a reader *could* add. Nothing
+invoked `argazui compare`, so a metric degrading past its threshold had no
+automated consumer anywhere — a regression system that exists only as code is
+not yet a release gate.
+
+`tier2.yml` now runs it, after the models have flown:
 
 ```yaml
-- name: Compare against the baseline
-  run: |
-    python3 -m argazui compare "runs/$CURRENT" --baseline "runs/$BASELINE"
+- name: Regression gate
+  if: always()
+  run: python3 -m argazui gate --runs runs --baselines runs/baselines
 ```
 
-Give it an explicit baseline. The no-baseline form picks the newest earlier run
-of the same model, which is a convenience for the interface — in a pipeline it
-would make what a comparison was measured against depend on whatever happened
-to be on disk that day.
+It compares the newest run of each model the job flew against the committed
+baseline in `runs/baselines/<model_id>/`, and returns one verdict.
+
+### The five outcomes, and why they are five
+
+| outcome | meaning | exit | blocks a release |
+|---|---|---:|---|
+| `PASS` | every compared metric held its threshold | 0 | no |
+| `FAIL` | a metric degraded past its threshold | 1 | **yes** |
+| `ERROR` | the comparison could not be made | 2 | no — and it fails the job |
+| `SKIPPED` | there were no runs to compare | 0 | no |
+| `NOT_APPLICABLE` | this model has no committed baseline yet | 0 | no |
+
+`FAIL` and `ERROR` both fail the job and are deliberately different news. An
+unreadable run, or two runs whose fingerprints do not line up, is an
+**infrastructure** result: it keeps its `evidence` classification, and nothing
+reads it as a verdict about an aircraft. Collapsing the two is how a
+mis-specified baseline path comes to be reported as a degraded aircraft.
+
+`SKIPPED` is not `PASS`. A job that flew nothing has verified nothing, and
+reporting green for it would be the silent evaporation of evidence this file's
+`if-no-files-found` note already warns about.
+
+### Why the gate is a tier-2 step
+
+A comparison needs a flight, and tier 2 is where models fly. What runs on every
+push is everything about the comparison that does **not** need an aircraft: the
+compatibility rules, the delta arithmetic and its floors, the five outcomes,
+and that an infrastructure error is not reported as a degraded aircraft. Those
+are pure tests, they take about a second, and `tier1.yml` runs them by name in
+a *Deterministic regression verification* step so their result is exposed
+rather than buried in a total of six hundred.
+
+```
+PR / every push          unit + integration + deterministic regression
+nightly / release        the above, plus the models, plus the gate
+```
+
+### Baselines
+
+A baseline is an ordinary run directory committed under `runs/baselines/`, not
+a format of its own — see [its README](../runs/baselines/README.md). Give the
+gate an explicit baselines root. `argazui compare`'s no-baseline form picks the
+newest earlier run of the same model, which is a convenience for the interface;
+in a pipeline it would make what a comparison was measured against depend on
+whatever happened to be on disk that day.
+
+## The model environment is verified before anything flies
+
+`tier2.yml` runs `python3 -m argazui doctor --release` before it launches a
+single model. `--release` applies the stricter of the two model-environment
+thresholds: the assets must be one immutable revision with no uncommitted
+changes, not merely undisputed. See [Reproducibility](reproducibility.md).
+
+A nightly that flew a different `SITL_Models` from the one `argaz.toml`
+declares would publish model rows nobody could repeat, and the failure would be
+invisible because every row would still be green. So the job fails — as a
+**configuration** problem, before any model is launched, so that no model is
+ever recorded `failed` for it.
 
 ## If tier 2 cannot run on a hosted runner
 

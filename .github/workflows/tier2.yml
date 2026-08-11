@@ -81,22 +81,108 @@ jobs:
       - name: Prepare the run directory
         run: mkdir -p runs && chmod 777 runs
 
+      # THE ENVIRONMENT IS CHECKED BEFORE ANYTHING FLIES (F-09)
+      # -------------------------------------------------------
+      # `--release` applies the stricter of the two thresholds: the model
+      # assets must be one immutable revision with no uncommitted changes, not
+      # merely undisputed. A nightly that flew a different SITL_Models from the
+      # one argaz.toml declares would publish model rows nobody could repeat,
+      # and the failure would be invisible because every row would still be
+      # green.
+      #
+      # This fails the job on purpose, and it fails it as a CONFIGURATION
+      # problem before a single model is launched — so no model is ever
+      # recorded `failed` for it.
+      #
+      # -w is the image's own WORKDIR (/opt/argaz/argazui), not /opt/argaz.
+      # `python3 -m argazui` resolves the PACKAGE, which lives one level down;
+      # from /opt/argaz the outer directory shadows it as a namespace package
+      # and python reports "argazui is a package and cannot be directly
+      # executed". The pytest steps get away with /opt/argaz because
+      # `pytest.ini` puts the package directory on `pythonpath`.
+      - name: Verify the pinned model environment
+        run: |
+          docker run --rm \
+            -v "$PWD/argazui:/opt/argaz/argazui" \
+            -v "$PWD/argaz.toml:/opt/argaz/argaz.toml:ro" \
+            -w /opt/argaz/argazui --entrypoint python3 "$IMAGE" \
+            -m argazui doctor --release
+
       - name: Fly the models
         run: |
           start=$SECONDS
           filter='${{ inputs.models }}'
           set +e
+          # argaz.toml is mounted for the same reason the checkout is: the
+          # configuration under test has to be this commit's. It carries
+          # `[model_environment]`, and without the mount every run would record
+          # the pin declared by whenever the image was last built.
           docker run --rm --shm-size=1g \
             -v "$PWD/argazui:/opt/argaz/argazui" \
             -v "$PWD/tests:/opt/argaz/tests" \
             -v "$PWD/pytest.ini:/opt/argaz/pytest.ini" \
             -v "$PWD/runs:/opt/argaz/runs" \
+            -v "$PWD/argaz.toml:/opt/argaz/argaz.toml:ro" \
             -w /opt/argaz --entrypoint python3 "$IMAGE" \
             -m pytest tests/ -m tier2 -q ${filter:+-k "$filter"}
           status=$?
           set -e
           echo "suite_seconds=$((SECONDS - start))" >> "$GITHUB_ENV"
           exit $status
+
+      # THE REGRESSION LAYER'S CONSUMER (F-16)
+      # ---------------------------------------
+      # `argazui compare` has implemented a three-way exit-code contract since
+      # v1.3 and no workflow invoked it, so a metric degrading past its
+      # threshold had no automated consumer anywhere. The gate compares every
+      # model this job flew against its committed baseline under
+      # `runs/baselines/<model>/` and returns one verdict.
+      #
+      #     exit 0  PASS / SKIPPED / NOT_APPLICABLE — nothing got worse
+      #     exit 1  FAIL   a metric degraded; this is what may block a release
+      #     exit 2  ERROR  the comparison could not be made
+      #
+      # 1 and 2 both fail the job and are deliberately different. 2 is an
+      # unreadable run or two runs whose fingerprints do not line up — an
+      # infrastructure result that keeps its `evidence` classification, so
+      # nobody reads it as a verdict about an aircraft.
+      #
+      # `if: always()` because a suite with failing models still produced runs
+      # worth comparing, and a gate that only ran on green would never see the
+      # case it exists for.
+      - name: Regression gate
+        if: always()
+        id: gate
+        run: |
+          set +e
+          docker run --rm \
+            -v "$PWD/argazui:/opt/argaz/argazui" \
+            -v "$PWD/runs:/opt/argaz/runs" \
+            -v "$PWD/argaz.toml:/opt/argaz/argaz.toml:ro" \
+            -w /opt/argaz/argazui --entrypoint python3 "$IMAGE" \
+            -m argazui gate --runs /opt/argaz/runs \
+                            --baselines /opt/argaz/runs/baselines
+          status=$?
+          set -e
+          case "$status" in
+            0) echo "outcome=PASS-or-not-applicable" >> "$GITHUB_OUTPUT" ;;
+            1) echo "outcome=FAIL" >> "$GITHUB_OUTPUT"
+               echo "::error::A metric degraded past its threshold. This is a"
+               echo "::error::verification failure and blocks a release." ;;
+            *) echo "outcome=ERROR" >> "$GITHUB_OUTPUT"
+               echo "::error::The regression comparison could not be made. This"
+               echo "::error::is an INFRASTRUCTURE failure, not an aircraft one." ;;
+          esac
+          exit $status
+
+      - name: Publish the gate verdict
+        if: always()
+        run: |
+          if [ -f runs/regression-gate.md ]; then
+            cat runs/regression-gate.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The regression gate produced no document." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Report timings
         if: always()
@@ -108,6 +194,7 @@ jobs:
             echo "|---|---|"
             echo "| pull image | ${pull_seconds:-n/a} |"
             echo "| fly the models | ${suite_seconds:-n/a} |"
+            echo "| regression gate | ${{ steps.gate.outputs.outcome || 'not reached' }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # Every flight leaves a run directory: dataflash log, parameter dump,

@@ -38,6 +38,43 @@ CATALOG: dict[str, dict[str, str]] = {
                            "tr": "Kayit defteri yenilendi: {count} model "
                                  "({skipped} kapsam disi giris atlandi)"},
 
+    # ------------------------------- model environment / isolation (v1.7)
+    # An operator reads these at the moment a start-up is refused, which is
+    # when falling back to English is least acceptable.
+    "port_conflict":     {"en": "REFUSED TO START: a port this run needs is held "
+                                "by a process it did not start.\n{detail}\n"
+                                "Nothing was signalled — the holder is not this "
+                                "run's to terminate. Close it, or configure "
+                                "different ports in argaz.toml.",
+                          "tr": "BASLATMA REDDEDILDI: bu kosunun ihtiyac duydugu "
+                                "bir portu, kosunun baslatmadigi bir surec "
+                                "tutuyor.\n{detail}\n"
+                                "Hicbir sinyal gonderilmedi — o surec bu kosuya "
+                                "ait degil. Sureci kapat ya da argaz.toml'da "
+                                "farkli portlar tanimla."},
+    "port_conflict_short": {"en": "A required port is held by another process",
+                            "tr": "Gerekli bir portu baska bir surec tutuyor"},
+    "model_env_refused": {"en": "REFUSED TO START: the model assets are not the "
+                                "revision this installation declared.\n{reason}",
+                          "tr": "BASLATMA REDDEDILDI: model varliklari, bu "
+                                "kurulumun beyan ettigi revizyon degil.\n{reason}"},
+    "model_env_refused_short": {"en": "The model environment is not the declared one",
+                                "tr": "Model ortami beyan edilen ortam degil"},
+    "model_env_warning": {"en": "The model environment is usable but not "
+                                "reproducible: {reason}",
+                          "tr": "Model ortami kullanilabilir ama tekrarlanabilir "
+                                "degil: {reason}"},
+    "gazebo_not_ready":  {"en": "Gazebo did not report a served world: {detail}. "
+                                "Starting the vehicle anyway; if no heartbeat "
+                                "arrives, this is why.",
+                          "tr": "Gazebo, dunyayi sundugunu bildirmedi: {detail}. "
+                                "Arac yine de baslatiliyor; heartbeat gelmezse "
+                                "sebebi budur."},
+    "cleanup_incomplete": {"en": "CLEANUP INCOMPLETE — something this run owned is "
+                                 "still there: {detail}",
+                           "tr": "TEMIZLIK EKSIK — bu kosuya ait bir sey hala "
+                                 "duruyor: {detail}"},
+
     # -------------------------------------------------- MAVLink link
     "waiting_mavlink":   {"en": "Waiting for MAVLink (udp 127.0.0.1:{port})...",
                           "tr": "MAVLink bekleniyor (udp 127.0.0.1:{port})..."},

@@ -27,12 +27,15 @@ from . import evidence as evidencelib
 from . import experiments as experimentlib
 from . import failures as failurelib
 from . import faults as faultlib
+from . import isolation
 from . import limitations as limitslib
 from . import metrics as metricslib
+from . import modelenv
 from . import paths
 from . import procedures as procs
 from . import regression
 from . import runs as runlib
+from . import simlifecycle
 from . import trace as tracelib
 from .i18n import t, set_language, get_language, LANGUAGES
 from .mavlink_link import MavlinkLink, substitute
@@ -159,6 +162,12 @@ class Manager:
         self.experiment: Optional[experimentlib.ExperimentRunner] = None
         self.experiment_thread: Optional[threading.Thread] = None
         self.last_experiment: Optional[str] = None
+        # Which rung of the simulation lifecycle the active session reached,
+        # and what it owns while it is up (v1.7). Both belong beside `self.run`
+        # for the same reason it does: they are per-session, and they are
+        # written into the run record when the session ends.
+        self.lifecycle: Optional[simlifecycle.Lifecycle] = None
+        self.resources: Optional[isolation.RunResources] = None
         hub.console_sink = self._record_console
 
     def session(self, stream: str) -> TerminalSession:
@@ -266,6 +275,42 @@ class Manager:
                 self._stop_locked()
 
             hub.push_log(t("starting", name=model["name"], method=model["method"]))
+
+            # ------------------------------------------------ v1.7 pre-launch
+            # WHAT THIS RUN IS ABOUT TO OWN, CHECKED BEFORE IT OWNS ANYTHING
+            # --------------------------------------------------------------
+            # A crashed server leaves gz sim, SITL and MAVProxy holding 14550,
+            # and the next START used to bind `udpin:14550` beside them and
+            # receive the PREVIOUS vehicle's telemetry — a run whose evidence
+            # came from an aircraft nobody in it launched. The check is by
+            # socket inode and session id, never by process name, and a holder
+            # that is not ours is REPORTED rather than signalled.
+            self.lifecycle = simlifecycle.Lifecycle(label=model["id"],
+                                                    on_log=hub.push_log)
+            self.resources = isolation.RunResources(label=model["id"])
+            conflicts = self.resources.check_ports(isolation.wanted_ports())
+            blocking = self.resources.blocking_conflicts()
+            if blocking:
+                self.lifecycle.fail(simlifecycle.ENVIRONMENT_FAILED,
+                                    isolation.describe(blocking))
+                hub.push_log(t("port_conflict",
+                               detail=isolation.describe(blocking)))
+                return {"ok": False, "text": t("port_conflict_short")}
+            for holder in conflicts:
+                hub.push_log(holder.describe())
+
+            # The model assets have to be the ones the configuration declared.
+            # A mismatch is a CONFIGURATION problem and is reported as one; it
+            # is never allowed to become a verdict about an aircraft.
+            pin = modelenv.verify()
+            if not pin["ok"]:
+                self.lifecycle.fail(simlifecycle.ENVIRONMENT_FAILED,
+                                    pin["reason"])
+                hub.push_log(t("model_env_refused", reason=pin["reason"]))
+                return {"ok": False, "text": t("model_env_refused_short")}
+            if not pin["reproducible"]:
+                hub.push_log(t("model_env_warning", reason=pin["reason"]))
+
             commands = build_launch_commands(model)
 
             # Kayit, ilk komut yazilmadan ONCE acilir: acilis ciktisi da
@@ -284,8 +329,15 @@ class Manager:
                 self.run = None
                 hub.push_log(t("run_failed", err=exc))
 
+            self.lifecycle.enter(simlifecycle.ENVIRONMENT_STARTING,
+                                 f"{len(commands)} launch line(s)")
             for line in commands:
                 self.sim.run_line(line)
+
+            # The pty's bash is its own kernel session; that session id is what
+            # makes every later ownership question answerable.
+            self.resources.sid = self.sim.sid
+            self.resources.shell_pid = self.sim.shell_pgid
 
             self.active_model = model
             self.mav.start(vehicle=model.get("vehicle"))
@@ -293,12 +345,65 @@ class Manager:
             return {"ok": True, "text": t("starting_short", name=model["name"])}
 
     def _announce_link(self, model: dict) -> None:
+        """Watch the environment come up, one rung at a time.
+
+        Runs in its own thread because every rung is a wait. It changes nothing
+        and starts nothing: the launch has already happened, and this says
+        which layer it got to — which is the difference between "no heartbeat"
+        and "Gazebo never served a world", and those need different people.
+        """
+        lifecycle = self.lifecycle
+
+        def alive() -> bool:
+            return self.sim.is_alive() and self.active_model is not None
+
+        # ------------------------------------------------------- environment
+        if model.get("world"):
+            ready, detail = simlifecycle.wait_for_gazebo(
+                timeout=simlifecycle.ENVIRONMENT_READY_TIMEOUT, alive=alive)
+            if lifecycle is not None:
+                if ready:
+                    lifecycle.enter(simlifecycle.ENVIRONMENT_READY, detail)
+                else:
+                    # Not fatal on its own: `gz topic` may be absent from a
+                    # PATH that has `gz sim`, and refusing the run on a missing
+                    # diagnostic would fail a simulation that was working. The
+                    # rung is recorded as not reached, and the vehicle wait
+                    # below is what decides.
+                    hub.push_log(t("gazebo_not_ready", detail=detail))
+        elif lifecycle is not None:
+            lifecycle.enter(simlifecycle.ENVIRONMENT_READY,
+                            "this model needs no simulator of its own")
+
+        if lifecycle is not None:
+            lifecycle.enter(simlifecycle.VEHICLE_STARTING, "waiting for MAVLink")
         hub.push_log(t("waiting_mavlink", port=paths.UI_MAVLINK_PORT))
         if self.mav.wait_ready(timeout=180):
             hub.push_log(t("mavlink_ready", sysid=self.mav.state.sysid,
                            mode=self.mav.state.mode))
+            if lifecycle is not None:
+                phase, detail = simlifecycle.vehicle_readiness(self.mav)
+                lifecycle.enter(simlifecycle.VEHICLE_READY
+                                if phase == simlifecycle.VEHICLE_READY
+                                else simlifecycle.VEHICLE_STARTING, detail)
         else:
             hub.push_log(t("mavlink_failed"))
+            if lifecycle is not None:
+                # WHICH LAYER, NOT MERELY THAT SOMETHING FAILED
+                # ----------------------------------------------
+                # Gazebo serving a world and no vehicle appearing is SITL's
+                # problem; no world and no vehicle is the simulator's. Both
+                # produced the identical "no heartbeat in 180 s" before v1.7,
+                # and they are two different investigations.
+                if (model.get("world")
+                        and not lifecycle.reached(simlifecycle.ENVIRONMENT_READY)):
+                    lifecycle.fail(simlifecycle.ENVIRONMENT_FAILED,
+                                   "Gazebo never reported a world, and no "
+                                   "vehicle heartbeat arrived")
+                else:
+                    lifecycle.fail(simlifecycle.VEHICLE_START_FAILED,
+                                   "the simulator came up but no vehicle "
+                                   "heartbeat arrived within 180 s")
 
     def _stop_locked(self) -> dict:
         if self.runner:
@@ -320,13 +425,34 @@ class Manager:
                 log=lambda s: hub.push_log(t("shell_prefix", msg=s), stream=SHELL))
         self.active_model = None
 
+        # CLEANUP IS CHECKED, NOT ASSUMED (v1.7)
+        # ---------------------------------------
+        # `stop_children` already reports survivors it could not kill, and that
+        # report went to the console and nowhere else. The same question asked
+        # here — are the owned processes gone, are the owned ports free — lands
+        # in the run record, so "nothing was left behind" becomes a claim with
+        # evidence under it instead of an absence of complaint.
+        if self.resources is not None:
+            released = self.resources.verify_released()
+            if not released["released"]:
+                hub.push_log(t("cleanup_incomplete",
+                               detail=json.dumps(released, ensure_ascii=False)))
+        if self.lifecycle is not None and not self.lifecycle.failed:
+            self.lifecycle.enter(simlifecycle.COMPLETED, "session stopped")
+
         # Artefaktlar SITL oldukten SONRA toplanir: dataflash log ancak surec
         # kapaninca kapatilir, once kopyalanirsa yarim kalir.
         run, self.run = self.run, None
         if run is not None:
+            if self.lifecycle is not None:
+                run.record_lifecycle(self.lifecycle)
+            if self.resources is not None:
+                run.record_isolation(self.resources)
             result = run.finish()
             hub.push_log(t("run_saved", id=run.run_id, status=result.get("status"),
                            path=str(run.dir)))
+        self.lifecycle = None
+        self.resources = None
         return {"ok": True, "text": t("stopped")}
 
     def stop(self) -> dict:

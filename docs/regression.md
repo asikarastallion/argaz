@@ -128,3 +128,39 @@ Metrics are measurements, not acceptance criteria. A regression here does not
 mean a criterion failed. It means the aircraft is doing the same thing
 measurably less well than the baseline did — which is a reason to look, and
 sometimes a reason to move the baseline.
+
+## The CI gate
+
+`argazui compare` answers one question about one pair of runs. What CI needs is
+the question one level out — *did anything this job flew get worse than its
+committed baseline* — with a single verdict and the outcomes kept apart.
+
+```
+python3 -m argazui gate --runs runs --baselines runs/baselines
+```
+
+The audit's finding was that nothing consumed this layer at all: the exit-code
+contract above was documented and no workflow invoked it. `tier2.yml` now does,
+after the models have flown.
+
+| outcome | meaning | exit | blocks a release |
+|---|---|---:|---|
+| `PASS` | every compared metric held its threshold | 0 | no |
+| `FAIL` | a metric degraded past its threshold | 1 | **yes** |
+| `ERROR` | the comparison could not be made | 2 | no — and it fails the job |
+| `SKIPPED` | there were no runs to compare | 0 | no |
+| `NOT_APPLICABLE` | this model has no committed baseline yet | 0 | no |
+
+`FAIL` outranks `ERROR` when models disagree, deliberately: a measured
+degradation is a fact about an aircraft, and burying it under "one of the other
+models had an unreadable baseline" is the more expensive mistake of the two.
+
+`SKIPPED` is not `PASS`, for the same reason a skipped test is not a passing
+one. A job that flew nothing has verified nothing.
+
+Every pair the gate judges still writes the ordinary `regression.json` and
+`regression.md` into the run directory, so the evidence for a gate decision is
+an artefact anybody can open — there is no separate CI reporting format.
+
+A baseline is an ordinary run directory committed under `runs/baselines/`; see
+[its README](../runs/baselines/README.md) for what is kept and why.

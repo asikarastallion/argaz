@@ -274,3 +274,57 @@ def test_the_link_measures_the_simulators_speedup(request, runs_root):
     assert interval * 2 <= budget, (
         f"a {interval:.3f}s keepalive does not fit twice into a {budget:.3f}s "
         f"budget at speedup {vehicle.link.speedup:.1f}")
+
+
+# ------------------------------------------------------------ F-19 (v1.7)
+# WHY THIS IS HERE AND NOT IN THE PARAMETRISED SET ABOVE
+# -------------------------------------------------------
+# `plane_land_rtl` is a `land`-role procedure that deliberately does not land.
+# It carries `default: false` and `priority: 5`, so `procedures.select` never
+# chooses it — `plane_land` wins — which is correct and is also why no run had
+# ever executed it. The audit recorded that as F-19 and the mechanism coverage
+# matrix reported it NOT_EXERCISED.
+#
+# So it is flown by name rather than by selection. That is not a special path
+# around the single-source rule: it is the same `ProcedureRunner` on the same
+# YAML, chosen the way an operator choosing it from the interface would.
+PLANE = next(f for f in FRAMES if f["id"] == "sitl_plane")
+
+
+def test_the_rtl_return_procedure_is_actually_flown(request, runs_root):
+    """`plane_land_rtl`, on a real SITL plane, judged by its own criteria.
+
+    It claims exactly two things — the aircraft is in RTL, and it is still
+    flying — because RTL on a fixed wing returns and loiters and does not touch
+    down. Both are measured from heartbeats, and both are what the file says.
+    """
+    vehicle = boot(request, runs_root, PLANE, PLANE["frame"])
+    assert vehicle.wait_prearm(), (
+        f"the plane frame never passed pre-arm checks\n{vehicle.sitl.tail()}")
+
+    takeoff = procs.select("takeoff", vehicle.capabilities, PLANE)
+    assert takeoff is not None
+    airborne = run_procedure(vehicle, takeoff, PLANE["takeoff_values"])
+    assert airborne["outcome"] == "passed", _explain(airborne, vehicle)
+
+    rtl = procs.get("plane_land_rtl")
+    assert rtl is not None, "plane_land_rtl is missing from argazui/procedures/"
+    # The selector must still not pick it: this test flies it deliberately, and
+    # if it ever became the default landing the fleet would stop landing.
+    assert procs.select("land", vehicle.capabilities, PLANE).id != rtl.id
+
+    result = run_procedure(vehicle, rtl, {})
+    assert result["outcome"] == "passed", _explain(result, vehicle)
+
+    # The criteria were MEASURED, not merely present. A landing procedure whose
+    # criteria were all refused for missing evidence would be exercised and
+    # would have verified nothing.
+    assert result["expect"], _explain(result, vehicle)
+    for criterion in result["expect"]:
+        assert criterion.get("evaluated") is True, (
+            f"{criterion['label']} was not judged\n{_explain(result, vehicle)}")
+
+    # And it did what the file says it does: returned, and did NOT land.
+    assert vehicle.link.state.mode == "RTL", vehicle.link.state.mode
+    assert vehicle.link.state.armed is True, (
+        "the aircraft disarmed; RTL on a fixed wing is not a landing")

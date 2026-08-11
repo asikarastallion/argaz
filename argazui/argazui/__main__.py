@@ -5,8 +5,18 @@
     python3 -m argazui doctor --json
     python3 -m argazui runs
     python3 -m argazui report runs/20260802T120000Z_skywalker_x8
+    python3 -m argazui doctor --release             # release thresholds: the
+                                                    # model environment must be
+                                                    # one immutable revision
     python3 -m argazui compare runs/20260803T101500Z_skywalker_x8 \\
             --baseline runs/20260802T120000Z_skywalker_x8
+    python3 -m argazui gate --runs runs --baselines runs/baselines
+                                                    # the CI release gate:
+                                                    # every model against its
+                                                    # committed baseline, one
+                                                    # verdict, exit 0/1/2
+    python3 -m argazui mechanisms                   # declared -> executable ->
+                                                    # exercised -> verified
     python3 -m argazui campaign                     # list repeatability campaigns
     python3 -m argazui campaign 20260810T124500Z_iris.copter_takeoff
     python3 -m argazui coverage                     # what is declared and unrun
@@ -27,8 +37,8 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="ArgazUI — ArduPilot SITL + Gazebo control panel")
     ap.add_argument("command", nargs="?",
                     choices=("serve", "doctor", "runs", "report", "status",
-                             "compare", "campaign", "coverage", "trace",
-                             "experiment"),
+                             "compare", "gate", "campaign", "coverage", "trace",
+                             "experiment", "mechanisms"),
                     default="serve")
     ap.add_argument("target", nargs="?",
                     help="report: a run directory or a .BIN dataflash log; "
@@ -51,6 +61,10 @@ def main(argv=None) -> int:
     ap.add_argument("--json", action="store_true", dest="as_json", help="machine-readable doctor output")
     ap.add_argument("--tier", choices=("full", "tier1"), default="full",
                     help="doctor profile (default: full)")
+    ap.add_argument("--release", action="store_true",
+                    help="doctor: apply release thresholds — the model "
+                         "environment must be one immutable revision with no "
+                         "uncommitted changes, not merely undisputed")
     ap.add_argument("--runs", action="append", default=None,
                     help="status: a directory holding suite.json and run "
                          "directories; repeat for more than one. "
@@ -68,6 +82,9 @@ def main(argv=None) -> int:
                     help="compare: compare even though the firmware, the "
                          "procedures or the model configuration changed — the "
                          "difference is still reported")
+    ap.add_argument("--baselines",
+                    help="gate: the directory holding one committed baseline "
+                         "run per model (default: <runs root>/baselines)")
     args = ap.parse_args(argv)
 
     paths.configure(argaz_root=args.argaz_root, ardupilot_root=args.ardupilot_root,
@@ -78,7 +95,7 @@ def main(argv=None) -> int:
 
     if args.command == "doctor":
         from .doctor import format_human, run
-        report = run(args.tier)
+        report = run(args.tier, release=args.release)
         print(json.dumps(report, indent=2) if args.as_json else format_human(report))
         return 0 if report["ok"] else 1
 
@@ -91,6 +108,13 @@ def main(argv=None) -> int:
     if args.command == "compare":
         return _compare(args.target, args.baseline, args.as_json,
                         args.ignore_config_drift, args.out)
+
+    if args.command == "gate":
+        return _gate(args.runs, args.baselines, args.as_json, args.out,
+                     args.ignore_config_drift)
+
+    if args.command == "mechanisms":
+        return _mechanisms(args.as_json, args.runs, args.out)
 
     if args.command == "campaign":
         return _campaign(args.target, args.as_json, args.runs, args.out)
@@ -267,6 +291,74 @@ def _compare(target: Optional[str], baseline: Optional[str], as_json: bool,
     if comparison["verdict"] == NOT_COMPARABLE:
         return 2
     return 1 if comparison["verdict"] == REGRESSED else 0
+
+
+def _gate(roots: Optional[list], baselines: Optional[str], as_json: bool,
+          out: Optional[str], ignore_config_drift: bool) -> int:
+    """`argazui gate --runs <dir> --baselines <dir>` — the CI release gate.
+
+    Compares every model this job flew against its committed baseline and
+    returns ONE verdict, keeping the five outcomes apart.
+
+    EXIT CODES, THE SAME CONTRACT `compare` USES
+    --------------------------------------------
+        0  PASS / SKIPPED / NOT_APPLICABLE — nothing got worse
+        1  FAIL   a metric degraded past its threshold; this may block a release
+        2  ERROR  the comparison could not be made
+
+    1 and 2 both fail the job and are different news. Only 1 says something
+    measurably got worse; 2 is an unreadable run or two runs whose fingerprints
+    do not line up, and it keeps its infrastructure classification so nobody
+    reads it as a verdict about an aircraft.
+    """
+    from .regression import gate, render_gate, write_gate
+
+    runs_root = Path(roots[0]) if roots else paths.RUNS_DIR
+    baselines_root = (Path(baselines).expanduser() if baselines
+                      else paths.RUNS_DIR / "baselines")
+    document = gate(runs_root, baselines_root,
+                    ignore_config_drift=ignore_config_drift)
+
+    directory = Path(out) if out else runs_root
+    as_json_path, as_text_path = write_gate(directory, document)
+    if as_json:
+        print(json.dumps(document, indent=2, ensure_ascii=False))
+    else:
+        print(render_gate(document))
+    print(f"wrote {as_json_path}\n      {as_text_path}", file=sys.stderr)
+    return document["exit_code"]
+
+
+def _mechanisms(as_json: bool, roots: Optional[list], out: Optional[str]) -> int:
+    """`argazui mechanisms` — what is declared, and what has actually run.
+
+    EXIT CODES
+    ----------
+        0  the matrix was produced, whatever it says
+        2  nothing could be read
+
+    Deliberately NOT 1 for an unexercised mechanism. Coverage is a measurement
+    and not an acceptance criterion: a mechanism nobody has flown yet is a fact
+    to publish, not a build to fail. `docs/coverage.md` names them, and naming
+    them is the deliverable.
+    """
+    from . import mechanisms as mechlib
+
+    roots_paths = [Path(r) for r in (roots or [paths.RUNS_DIR])]
+    document = mechlib.collect(roots_paths)
+    if not document["mechanisms"]:
+        print("ERROR: no mechanisms are declared in this installation.",
+              file=sys.stderr)
+        return 2
+    text = mechlib.render(document)
+    if out:
+        Path(out).write_text(text, encoding="utf-8")
+        print(f"wrote {out}", file=sys.stderr)
+    if as_json:
+        print(json.dumps(document, indent=2, ensure_ascii=False))
+    else:
+        print(text)
+    return 0
 
 
 def _campaign(target: Optional[str], as_json: bool, roots: Optional[list],

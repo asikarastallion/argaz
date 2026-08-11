@@ -127,6 +127,14 @@ def configure(**overrides: Any) -> None:
     # nesting written less clearly. Absent means "use the defaults in
     # regression.py", which are the values documented in docs/regression.md.
     globals().update({"REGRESSION": _table("regression", toml)})
+    # ------------------------------------------- model environment (v1.7)
+    # Which revision of the model assets a verification is entitled to. A
+    # table for the same reason `[regression]` is one: it holds a repository
+    # and a revision that belong together, and two flat keys with a shared
+    # prefix are the same nesting written less clearly. Absent means the run
+    # records `unpinned` and says so — see modelenv.py, which never guesses a
+    # revision for a checkout that declares none.
+    globals().update({"MODEL_ENVIRONMENT": _table("model_environment", toml)})
 
     globals().update({
         "SITL_MODELS_DOCS": SITL_MODELS / "Gazebo" / "docs",
@@ -152,6 +160,13 @@ def source_summary() -> dict[str, str]:
         "plotjuggler_port": str(PLOTJUGGLER_PORT),
         "regression": ("(defaults)" if not REGRESSION
                        else ", ".join(sorted(REGRESSION))),
+        # The VALUE, not the key name: a declared revision is the identity of
+        # the model assets a run flew, and a summary that recorded only that
+        # the key existed would leave a reader unable to repeat the run.
+        "model_environment_revision": str(
+            MODEL_ENVIRONMENT.get("revision") or "(unpinned)"),
+        "model_environment_repository": str(
+            MODEL_ENVIRONMENT.get("repository") or "(undeclared)"),
     }
 
 

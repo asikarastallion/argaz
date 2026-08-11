@@ -161,3 +161,44 @@ araç disarm etmemeli ve takla atmamalıdır. Seçtiği mod, bir insanın okumas
 koşunun mod zaman çizelgesine kanıt olarak kaydedilir.
 
 Arıza enjeksiyonu ArgazUI v1.4 ile eklendi.
+
+## Dört mekanizmanın dördü de artık uygulanıyor
+
+Dördünden ikisi — `gps_degradation` ve `mavlink_degradation` — v1.4'ten beri
+arkalarında birim testleriyle `faults.KINDS` içindeydi ve hiçbir senaryo
+ikisinden birini adlandırmıyordu. Hiçbir şey onları bir araca yöneltemiyordu;
+yani uçuş kanıtı olmayan kod yollarıydılar:
+[mekanizma matrisinde](coverage-model.tr.md) `DEFINED` — "kapsanmamış"tan daha
+zayıf bir durum.
+
+v1.7, onları erişilebilir kılan iki beyanı ekler. **Hiçbir mekanizma
+eklenmedi** — `faults.py` değişmemiştir.
+
+| senaryo | mekanizma | neyi sorar |
+|---|---|---|
+| `copter_gps_degradation` | `gps_degradation` | hâlâ bildiren ve kötü bildiren bir alıcı: dört uydu ve 2B fix |
+| `copter_link_degradation` | `mavlink_degradation` | sessiz değil kayıplı bir bağlantı: alınan her dört mesajdan biri atılır |
+
+`tests/test_tier1_degradation_faults.py` ikisini de gerçek bir SITL üzerinde
+uçurur ve yedi özelliği sırayla dayatır — arıza başlar, koşul gözlemlenebilir,
+beklenen tepki gerçekleşir, bir kriter onu değerlendirir, kanıt üretilir, hüküm
+kriterlerden çıkar ve temizlik ortamı geri yükler.
+
+### Bozulma neden kayıptan farklı bir soru
+
+`copter_gps_loss` alıcıyı kapatır ve ArduCopter'in yanıtı EKF failsafe'idir: bir
+koşunun izleyebileceği bir mod değişimi. Bozulma daha zor ve daha yaygın olan
+durumdur — alıcı hâlâ oradadır ve kötü bildirmektedir; mesajda *bana güvenme*
+diyen hiçbir şey yoktur. Bu yüzden kriterler bir failsafe talep etmez;
+kestirici ne karar verirse versin geçerli olanı talep eder: havadaki bir çok
+rotorlu araç armlı kalır ve doğru tarafı yukarı durur.
+
+`copter_link_loss` bağlantıyı tamamen susturur ve kriterlerinin her biri bir
+`recovery:` kriteri olmak zorundadır — karartma sırasında telemetri yoktur, yani
+o sırada hüküm verilecek bir şey de yoktur.
+`copter_link_degradation` ise **kataloğdaki, penceresi kendi içinden hüküm
+verilebilen tek arızadır**: alınan her dört mesajdan üçü hâlâ gelir, yani `for`
+ve `never` çalışacak örneklere sahiptir. Bunu bir varsayım değil bir ölçüm yapan
+şey kanıt korumasıdır — düşme oranı akışı gerçekten sustursaydı, o kriterler
+hiçbir şeyin yazmadığı bir duruma dayanarak geçmek yerine *hüküm verilmedi*
+bildirirdi.

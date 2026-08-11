@@ -81,6 +81,12 @@ jobs:
       #
       # Read-only, because the suite must not be able to edit the repository it
       # is verifying.
+      #
+      # `argaz.toml` IS baked into the image, and is mounted over anyway for the
+      # same reason the checkout is: the configuration under test has to be this
+      # commit's. v1.7 added `[model_environment]` to it, and without the mount
+      # the suite would verify a pin declared by whenever the image was last
+      # built — which is the class of staleness this project keeps finding.
       - name: Run the tier-1 suite
         run: |
           start=$SECONDS
@@ -94,12 +100,43 @@ jobs:
             -v "$PWD/README.md:/opt/argaz/README.md:ro" \
             -v "$PWD/CHANGELOG.md:/opt/argaz/CHANGELOG.md:ro" \
             -v "$PWD/TROUBLESHOOTING.md:/opt/argaz/TROUBLESHOOTING.md:ro" \
+            -v "$PWD/argaz.toml:/opt/argaz/argaz.toml:ro" \
             -w /opt/argaz --entrypoint python3 "$IMAGE" \
             -m pytest tests/ -m tier1 -q
           status=$?
           set -e
           echo "suite_seconds=$((SECONDS - start))" >> "$GITHUB_ENV"
           exit $status
+
+      # THE DETERMINISTIC HALF OF THE REGRESSION LAYER, ON EVERY PUSH (F-16)
+      # ---------------------------------------------------------------------
+      # The audit's finding was that `argazui compare` had no automated
+      # consumer at all. The gate that consumes it is a tier-2 step, because a
+      # comparison needs a flight and tier 2 is where models fly.
+      #
+      # What CAN run on every push is everything about the comparison that does
+      # not need an aircraft: the compatibility rules, the delta arithmetic and
+      # its floors, the five gate outcomes, and — the part that matters most —
+      # that an infrastructure error is not reported as a degraded aircraft.
+      # Those are pure tests and they already run in the suite above; this step
+      # runs them again by name so their result is EXPOSED rather than buried
+      # in a total of six hundred.
+      #
+      # It costs about a second. A regression layer whose own semantics are
+      # only checked nightly is a regression layer nobody notices breaking.
+      - name: Deterministic regression verification
+        if: always()
+        run: |
+          docker run --rm \
+            -v "$PWD/argazui:/opt/argaz/argazui" \
+            -v "$PWD/tests:/opt/argaz/tests" \
+            -v "$PWD/pytest.ini:/opt/argaz/pytest.ini" \
+            -v "$PWD/argaz.toml:/opt/argaz/argaz.toml:ro" \
+            -v "$PWD/docker:/opt/argaz/docker:ro" \
+            -w /opt/argaz --entrypoint python3 "$IMAGE" \
+            -m pytest tests/test_regression.py tests/test_regression_gate.py \
+                      tests/test_metric_semantics.py tests/test_fingerprint.py \
+                      tests/test_model_pinning.py -q
 
       - name: Report timings
         if: always()

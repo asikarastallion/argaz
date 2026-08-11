@@ -34,7 +34,7 @@ import time
 
 import pytest
 
-from argazui import paths, procedures as procs
+from argazui import paths, procedures as procs, simlifecycle
 from argazui.procrunner import ProcedureRunner, probe_capabilities
 from argazui.runs import RunRecorder
 
@@ -87,6 +87,63 @@ def _run_procedure(recorder: RunRecorder, sim, procedure, values: dict) -> dict:
     return retry
 
 
+def _boot(recorder: RunRecorder, model: dict, work_dir) -> "gazebo.Simulation":
+    """Bring the environment up, keeping the three outcomes apart.
+
+    THE THREE ARE NOT INTERCHANGEABLE
+    ---------------------------------
+    `untested`  this machine cannot answer the question — no Gazebo, no assets,
+                a port held by somebody else. A skip, so the status table says
+                the model was never flown.
+    `environment` (configuration) the machine would answer a DIFFERENT question
+                from the one asked: the model assets are not the declared
+                revision. A failure, recorded as `environment`, because a
+                result under the declared revision's name would be a lie.
+    `environment` (start-up) the simulator was launched and did not come up.
+                A failure, recorded as `environment` at the rung it stopped on.
+
+    None of the three is `acceptance`. The whole point of F-14 is that a model
+    row reading `failed` means an aircraft did something wrong, and it cannot
+    mean that if a dead Gazebo lands in the same column.
+    """
+    try:
+        return gazebo.start(model, log_dir=work_dir, on_event=recorder.event,
+                            on_log=lambda text: recorder.console(text.encode()))
+    except gazebo.GazeboUnavailable as exc:
+        recorder.event({"kind": "skipped", "reason": str(exc)})
+        recorder.finish(report=False)
+        pytest.skip(str(exc))
+    except gazebo.ModelEnvironmentRefused as exc:
+        lifecycle = simlifecycle.Lifecycle(label=model["id"])
+        lifecycle.fail(simlifecycle.ENVIRONMENT_FAILED, str(exc))
+        recorder.record_lifecycle(lifecycle)
+        recorder.event({"kind": "model_environment_refused", "reason": str(exc)})
+        recorder.finish(report=False)
+        pytest.fail(f"{model['id']}: the model environment is not the declared "
+                    f"one, so this run would not be the experiment the "
+                    f"configuration describes.\n{exc}")
+    except gazebo.EnvironmentFailed as exc:
+        recorder.record_lifecycle(exc.lifecycle)
+        recorder.finish(report=False)
+        pytest.fail(str(exc))
+
+
+def _shutdown(sim, recorder: RunRecorder) -> None:
+    """Stop, then record what the stop actually achieved.
+
+    Order matters and mirrors STOP in the browser: the simulator is killed
+    first so SITL flushes its dataflash log, THEN the lifecycle and the
+    ownership check are written, then the run is finalised. Recording cleanup
+    before performing it would record an intention.
+    """
+    sim.stop()
+    if sim.lifecycle is not None:
+        recorder.record_lifecycle(sim.lifecycle)
+    if sim.resources is not None:
+        recorder.record_isolation(sim.resources)
+    recorder.finish(wait=True)
+
+
 def _explain(result: dict) -> str:
     lines = [f"{result['procedure']} -> {result['outcome']}: {result['text']}"]
     for step in result["steps"]:
@@ -113,15 +170,8 @@ def test_model_takes_off_changes_mode_and_lands(request, tier2_runs_root, model)
                            launch_commands=gazebo.launch_commands(model),
                            test_id=request.node.nodeid)
 
-    try:
-        sim = gazebo.start(model, log_dir=work_dir, on_event=recorder.event,
-                           on_log=lambda text: recorder.console(text.encode()))
-    except gazebo.GazeboUnavailable as exc:
-        recorder.event({"kind": "skipped", "reason": str(exc)})
-        recorder.finish(report=False)
-        pytest.skip(str(exc))
-
-    request.addfinalizer(lambda: (sim.stop(), recorder.finish(wait=True)))
+    sim = _boot(recorder, model, work_dir)
+    request.addfinalizer(lambda: _shutdown(sim, recorder))
 
     assert sim.wait_prearm(), (
         f"{model['id']} never passed pre-arm checks\n{sim.tail()}")
@@ -193,15 +243,8 @@ def test_a_model_survives_a_gps_loss_in_the_hover(request, tier2_runs_root, mode
     recorder = RunRecorder(model=model, root=tier2_runs_root, work_dir=work_dir,
                            launch_commands=gazebo.launch_commands(model),
                            test_id=request.node.nodeid)
-    try:
-        sim = gazebo.start(model, log_dir=work_dir, on_event=recorder.event,
-                           on_log=lambda text: recorder.console(text.encode()))
-    except gazebo.GazeboUnavailable as exc:
-        recorder.event({"kind": "skipped", "reason": str(exc)})
-        recorder.finish(report=False)
-        pytest.skip(str(exc))
-
-    request.addfinalizer(lambda: (sim.stop(), recorder.finish(wait=True)))
+    sim = _boot(recorder, model, work_dir)
+    request.addfinalizer(lambda: _shutdown(sim, recorder))
     assert sim.wait_prearm(), (
         f"{model['id']} never passed pre-arm checks\n{sim.tail()}")
 

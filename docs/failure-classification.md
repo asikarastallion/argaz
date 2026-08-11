@@ -59,8 +59,40 @@ investigates"; the code answers "is this the same thing as last time".
 | `procedure-timeout`, `fault-start-missed` | `procedure` |
 | `fault-mechanism-unavailable` | `environment` |
 | `vehicle-never-connected` | `environment` |
+| `environment-not-ready` | `environment` |
+| `vehicle-start-failed` | `environment` |
 | `procedure-config-error` | `environment` |
 | `iteration-launch-failed` | `environment` |
+
+## Which part of the environment: the lifecycle codes
+
+`environment` has always covered "SITL or Gazebo did not start". Until v1.7 it
+could not say **which**, because nothing distinguished them: `gz sim … &`
+followed by `sleep 6` was the whole handshake, and a Gazebo that died, a
+`sim_vehicle.py` that decided to rebuild, a missing world file and a wrong
+`--frame` all arrived at the classifier as steps that timed out.
+
+Two codes name the rung a start-up stopped on:
+
+| code | the layer that failed |
+|---|---|
+| `environment-not-ready` | the simulator never served a world |
+| `vehicle-start-failed` | the simulator did, and the autopilot never appeared |
+
+They are two different investigations — the first is Gazebo's assets or its
+plugin path, the second is the SITL build or the frame. Both are `environment`
+and neither is `acceptance`. See [Simulation lifecycle](simulation-lifecycle.md)
+for how the rungs are established.
+
+`vehicle-start-failed` is deliberately **not** `vehicle_readiness`. SITL
+failing to start is the simulator not coming up. `vehicle_readiness` is
+reserved for a vehicle that *is* running and reports itself unfit, which is a
+fact about the aircraft's configuration rather than about the host.
+
+`classify_run` reads `lifecycle.failure` before it looks at a single procedure,
+because a start-up that stopped left nothing behind but skipped steps — and
+reconstructing a cause from that residue is exactly what made a dead Gazebo a
+`procedure` failure. The layer that launched knows, and it says so.
 
 ## The order of investigation
 

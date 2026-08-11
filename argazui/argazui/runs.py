@@ -191,6 +191,14 @@ class RunRecorder:
         # repeatability campaign, and a run that dropped its campaign id to
         # carry an experiment one would vanish from every campaign tool.
         self.experiment = dict(experiment) if experiment else None
+        # How the simulation environment came up, and what this run owned while
+        # it did (v1.7). Set by the layer that launched — `Manager` for the
+        # button, `tests/gazebo.py` for tier 2 — through `record_lifecycle` and
+        # `record_isolation`, because those are the two places that know. They
+        # stay None for a tier-1 run, which starts a SITL binary directly and
+        # has no Gazebo to bring up and no pty session to own.
+        self.lifecycle: Optional[dict] = None
+        self.isolation: Optional[dict] = None
         self.started = datetime.now(timezone.utc)
         self.started_monotonic = self.started.timestamp()
         self.on_log = on_log or (lambda text: None)
@@ -269,6 +277,26 @@ class RunRecorder:
         with self._lock:
             self._flaky.append({"procedure": procedure_id, "reason": reason,
                                 "utc": _iso()})
+
+    def record_lifecycle(self, lifecycle) -> None:
+        """How the simulation environment came up, from the layer that did it.
+
+        Takes a `simlifecycle.Lifecycle` or the dict one produces, so a caller
+        that already serialised it does not have to keep the object alive. It
+        is a record and never a verdict: a lifecycle that reached COMPLETED
+        makes no claim about the aircraft, and one that failed names the layer
+        it stopped in so `classify_run` reports the environment rather than the
+        flight.
+        """
+        with self._lock:
+            self.lifecycle = (lifecycle.as_dict()
+                              if hasattr(lifecycle, "as_dict") else dict(lifecycle))
+
+    def record_isolation(self, resources) -> None:
+        """What this run owned, and whether it gave all of it back."""
+        with self._lock:
+            self.isolation = (resources.as_dict()
+                              if hasattr(resources, "as_dict") else dict(resources))
 
     def add_procedure(self, procedure, result: dict, values: Optional[dict] = None,
                       attempt: int = 1) -> None:
@@ -555,6 +583,19 @@ class RunRecorder:
                 # to wipe" are different answers.
                 "eeprom_wiped": _eeprom_wiped(self.launch_commands),
             },
+            # ------------------------------------------------------- v1.7
+            # HOW THE ENVIRONMENT CAME UP, AND WHAT THIS RUN OWNED
+            # ----------------------------------------------------
+            # Both are None when the caller did not record them, which is the
+            # honest answer for a tier-1 run: it starts a SITL binary directly
+            # and has neither a Gazebo to bring up nor a pty session to own, so
+            # there is no lifecycle to describe rather than an empty one.
+            #
+            # Neither can change a verdict. `lifecycle.failure` names the layer
+            # a start-up stopped in for a reader and for `classify_run`, and
+            # the timings are wall-clock facts about the host.
+            "lifecycle": self.lifecycle,
+            "isolation": self.isolation,
             "overrides": self.overrides(),
             "procedures": self._procedures,
             "artefacts": {
