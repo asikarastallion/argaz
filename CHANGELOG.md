@@ -91,6 +91,23 @@ The shell-quoting tests run the generated line under a real `bash` with
 asserting on the generated string only proves it looks like what the author
 expected.
 
+### CI could not verify the documentation portal
+
+Found while checking this release's own CI run rather than by the audit, and
+fixed because it is the same class of defect: a verification job that cannot
+reach what it claims to verify.
+
+Fourteen tier-1 tests had been red since the release that added the portal, and
+they do not reproduce on a developer machine. The tier-1 image COPYs `argazui`,
+`tests`, `pytest.ini` and `argaz.toml`; `tier1.yml` mounts those plus `runs`.
+Neither brings in `docs/`, `README.md`, `CHANGELOG.md` or `TROUBLESHOOTING.md`
+— and 22 portal pages resolve to exactly those, because the portal indexes the
+repository's documentation instead of copying it. `tier1.yml` mounts them
+read-only now.
+
+That is fourteen of the fifteen standing tier-1 failures gone. The fifteenth,
+`sitl_tailsitter`, stays red on purpose.
+
 ### Known limits, unchanged
 
 `sitl_tailsitter` still fails tier 1 deliberately, and three models still fail

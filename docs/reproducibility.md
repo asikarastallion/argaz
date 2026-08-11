@@ -81,7 +81,6 @@ it did:
 | `procedure_hash` | the flow or an acceptance criterion changed — a different test |
 | `ardupilot.commit` | a different ArduPilot checkout |
 | `ardupilot.firmware_commit` | a different binary actually flew |
-| `argaz.dirty_digest` | different uncommitted changes in ArgazUI |
 | `ardupilot.dirty_digest` | different uncommitted changes in ArduPilot |
 | `gazebo.version` | a different simulator — half the physics |
 
@@ -90,10 +89,28 @@ overridden explicitly. So does an *unknown* value on either side: that is not a
 claim that the runs differ, it is a statement that nothing here can show they
 are the same.
 
-The last three were added by the v1.6 corrective release. All three were
-already captured and none was compared, so two runs across a Gazebo upgrade —
-or across two different sets of uncommitted changes — reported themselves as
-the same configuration.
+The last two were added by the v1.6 corrective release. Both were already
+captured and neither was compared, so two runs across a Gazebo upgrade — or
+across two different sets of uncommitted ArduPilot changes — reported
+themselves as the same configuration.
+
+`argaz.dirty_digest` is captured and deliberately **not** compared, for the
+same reason `argaz.commit` is not: ArgazUI's own source is the harness rather
+than the aircraft, and comparing one without the other would be half a rule.
+
+### A component that is absent from both runs is not a difference
+
+An unknown identity field is normally reported as a difference — nothing shows
+the two runs are the same, which is exactly what a comparison must not be made
+silently across. That reading is wrong when the component is absent from the
+environment entirely: tier 1 has no Gazebo by design, so both runs report
+`null` for the same structural reason and the field discriminates nothing.
+
+`gazebo.version` is therefore exempt when it is unknown on **both** sides, and
+only then; unknown on one side remains a real asymmetry and is still reported.
+The exemption is a named set (`OPTIONAL_IDENTITY`), not a general rule —
+`ardupilot.firmware_commit` is also null on both sides of a tier-1 comparison,
+and that has always been, and remains, incomparable.
 
 ### Why `dirty` is a digest and not a flag
 

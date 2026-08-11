@@ -308,17 +308,40 @@ IDENTITY_FIELDS = (
     # ----------------------------------------
     # `dirty` was captured from the first release and compared by nothing, so
     # two runs flown from two different sets of uncommitted changes on the same
-    # SHA reported themselves as the same configuration and were compared on
-    # their numbers. `dirty: true` on either side is not a claim that the trees
-    # differ — it is a statement that the commit alone cannot show they are the
-    # same, which is exactly the condition a comparison must not be made
-    # silently across. `ignore_config_drift` is how someone says they know.
-    ("argaz.dirty_digest", "uncommitted changes in the ArgazUI checkout"),
+    # ArduPilot SHA reported themselves as the same firmware and were compared
+    # on their numbers. The digest sits beside `ardupilot.commit`, which is
+    # already an identity field, and answers what the commit alone cannot.
+    #
+    # `argaz.dirty_digest` is deliberately NOT here, for the same reason
+    # `argaz.commit` never was: ArgazUI's own source is the harness, not the
+    # aircraft, and comparing its dirty digest while ignoring its commit would
+    # be an inconsistent half-rule. It was here for one commit, and it made
+    # every comparison inside the tier-1 image incomparable — `/opt/argaz` is
+    # not a checkout there, so the field is unknowABLE rather than unknown.
     ("ardupilot.dirty_digest", "uncommitted changes in the ArduPilot checkout"),
     # The simulator is half the physics. A Gazebo upgrade between two runs
     # changes what the aircraft flew through, and it moves no commit here.
     ("gazebo.version", "the Gazebo that provided the physics"),
 )
+
+# Identity fields describing a component that is not always PRESENT.
+#
+# WHY UNKNOWN-ON-BOTH-SIDES IS NOT THE SAME AS UNKNOWN-ON-ONE
+# -----------------------------------------------------------
+# The general rule in `differences()` — an unknown field is a difference — is
+# right when one run could identify a component and the other could not:
+# nothing then shows the two are the same, and that is exactly the condition a
+# comparison must not be made silently across.
+#
+# It is wrong when the component is absent from the environment entirely. Tier
+# 1 has no Gazebo by design, so both runs report `null` for the same structural
+# reason and the field discriminates nothing. Treating that as configuration
+# drift makes every comparison in that environment incomparable, which is how
+# this was first written — and it took two tier-1 tests down with it.
+#
+# So for these fields, unknown on BOTH sides is not reported. Unknown on ONE
+# side still is: that is a real asymmetry between two runs.
+OPTIONAL_IDENTITY = frozenset({"gazebo.version"})
 
 
 def field(manifest: dict, dotted: str) -> Any:
@@ -342,6 +365,8 @@ def differences(baseline: dict, current: dict) -> list[dict]:
     out: list[dict] = []
     for dotted, description in IDENTITY_FIELDS:
         before, after = field(baseline, dotted), field(current, dotted)
+        if before is None and after is None and dotted in OPTIONAL_IDENTITY:
+            continue                       # the component is absent from both
         if before is None or after is None:
             out.append({"field": dotted, "what": description,
                         "baseline": before, "current": after,

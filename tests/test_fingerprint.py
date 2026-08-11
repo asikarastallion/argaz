@@ -200,11 +200,15 @@ def test_two_different_dirty_trees_are_not_shown_to_be_the_same_tree():
 
 
 def test_a_clean_tree_and_a_dirty_one_are_not_comparable():
+    # ArduPilot, not ArgazUI: the firmware source is what changes the aircraft,
+    # and `argaz.commit` has never been an identity field — see
+    # `test_argaz_is_not_an_identity_field` in test_identity_and_artefacts.py.
     left = _complete()
     right = _complete()
-    right["argaz"] = {**right["argaz"],
-                      "dirty": True, "dirty_digest": "sha256:ccc"}
-    assert [d["field"] for d in fp.differences(left, right)] == ["argaz.dirty_digest"]
+    right["ardupilot"] = {**right["ardupilot"],
+                          "dirty": True, "dirty_digest": "sha256:ccc"}
+    assert [d["field"] for d in fp.differences(left, right)] == \
+        ["ardupilot.dirty_digest"]
 
 
 def test_a_clean_checkout_reports_a_stable_sentinel_rather_than_a_digest(tmp_path):

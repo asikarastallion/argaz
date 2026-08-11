@@ -65,7 +65,7 @@ def test_two_identical_clean_runs_are_comparable():
 
 
 def test_two_different_dirty_trees_do_not_read_as_the_same_configuration():
-    """`True == True` used to pass. Two dirty trees are not one tree.
+    """`True == True` used to pass. Two dirty ArduPilot trees are not one tree.
 
     A boolean cannot say WHICH edits, so identity is a content digest of the
     uncommitted work — which also keeps the case below comparable.
@@ -78,15 +78,82 @@ def test_two_different_dirty_trees_do_not_read_as_the_same_configuration():
 
 def test_two_runs_from_the_same_dirty_tree_stay_comparable():
     """Development must not disable the layer that is most useful during it."""
-    left = _fp(argaz__dirty=True, argaz__dirty_digest="sha256:same")
-    right = _fp(argaz__dirty=True, argaz__dirty_digest="sha256:same")
+    left = _fp(ardupilot__dirty=True, ardupilot__dirty_digest="sha256:same")
+    right = _fp(ardupilot__dirty=True, ardupilot__dirty_digest="sha256:same")
     assert fingerprint.differences(left, right) == []
 
 
 def test_a_clean_tree_and_a_dirty_one_are_not_the_same_configuration():
     fields = {d["field"] for d in fingerprint.differences(
-        _fp(), _fp(argaz__dirty=True, argaz__dirty_digest="sha256:ccc"))}
-    assert "argaz.dirty_digest" in fields
+        _fp(), _fp(ardupilot__dirty=True, ardupilot__dirty_digest="sha256:ccc"))}
+    assert "ardupilot.dirty_digest" in fields
+
+
+def test_argaz_is_not_an_identity_field():
+    """The harness is not the aircraft, and half a rule is worse than none.
+
+    `argaz.commit` has never been compared. Comparing only its dirty digest was
+    an inconsistent half-rule, and because `/opt/argaz` is not a git checkout
+    inside the tier-1 image it made EVERY comparison there incomparable — two
+    tier-1 tests went red on a run that was otherwise fine.
+    """
+    compared = {dotted for dotted, _ in fingerprint.IDENTITY_FIELDS}
+    assert not {d for d in compared if d.startswith("argaz.")}, (
+        f"ArgazUI's own source is being compared: {sorted(compared)}")
+
+
+# ------------------------------- an absent component does not block a comparison
+def _container_fp(**over) -> dict:
+    """A fingerprint as the tier-1 image produces one.
+
+    `/opt/argaz` is not a git checkout there and Gazebo is not installed, so
+    both fields are `null` for a STRUCTURAL reason rather than because anything
+    went wrong — and they are null on both sides of every comparison made in
+    that environment.
+    """
+    base = _fp()
+    base["argaz"] = {"commit": None, "dirty": None, "dirty_digest": None}
+    base["gazebo"] = {"version": None}
+    for dotted, value in over.items():
+        node, parts = base, dotted.split("__")
+        for part in parts[:-1]:
+            node = node.setdefault(part, {})
+        node[parts[-1]] = value
+    return base
+
+
+def test_two_runs_in_an_environment_without_gazebo_are_comparable():
+    """Tier 1 has no Gazebo by design; that must not refuse every comparison."""
+    assert fingerprint.differences(_container_fp(), _container_fp()) == []
+
+
+def test_gazebo_known_on_one_side_only_is_still_a_difference():
+    """Unknown on BOTH sides does not discriminate. Unknown on one side does."""
+    with_gz = _container_fp(gazebo__version="Gazebo Sim, version 8.14.0")
+    fields = {d["field"] for d in
+              fingerprint.differences(_container_fp(), with_gz)}
+    assert "gazebo.version" in fields
+
+
+def test_a_gazebo_upgrade_between_two_runs_that_had_one_is_still_caught():
+    fields = {d["field"] for d in fingerprint.differences(
+        _container_fp(gazebo__version="Gazebo Sim, version 8.14.0"),
+        _container_fp(gazebo__version="Gazebo Sim, version 9.0.0"))}
+    assert "gazebo.version" in fields
+
+
+def test_only_genuinely_optional_components_get_the_exemption():
+    """A blanket both-unknown exemption would silently widen every comparison.
+
+    `ardupilot.firmware_commit` is null on both sides of any tier-1 comparison
+    too — a run that never armed writes no log — and that has always been
+    reported as incomparable. The exemption is a named set, not a rule.
+    """
+    assert fingerprint.OPTIONAL_IDENTITY == {"gazebo.version"}
+    both_missing = _fp(ardupilot__firmware_commit=None)
+    fields = {d["field"] for d in
+              fingerprint.differences(both_missing, both_missing)}
+    assert "ardupilot.firmware_commit" in fields
 
 
 def test_a_gazebo_upgrade_is_a_configuration_difference():

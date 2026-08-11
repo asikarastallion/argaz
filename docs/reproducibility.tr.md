@@ -82,7 +82,6 @@ olduğunu* değiştiren şeylerdir — ne kadar iyi yaptığını değil:
 | `procedure_hash` | akış ya da bir kabul kriteri değişti — başka bir test |
 | `ardupilot.commit` | farklı bir ArduPilot çalışma kopyası |
 | `ardupilot.firmware_commit` | gerçekte farklı bir ikili dosya uçtu |
-| `argaz.dirty_digest` | ArgazUI'de farklı commit'lenmemiş değişiklikler |
 | `ardupilot.dirty_digest` | ArduPilot'ta farklı commit'lenmemiş değişiklikler |
 | `gazebo.version` | farklı bir simülatör — fiziğin yarısı |
 
@@ -91,10 +90,29 @@ Herhangi birindeki fark, açıkça geçersiz kılınmadıkça karşılaştırmay
 koşuların farklı olduğu iddiası değildir; buradaki hiçbir şeyin aynı olduklarını
 gösteremediğinin ifadesidir.
 
-Son üçü v1.6 düzeltme sürümünde eklendi. Üçü de zaten kaydediliyordu ama hiçbiri
+Son ikisi v1.6 düzeltme sürümünde eklendi. İkisi de zaten kaydediliyordu ama
 karşılaştırılmıyordu; dolayısıyla bir Gazebo yükseltmesinin iki yakasındaki — ya
-da iki farklı commit'lenmemiş değişiklik kümesiyle uçurulmuş — koşular kendilerini
-aynı yapılandırma olarak bildiriyordu.
+da iki farklı commit'lenmemiş ArduPilot değişikliği kümesiyle uçurulmuş —
+koşular kendilerini aynı yapılandırma olarak bildiriyordu.
+
+`argaz.dirty_digest` kaydedilir ama bilerek karşılaştırılmaz; gerekçesi
+`argaz.commit`'inkiyle aynıdır: ArgazUI'nin kendi kaynağı araç değil, koşum
+takımıdır ve birini diğeri olmadan karşılaştırmak kuralın yarısı olurdu.
+
+### Her iki koşuda da bulunmayan bir bileşen bir fark değildir
+
+Bilinmeyen bir kimlik alanı normalde fark olarak bildirilir: hiçbir şey iki
+koşunun aynı olduğunu göstermez ve bir karşılaştırma tam olarak bunun üzerinden
+sessizce yapılmamalıdır. Bileşen ortamda hiç yoksa bu okuma yanlıştır: katman
+1'de tasarım gereği Gazebo yoktur, dolayısıyla iki koşu da aynı yapısal nedenle
+`null` bildirir ve alan hiçbir şeyi ayırt etmez.
+
+Bu yüzden `gazebo.version`, **her iki** tarafta da bilinmiyorsa muaftır —
+yalnızca o durumda; tek tarafta bilinmemesi gerçek bir asimetridir ve
+bildirilmeye devam eder. Muafiyet genel bir kural değil, adı konmuş bir kümedir
+(`OPTIONAL_IDENTITY`): `ardupilot.firmware_commit` de bir katman 1
+karşılaştırmasının iki tarafında birden null'dur ve bu her zaman
+karşılaştırılamaz sayılmıştır, öyle de kalır.
 
 ### `dirty` neden bir bayrak değil, bir özet
 
