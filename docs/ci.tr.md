@@ -54,6 +54,30 @@ uçurulabilmeden önce beyan etmeyi — CI'ı bozan şey hâline getirirdi.
 çözülmediğinde 1 ile çıkar. Kimsenin denetlemediği bir izlenebilirlik şeması
 sessizce çürür.
 
+## Bayatlamış üretilmiş artefaktlar bir test hatasıdır
+
+`docs/status.md` ve `docs/coverage.md` makine çıktısıdır ve depoya işlenir;
+dolayısıyla kaynak kodun olamayacağı bir biçimde yanlış olabilirler: kod ilerler,
+belge ilerlemez. v1.6, ikisi de hâlâ v1.5'i anlatırken yayımlandı — en görünür
+biçimde, `coverage.py` beş boyut beyan ederken `coverage.md` dört boyut
+taşıyordu; yani yayımlanan rapor okuyucuya, projenin artık ölçmediği bir şeyi
+ölçtüğünü söylüyordu.
+
+Yeniden üretilen çıktıyla bayt karşılaştırması bu denetim olamaz. Her iki belge
+de diskteki koşulardan hesaplanır ve bu, bir geliştiricinin makinesiyle bir CI
+runner'ı arasında zaten tasarım gereği farklıdır. Belirlenimli olan şey
+YAPILARIDIR ve bayatlayan da tam olarak oydu:
+
+* kodun beyan ettiği her kapsam boyutunun `coverage.md` içinde bir bölümü olmalı
+  ve `coverage.md`, kodun düşürdüğü hiçbir boyutu adlandırmamalı;
+* `status.md`, bu üreticinin yazdığı başlıkları taşımalı;
+* README'nin `STATUS-SUMMARY` bloğu, `status.md` ile aynı üretim zamanını
+  bildirmeli — böylece bir commit birini işleyip diğerini bırakamaz.
+
+Bunlar `tests/test_identity_and_artefacts.py` içindedir, `tier1` olarak
+işaretlidir ve dolayısıyla hâlihazırda var olan işte, her push'ta koşarlar. Yeni
+bir iş akışı ya da yeni bir CI adımı yoktur.
+
 ## Regresyon kapısı eklemek
 
 `argazui compare` tam olarak bunun için yazıldı: regresyon yoksa `0`,

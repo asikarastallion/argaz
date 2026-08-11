@@ -107,6 +107,42 @@ the ArduPilot commit or the firmware moved between iterations it says so at the
 top of the metrics section — because a spread caused by an edit halfway through
 is not a spread caused by the aircraft.
 
+## The initial state each iteration starts from
+
+A campaign's claim is *the same aircraft, the same procedure, the same
+configuration, N times*. Two of those three are checkable from the environment
+fingerprint. The third was not, and the gap was the simulated vehicle's own
+memory.
+
+SITL's working directory is `argazui/run/<model_id>/` and it is reused by the
+next launch of the same model — that is what keeps `eeprom.bin` and `logs/` out
+of the ArduPilot tree. It also meant each iteration booted holding every
+parameter the previous one had left behind. The model's `--add-param-file` is
+re-applied at every boot, so anything the file names is restored; what is not
+is a parameter a procedure changed and could not put back, which the runner
+records rather than assuming away.
+
+`sim_vehicle.py -w` is therefore passed on every launch, so the vehicle starts
+from its declared parameter files and nothing else. A model that genuinely
+needs the previous run's state declares it:
+
+```json
+{"id": "my_model", "persist_eeprom": true}
+```
+
+Each run states what it actually did, read back out of the commands that were
+typed rather than out of what was intended:
+
+```json
+"initial_state": {
+  "eeprom_wiped": true,
+  "launch_commands": ["source ...", "gz sim ...", "sim_vehicle.py ... -w ..."]
+}
+```
+
+`eeprom_wiped: null` means ArgazUI did not compose the SITL command line at all
+— a `ros2_launch` model — which is a different answer from "not wiped".
+
 ## What a campaign does not do
 
 - It does not decide anything. A wide spread fails nothing; metrics are

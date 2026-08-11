@@ -17,16 +17,16 @@ edilmemiş sınırlarla ikinci bir kabul sistemi kurmak olurdu.
 
 ## Katalog
 
-| anahtar | birim | kapsam | türetildiği kaynak |
-|---|---|---|---|
-| `time_to_target_alt` | sn | prosedür | `POS.RelHomeAlt`, prosedürün istediği irtifaya karşı; arm anından itibaren |
-| `tracking_error_roll_max` | ° | koşu | `ATT.DesRoll - ATT.Roll` |
-| `tracking_error_pitch_max` | ° | koşu | `ATT.DesPitch - ATT.Pitch` |
-| `tracking_error_roll_rms` | ° | koşu | aynı fark, karekök ortalama |
-| `tracking_error_pitch_rms` | ° | koşu | aynı fark, karekök ortalama |
-| `peak_angular_rate` | °/sn | koşu | `IMU.GyrX/GyrY/GyrZ`, herhangi bir eksendeki en büyük genlik |
-| `time_outside_attitude_envelope` | sn | koşu | `ATT.Roll`/`ATT.Pitch`, prosedürün beyan ettiği zarfa karşı |
-| `mode_transition_latency_max` | sn | prosedür | her `set_mode` adımının kayıtlı süresi; adım, heartbeat yeni modu **numara üzerinden** doğrulayınca biter |
+| anahtar | birim | saat | pencere | kapsam | türetildiği kaynak |
+|---|---|---|---|---|---|
+| `time_to_target_alt` | sn | araç | armlı | prosedür | `POS.RelHomeAlt`, prosedürün istediği irtifaya karşı; arm anından itibaren |
+| `tracking_error_roll_max` | ° | araç | log | koşu | `ATT.DesRoll - ATT.Roll` |
+| `tracking_error_pitch_max` | ° | araç | log | koşu | `ATT.DesPitch - ATT.Pitch` |
+| `tracking_error_roll_rms` | ° | araç | log | koşu | aynı fark, karekök ortalama kare |
+| `tracking_error_pitch_rms` | ° | araç | log | koşu | aynı fark, karekök ortalama kare |
+| `peak_angular_rate` | °/sn | araç | log | koşu | `IMU.GyrX/GyrY/GyrZ`, herhangi bir eksendeki en büyük genlik |
+| `time_outside_attitude_envelope` | sn | araç | armlı | koşu | `ATT.Roll`/`ATT.Pitch`, prosedürün beyan ettiği zarfa karşı; logun armlı aralık(lar)ı üzerinden |
+| `mode_transition_latency_max` | sn | araç | prosedür | prosedür | her `set_mode` adımının **aracın kendi saatindeki** süresi; heartbeat yeni modu numarayla doğruladığında biter |
 
 Bunların hepsi düşükken daha iyidir, ama yön her metrik için varsayılmaz,
 açıkça kaydedilir: "küçük olan iyidir"i koda gömen bir karşılaştırıcı,
@@ -39,6 +39,43 @@ türetildiği sinyalin adını verir. Hesaplanabilecek her şeyi hesaplayan bir
 modül, anlamı belirtilmemiş bir sayı duvarı üretirdi ve ilk regresyon
 karşılaştırması, kimsenin izlemeyi seçmediği büyüklüklerin gürültüsünde
 boğulurdu.
+
+## Saat ve pencere
+
+İki saniye değeri, ancak aynı saatte ve uçuşun aynı bölümü üzerinden alınmışsa
+aynı büyüklüktür. İkisi de metrik başına belirtilir ve `result.json` içinde
+değerle birlikte taşınır; böylece sonradan yazılan bir karşılaştırmanın bunları
+bugünkü koda sorması gerekmez.
+
+| saat | |
+|---|---|
+| `vehicle` | aracın kendi saati — dataflash `TimeUS` ya da canlı `ATTITUDE.time_boot_ms`. Yayımlanan her metrik bu saattedir. |
+| `wall` | bu sürecin saati. Yalnızca ölçüm sırasında aracın saati ilerlemiyorsa, dürüst bir geri düşüş olarak kaydedilir. |
+
+SITL hız çarpanı altında bir duvar saati saniyesi bir uçuş saniyesi değildir;
+ikisi hız çarpanı kadar ayrışır. `mode_transition_latency_max`, v1.6 düzeltme
+sürümüne kadar ana makinenin saatindeydi — logdan değil, kaydedilmiş bir
+adımdan türetilen tek metrik — dolayısıyla farklı hız çarpanlarıyla uçurulmuş
+iki koşuyu karşılaştırmak, sebebi yalnızca bir komut satırı seçeneği olan bir
+regresyon bildiriyordu.
+
+| pencere | |
+|---|---|
+| `procedure` | bir prosedürün ilk adımından son kriterine kadar |
+| `armed` | dataflash logunun kaydettiği armlı aralık(lar) — uçuşun kendisi |
+| `log` | logdaki her kayıt; yerde geçen süre dahil |
+
+`time_outside_attitude_envelope` ile `attitude_stable` kabul kriteri bir adı ve
+bir bant kümesini paylaşır ama **pencereyi paylaşmaz**: kriter kendi
+prosedürüyle, metrik ise logun armlı aralık(lar)ıyla sınırlıdır. Düzeltme
+sürümünden önce metrik tüm logu kapsıyordu; bu yüzden [55,115]° yunuslama bandı
+olan bir tailsitter, pistte hareketsiz durduğu her saniye "zarfın dışında"
+sayılıyordu — ve ikisi aynı uçuş için 0,0 sn ile 40 sn diyebiliyor, farklı
+sorulara yanıt verdiklerini hiçbir şey söylemiyordu. Artık birlikte
+okunabilecek kadar yakınlar ve kalan farkı `window` alanı belirtir.
+
+`argazui compare`, bu iki alandan birinde anlaşmayan iki metriği birbirinden
+çıkarmayı reddeder ve hangisi olduğunu söyler.
 
 ## Kimlik
 

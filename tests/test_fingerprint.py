@@ -118,9 +118,30 @@ def test_a_parameter_file_the_model_names_but_does_not_have_is_reported(tmp_path
 
 
 # ---------------------------------------------------------------- comparison
+def _complete(**over) -> dict:
+    """A fingerprint with every identity field present and known.
+
+    `differences()` reports an absent field as a difference on purpose — it is
+    a statement that nothing here can show the two runs match — so a fixture
+    that omits one is testing that rule rather than the one it means to. The
+    corrective release added three fields (`argaz.dirty`, `ardupilot.dirty`,
+    `gazebo.version`), and this helper is what stops every future addition
+    breaking these tests for a reason that has nothing to do with them.
+    """
+    base = {
+        "model": {"config_hash": "a"},
+        "procedure_hash": "p",
+        "ardupilot": {"commit": "c", "firmware_commit": "f",
+                      "dirty": False, "dirty_digest": "clean"},
+        "argaz": {"commit": "z", "dirty": False, "dirty_digest": "clean"},
+        "gazebo": {"version": "Gazebo Sim, version 8.9.0"},
+    }
+    base.update(over)
+    return base
+
+
 def test_differences_name_the_field_and_what_it_means():
-    left = {"model": {"config_hash": "a"}, "procedure_hash": "p",
-            "ardupilot": {"commit": "c", "firmware_commit": "f"}}
+    left = _complete()
     right = json.loads(json.dumps(left))
     right["ardupilot"]["commit"] = "different"
 
@@ -131,20 +152,75 @@ def test_differences_name_the_field_and_what_it_means():
 
 
 def test_identical_fingerprints_produce_no_differences():
-    left = {"model": {"config_hash": "a"}, "procedure_hash": "p",
-            "ardupilot": {"commit": "c", "firmware_commit": "f"}}
+    # A COMPLETE fingerprint, because every identity field has to be present
+    # for two runs to be shown comparable — an absent one is reported as
+    # "nothing here can show these are the same", which is the point of the
+    # test below. See `_complete`.
+    left = _complete()
     assert fp.differences(left, json.loads(json.dumps(left))) == []
 
 
 def test_an_unknown_field_counts_as_a_difference():
     """Not a claim that they differ — a statement that nothing shows they match."""
-    left = {"model": {"config_hash": "a"}, "procedure_hash": "p",
-            "ardupilot": {"commit": None, "firmware_commit": "f"}}
-    right = {"model": {"config_hash": "a"}, "procedure_hash": "p",
-             "ardupilot": {"commit": "c", "firmware_commit": "f"}}
+    left = _complete()
+    left["ardupilot"]["commit"] = None
+    right = _complete()
     found = fp.differences(left, right)
     assert [d["field"] for d in found] == ["ardupilot.commit"]
     assert found[0]["reason"] == "unknown on at least one side"
+
+
+def test_two_runs_from_one_dirty_tree_are_still_comparable():
+    """Editing the checkout does not make a run incomparable with itself.
+
+    Two runs flown minutes apart from the same work in progress differ in
+    nothing, and refusing them would make the whole regression layer unusable
+    during development — which is when it is most wanted.
+    """
+    dirty = _complete()
+    dirty["ardupilot"] = {**dirty["ardupilot"],
+                          "dirty": True, "dirty_digest": "sha256:abc"}
+    assert fp.differences(dirty, json.loads(json.dumps(dirty))) == []
+
+
+def test_two_different_dirty_trees_are_not_shown_to_be_the_same_tree():
+    """`dirty: true` on both sides says they had edits, not the same edits.
+
+    This is the case a boolean cannot express and a content digest can.
+    """
+    left = _complete()
+    left["ardupilot"] = {**left["ardupilot"],
+                         "dirty": True, "dirty_digest": "sha256:aaa"}
+    right = _complete()
+    right["ardupilot"] = {**right["ardupilot"],
+                          "dirty": True, "dirty_digest": "sha256:bbb"}
+    found = fp.differences(left, right)
+    assert [d["field"] for d in found] == ["ardupilot.dirty_digest"]
+    assert "different uncommitted changes" in found[0]["reason"]
+
+
+def test_a_clean_tree_and_a_dirty_one_are_not_comparable():
+    left = _complete()
+    right = _complete()
+    right["argaz"] = {**right["argaz"],
+                      "dirty": True, "dirty_digest": "sha256:ccc"}
+    assert [d["field"] for d in fp.differences(left, right)] == ["argaz.dirty_digest"]
+
+
+def test_a_clean_checkout_reports_a_stable_sentinel_rather_than_a_digest(tmp_path):
+    """`clean` is a determination, not the absence of one — so it is not None."""
+    from argazui.versions import CLEAN_TREE
+    assert CLEAN_TREE == "clean"
+    manifest = fp.capture(model={"id": "m"}, procedures=[])
+    for component in ("argaz", "ardupilot"):
+        digest = manifest[component].get("dirty_digest")
+        assert digest is None or digest == CLEAN_TREE or digest.startswith("sha256:")
+
+
+def test_a_gazebo_upgrade_is_reported_as_a_configuration_difference():
+    found = fp.differences(
+        _complete(), _complete(gazebo={"version": "Gazebo Sim, version 9.0.0"}))
+    assert [d["field"] for d in found] == ["gazebo.version"]
 
 
 def test_a_run_recorded_before_fingerprints_reads_as_empty_rather_than_failing(tmp_path):

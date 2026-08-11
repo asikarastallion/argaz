@@ -49,13 +49,18 @@ noktasıdır. Kategori "kim inceleyecek" sorusunu, kod "bu geçen seferkiyle ayn
 | `arm-refused` | `vehicle_readiness` |
 | `step-failed`, `step-timeout` | `procedure` |
 | `criterion-failed` | `acceptance` |
-| `criterion-not-judged` | `acceptance` |
+| `criterion-not-judged` | `evidence` |
 | `override-not-applied` | `environment` |
 | `fault-not-applied`, `fault-not-cleared` | `environment` |
 | `dataflash-missing`, `dataflash-truncated` | `evidence` |
 | `runs-not-comparable` | `evidence` |
 | `metric-degraded` | `regression` |
 | `runner-error` | `infrastructure` |
+| `procedure-cancelled` | `infrastructure` |
+| `procedure-timeout`, `fault-start-missed` | `procedure` |
+| `fault-mechanism-unavailable` | `environment` |
+| `vehicle-never-connected` | `environment` |
+| `procedure-config-error` | `environment` |
 | `iteration-launch-failed` | `environment` |
 
 ## İnceleme sırası
@@ -80,12 +85,44 @@ kadar değerlidir.
 
 ## `criterion-not-judged`, `criterion-failed` değildir
 
-Telemetrisi hiç gelmemiş bir kriter *değerlendirilmedi* olarak raporlanır. Bu
-hâlâ bir `acceptance` arızasıdır — prosedür iddia ettiği şeyi ortaya koyamadı —
-ama kod, kriterin aslında hiç değerlendirilmediğini söyler. "Hiçbir şey
-ölçülmedi" ile "bir şey yanlıştı", bu projenin ayrı tutmak için var olduğu iki
-cevaptır ve ikisini herhangi bir yönde birleştirmek, olmayan bir sonuç uydurmak
-olur.
+Telemetrisi hiç gelmemiş bir kriter *değerlendirilmedi* olarak raporlanır ve
+sonucu `evaluated: false` taşır. Koşu yine de geçmez — prosedür iddia ettiği
+şeyi ortaya koyamadı — ama kategori `acceptance` değil, **`evidence`**'tır.
+
+Bu, v1.6 düzeltme sürümünde değişti ve asıl mesele de bu değişikliktir.
+`acceptance`, yukarıda araç hakkında hüküm veren tek kategori olarak
+tanımlanmıştır. Hiç kimsenin ölçemediği bir kriter araç hakkında hiçbir şey
+söylemez; dolayısıyla onu `acceptance` altına koymak, bu sınıflandırmanın
+tümüyle önlemek için var olduğu karıştırmanın ta kendisiydi — bir kat daha
+aşağıda. Kod değişmedi, yani `criterion-not-judged` sayan her şey onu bulmaya
+devam eder.
+
+"Hiçbir şey ölçülmedi" ile "bir şey yanlıştı", bu projenin ayrı tutmak için var
+olduğu iki cevaptır ve ikisini herhangi bir yönde birleştirmek, olmayan bir
+sonuç uydurmak olur.
+
+## Bir yarıda kesilme kendi gerekçesini bildirir
+
+Bitmeden duran bir prosedür, geriye atlanmış adımlar ve hiç ulaşılamamış
+kriterler bırakır. NEDENİ bu artıktan geri çıkarmak işe yaramaz — her yarıda
+kesilme belgede aynı görünür — ve sınıflandırıcı, değerlendirilmemiş bir kriter
+bulup ona `acceptance` diyordu. Bu yazılımda bulunmayan bir arıza mekanizması,
+kabul kriterlerini sağlayamamış bir araç olarak raporlanıyordu.
+
+Koşucu artık `result["abort"]` alanına aşağıdaki gerekçelerden birini yazar ve
+sınıflandırıcı, başka hiçbir şeye bakmadan önce buna göre karar verir:
+
+| yarıda kesilme | kategori |
+|---|---|
+| `fault-unavailable` — mekanizma bu yazılımda yok | `environment` |
+| `fault-refused` — araç değişikliği kabul etmedi | `environment` |
+| `override-failed` — beyan edilmiş bir parametre yazılamadı | `environment` |
+| `vehicle-never-connected` — hiç heartbeat gelmedi | `environment` |
+| `procedure-config-error` — belgenin kendisi hatalı | `environment` |
+| `overall-timeout` — prosedürün kendi `timeout:` değeri | `procedure` |
+| `fault-start-missed` — beyan edilen başlangıç durumu hiç oluşmadı | `procedure` |
+| `cancelled` — bir kişi ya da bir kampanya durdurdu | `infrastructure` |
+| `step-failed` | daha fazlasını bilen, başarısız adımdan sınıflandırılır |
 
 ## Nerede görünür
 

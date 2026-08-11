@@ -1,5 +1,101 @@
 # Changelog
 
+## v1.6.1 — 2026-08-11 — corrective release
+
+### What this release is about
+
+Nothing new. An independent engineering audit of v1.6
+([docs/FINAL_V1.6_ENGINEERING_AUDIT.md](docs/FINAL_V1.6_ENGINEERING_AUDIT.md))
+found two defects that reach the verification result itself, and eight more
+beside them. This release closes them and adds no capability.
+
+### The two that mattered
+
+**A criterion could pass on telemetry that never arrived.** The runner had a
+guard for exactly this — `_unmeasurable()` — and it was wired into two of the
+four criterion shapes, consulting a table that named attitude and pre-arm and
+nothing else. So `alt_below: 3` and `armed: false`, which are between them the
+*entire* acceptance block of all four landing procedures, both evaluated true
+against a `VehicleState` that had never received a message. 0.0 is what a float
+starts as; it is not a measurement, and by value alone a landed aircraft and a
+dead position stream are identical. A run said `on the ground — alt=0.0m` and
+there was no way to tell which one it meant.
+
+Every condition now names the signal it rests on, the guard runs inside
+`_check` where all four shapes and every `wait_for:` step pass through it, and
+a criterion refused this way is `evaluated: false` — a third outcome that is
+neither a pass nor a verdict about the aircraft.
+
+**A broken simulator was reported as a broken aircraft.** `failures.py` opens
+by saying `acceptance` is the only category that means the aircraft did
+something wrong, and that conflating the categories "is how a broken harness
+comes to be reported as a broken aircraft". It then did that: a fault mechanism
+absent from the firmware, an operator cancel, the overall timeout, a fault
+start condition that never held and a malformed placeholder all classified
+`acceptance`. The cause was structural — an abort leaves skipped steps and
+unevaluated criteria behind, and the classifier read that residue instead of
+the cause. The runner records `result["abort"]` now and the classifier
+dispatches on it first.
+
+### Everything else
+
+- **Metric clock.** `mode_transition_latency_max` was host wall-clock seconds
+  in a catalogue of vehicle-clock seconds, so two runs flown at different SITL
+  speedups reported a regression caused by a command-line argument. It is on
+  the vehicle's clock; every metric now states its `clock`, and `argazui
+  compare` refuses to subtract two that disagree.
+- **Metric window.** `time_outside_attitude_envelope` covered the whole log
+  while the `attitude_stable` criterion sharing its name and its bands covered
+  one procedure — so a tailsitter parked on a runway was "outside the envelope"
+  for every second it sat still. Scoped to the armed interval, with `window`
+  stating the difference that remains.
+- **Shell quoting.** Registry values reached an interactive bash session
+  unquoted, so a model whose `frame` read `quad; touch /tmp/x` ran `touch`.
+  Every interpolated value is quoted per path segment, which keeps the
+  `$SITL_MODELS` expansion every shipped model depends on. Newlines are
+  refused outright.
+- **Repeatability initial state.** SITL's working directory is reused, so each
+  campaign iteration inherited the previous one's `eeprom.bin` — while the
+  fingerprint hashed the `.param` file and could not see it. `sim_vehicle.py
+  -w` on every launch; `persist_eeprom: true` to opt out; `initial_state` in
+  every run record, read back out of the commands that were actually typed.
+- **Fingerprint identity.** `dirty` and `gazebo.version` were captured and
+  compared by nothing. `dirty` is now a content digest of the uncommitted work
+  rather than a flag, because a boolean cannot tell "two different work states"
+  from "the same one twice" — and refusing the second would make the
+  regression layer unusable during development.
+- **Evaluated state.** Three modules recovered "was this judged" by
+  substring-matching translated prose, with three different rules, and
+  disagreed: the status table published a criterion refused for missing
+  telemetry as an aircraft failure while the traceability chain and the
+  coverage report correctly called it unevaluated. It is a boolean field.
+- **Environment failures.** A procedure run against a simulator that never came
+  up timed out step by step and was classified `procedure`. It now refuses to
+  start without a heartbeat and classifies `environment`.
+- **Generated artefacts.** `docs/status.md` and `docs/coverage.md` still
+  described v1.5; `coverage.md` carried four dimensions against code declaring
+  five. Both regenerated, and `tests/test_identity_and_artefacts.py` fails on
+  the structural staleness that shipped.
+
+### Tests
+
+Four new files — `test_evidence_guard.py`, `test_abort_classification.py`,
+`test_launch_safety.py`, `test_metric_semantics.py`,
+`test_identity_and_artefacts.py` — carrying the audit's original probes as
+permanent regression tests, including the ones that prove the fixes are not
+blunt: a measured criterion still passes, a measured violation is still an
+`acceptance` failure, and `sitl_tailsitter` still fails for the right reason.
+
+The shell-quoting tests run the generated line under a real `bash` with
+`sim_vehicle.py` replaced by a function that prints its arguments, because
+asserting on the generated string only proves it looks like what the author
+expected.
+
+### Known limits, unchanged
+
+`sitl_tailsitter` still fails tier 1 deliberately, and three models still fail
+tier 2 for the reasons v1.6 recorded. See `docs/status.md`.
+
 ## v1.6.0 — 2026-08-11
 
 ### What this release is about

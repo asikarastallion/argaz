@@ -48,6 +48,7 @@ from typing import Optional
 from . import coverage
 from . import failures as failurelib
 from . import paths
+from . import trace
 
 # 2 (v1.3): rows carry `claims` — what was verified, at procedure and
 #           acceptance-criterion granularity, with the run that proves each.
@@ -189,7 +190,13 @@ def claims_of(result: dict) -> list[Claim]:
 
         for criterion in outcome.get("expect") or []:
             text = criterion.get("text") or ""
-            unevaluated = "not evaluated" in text or "degerlendirilmedi" in text
+            # One implementation of "was this judged", shared with the
+            # traceability chain and the coverage report. This table used to
+            # have its own, which matched "not evaluated" and missed "not
+            # judged" — so a criterion refused because its telemetry never
+            # arrived was published here as an aircraft failure while the other
+            # two readers correctly called it unevaluated.
+            unevaluated = not trace._was_evaluated(criterion)
             out.append(Claim(
                 subject=criterion.get("label") or "criterion",
                 kind=CLAIM_CRITERION, procedure=procedure,

@@ -116,6 +116,11 @@
       proc_passed: "PASSED — every acceptance criterion was met",
       proc_failed: "FAILED",
       proc_accept: "Acceptance criteria",
+      // The third criterion outcome. Not a failure and not a pass: the
+      // telemetry the criterion rests on never arrived, so nothing was
+      // measured. Shown as a tooltip on the mark; the detail beside it names
+      // the signal and arrives from the backend already translated.
+      proc_unevaluable: "not judged — nothing was measured for this criterion",
       proc_alternatives: "alternatives:",
       proc_source: "from",
       confirm_proc: "This runs the procedure below. Each step is verified "
@@ -509,6 +514,7 @@
       proc_passed: "GEÇTİ — tüm kabul kriterleri sağlandı",
       proc_failed: "BAŞARISIZ",
       proc_accept: "Kabul kriterleri",
+      proc_unevaluable: "değerlendirilmedi — bu kriter için hiçbir şey ölçülmedi",
       proc_alternatives: "alternatifler:",
       proc_source: "kaynak",
       confirm_proc: "Aşağıdaki prosedür çalıştırılacak. Her adım sadece ACK'e "
@@ -1598,7 +1604,23 @@
   // One row per injected fault, showing the four things a scenario must keep
   // apart: what was injected, how long it was held, whether it was cleared,
   // and the verdict on the aircraft's response.
-  function renderFault(fault, state) {
+  // A criterion has THREE outcomes, not two. `passed` alone cannot tell "the
+// aircraft did not comply" from "nothing was measured", and painting the
+// second one red claims a verdict the run does not support. `evaluated` is
+// absent on runs recorded before the field existed; those are read the old
+// way, so an archived run still renders.
+function expectState(e) {
+  if (e.passed) return "passed";
+  if (e.evaluated === false) return "unevaluated";
+  return "failed";
+}
+const EXPECT_MARK = { passed: "\u2713", failed: "\u2715", unevaluated: "\u2013" };
+
+function expectTitle(state) {
+  return state === "unevaluated" ? t("proc_unevaluable") : "";
+}
+
+function renderFault(fault, state) {
     const box = $("proc-faults");
     if (!box.childElementCount) {
       const head = document.createElement("div");
@@ -1655,9 +1677,11 @@
         detail + (step.seconds ? `  (${step.seconds}s)` : "");
     } else if (msg.event === "expect") {
       const e = msg.expect;
+      const state = expectState(e);
       const row = document.createElement("div");
-      row.className = "expect " + (e.passed ? "passed" : "failed");
-      row.innerHTML = `<span class="mark">${e.passed ? "✓" : "✕"}</span>`
+      row.className = "expect " + state;
+      row.innerHTML = `<span class="mark" title="${esc(expectTitle(state))}">`
+        + `${EXPECT_MARK[state]}</span>`
         + `<span class="what">${esc(e.label)}</span>`
         + `<span class="detail">${esc(e.text || "")}</span>`;
       if (!$("proc-expect").childElementCount) {
@@ -1673,9 +1697,11 @@
       renderFault(msg.fault || {}, "done");
     } else if (msg.event === "fault_expect" || msg.event === "fault_recovery") {
       const e = msg.expect || {};
+      const state = expectState(e);
       const row = document.createElement("div");
-      row.className = "expect sub " + (e.passed ? "passed" : "failed");
-      row.innerHTML = `<span class="mark">${e.passed ? "✓" : "✕"}</span>`
+      row.className = "expect sub " + state;
+      row.innerHTML = `<span class="mark" title="${esc(expectTitle(state))}">`
+        + `${EXPECT_MARK[state]}</span>`
         + `<span class="what">${esc(e.label)}</span>`
         + `<span class="detail">${esc(e.text || "")}</span>`;
       $("proc-faults").append(row);

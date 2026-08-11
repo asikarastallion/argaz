@@ -21,18 +21,32 @@ from harness import assert_no_console_errors, open_page, start_server
 
 pytestmark = [pytest.mark.e2e, pytest.mark.tier1]
 
+# Every identity field, present and known — the shape a real run leaves.
+#
+# `fingerprint.differences()` reports an ABSENT field as a difference on
+# purpose: it is a statement that nothing here can show the two runs match,
+# which is exactly the condition a comparison must not be made silently
+# across. A fixture that omits one therefore makes the panel render
+# "incomparable" and this file would be testing that rule instead of the
+# comparison it means to exercise.
 FINGERPRINT = {
     "schema": 1,
     "model": {"config_hash": "sha256:same"},
     "procedure_hash": "sha256:same",
-    "ardupilot": {"commit": "abc123", "firmware_commit": "abc123"},
+    "ardupilot": {"commit": "abc123", "firmware_commit": "abc123",
+                  "dirty": False, "dirty_digest": "clean"},
+    "argaz": {"commit": "def456", "dirty": False, "dirty_digest": "clean"},
+    "gazebo": {"version": "Gazebo Sim, version 8.9.0"},
 }
 
 
 def _metric(key, value, unit, better="lower", procedure=""):
+    # `clock` and `window` are part of what makes two numbers the same
+    # quantity; a comparison across either is refused. Both sides seed the
+    # same values so these tests stay about the verdict and the table.
     return {"key": key, "value": value, "unit": unit, "better": better,
             "scope": "run", "procedure": procedure, "source": "seeded",
-            "detail": ""}
+            "detail": "", "clock": "vehicle", "window": "log"}
 
 
 def _seed(root, run_id, started, metrics, *, model="e2e_cmp", fingerprint=None):

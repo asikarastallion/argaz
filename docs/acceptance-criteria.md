@@ -106,10 +106,46 @@ the aircraft spent outside a band.
 
 ### Silence is never success
 
-A `for:` or a `never:` whose condition rests on telemetry that never arrived is
-reported as *not judged*, with the signal named. An attitude criterion
-evaluated against a state that never received an `ATTITUDE` message would read
-0.0 for every angle and every rate — a perfect flight, measured on nothing.
+**Every** condition names the telemetry it rests on, and a condition whose
+signal has never arrived cannot be satisfied — in any of the four shapes.
+
+| condition | needs |
+|---|---|
+| `armed`, `mode`, `mode_in` | a vehicle `HEARTBEAT` |
+| `alt_above`, `alt_below` | `GLOBAL_POSITION_INT` |
+| `climb_rate_above`, `climb_rate_below`, `groundspeed_above` | `VFR_HUD` |
+| `roll_within`, `pitch_within`, `angular_rate_*`, `attitude_stable` | `ATTITUDE` |
+| `prearm_ok` | `SYS_STATUS` |
+| `param` | the vehicle answering the read — it already fails closed |
+
+The reason is that every field on the vehicle state has a default, and a
+default is not a measurement. `alt` starts at 0.0 because a float has to start
+somewhere; it does **not** mean the aircraft is on the ground, and by value
+alone the two are identical. Until the v1.6 corrective release they were also
+identical to the evaluator: `alt_below: 3` and `armed: false` — between them
+the entire acceptance block of every landing procedure — both evaluated true
+against a state nothing had ever written to, and the run said
+`on the ground — alt=0.0m` for a flight whose position stream never arrived.
+
+A criterion refused this way is **not evaluated**, which is a third outcome and
+not a failure:
+
+| `passed` | `evaluated` | means |
+|---|---|---|
+| `true` | `true` | the aircraft met the criterion |
+| `false` | `true` | the aircraft did not — a verdict about the aircraft |
+| `false` | `false` | nothing was measured — **not** a verdict about anything |
+
+The run still does not pass. What changes is what it is reported as: an
+unevaluated criterion is classified `evidence`, not `acceptance`, because
+`acceptance` is the only category that means the aircraft did something wrong.
+See [failure-classification.md](failure-classification.md).
+
+A `for:` or a `never:` is refused **before its window opens**, because it makes
+a positive claim about a stretch of time. `within:` and the schema-1 shape are
+waits, so they keep waiting — telemetry that starts arriving half way through a
+wait is a perfectly good flight — and are refused only if the signal is still
+missing when the deadline expires.
 
 ## `attitude_stable`, and why it exists
 

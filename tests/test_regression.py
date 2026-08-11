@@ -25,17 +25,29 @@ from argazui import regression
 pytestmark = pytest.mark.tier1
 
 
+# Every identity field, present and known. `differences()` treats an ABSENT
+# field as a difference — a statement that nothing here can show the two runs
+# match — so a fixture that omits one makes every comparison `incomparable` and
+# these tests would pass for the wrong reason.
 FINGERPRINT = {
     "model": {"config_hash": "sha256:model"},
     "procedure_hash": "sha256:proc",
-    "ardupilot": {"commit": "abc123", "firmware_commit": "abc123"},
+    "ardupilot": {"commit": "abc123", "firmware_commit": "abc123",
+                  "dirty": False, "dirty_digest": "clean"},
+    "argaz": {"commit": "def456", "dirty": False, "dirty_digest": "clean"},
+    "gazebo": {"version": "Gazebo Sim, version 8.9.0"},
 }
 
 
 def metric(key, value, procedure="", better=regression.metricslib.LOWER,
-           unit="deg", detail=""):
+           unit="deg", detail="", clock=regression.metricslib.CLOCK_VEHICLE,
+           window=regression.metricslib.WINDOW_LOG):
+    # `clock` and `window` are part of what makes two numbers the same
+    # quantity; a comparison across either is refused. Defaulted here so the
+    # tests below stay about thresholds and direction.
     return {"key": key, "value": value, "procedure": procedure, "unit": unit,
-            "better": better, "detail": detail, "scope": "run"}
+            "better": better, "detail": detail, "scope": "run",
+            "clock": clock, "window": window}
 
 
 def run(run_id="20260809T000000Z_iris", *, model="iris",

@@ -47,10 +47,20 @@ def write_run(root: Path, index: int, *, status="passed", flaky=False,
                   if flaky else []),
         "model": {"id": "sitl_quad", "name": "SITL quad"},
         "metrics": metrics if metrics is not None else [],
+        # Every identity field, present and known: `consistency()` asks
+        # `fingerprint.differences()` whether the iterations really flew the
+        # same thing, and an ABSENT field is reported as a difference on
+        # purpose. A fixture missing one would make every campaign look
+        # inconsistent for a reason that has nothing to do with the runs.
         "fingerprint": {"schema": 1, "procedure_hash": procedure_hash,
                         "model": {"config_hash": "sha256:model"},
                         "ardupilot": {"commit": "abc123",
-                                      "firmware_commit": "abc123"}},
+                                      "firmware_commit": "abc123",
+                                      "dirty": False,
+                                      "dirty_digest": "clean"},
+                        "argaz": {"commit": "def456", "dirty": False,
+                                  "dirty_digest": "clean"},
+                        "gazebo": {"version": "Gazebo Sim, version 8.9.0"}},
         "procedures": [{"procedure": "copter_takeoff", "role": "takeoff",
                         "result": {"outcome": ("passed" if status == "passed"
                                                else "failed"),

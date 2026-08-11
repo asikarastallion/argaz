@@ -359,6 +359,11 @@ select {
 .proc-expect .expect.passed .mark { color: var(--ok, #4ade80); }
 .proc-expect .expect.failed .mark,
 .proc-expect .expect.failed .what { color: var(--bad, #f87171); }
+/* A criterion nothing could be measured for. Deliberately NOT red: red is the
+   colour of a verdict about the aircraft, and this is the absence of one. */
+.proc-expect .expect.unevaluated .mark,
+.proc-expect .expect.unevaluated .what { color: var(--warn, #fbbf24); }
+.expect.unevaluated .mark { color: var(--warn, #fbbf24); }
 .proc-expect .expect .detail {
   color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;

@@ -277,6 +277,21 @@ def compare(baseline: dict, current: dict, config: Optional[dict] = None,
         elif left.get("value") is None or right.get("value") is None:
             row["reason"] = ((left.get("detail") or right.get("detail"))
                              or "the metric could not be measured on one side")
+        elif (left.get("clock") or right.get("clock")) and \
+                left.get("clock") != right.get("clock"):
+            # Two numbers of seconds are not the same quantity if one was
+            # taken on the aircraft's clock and the other on the host's: under
+            # SITL speedup they differ by the speedup factor, and subtracting
+            # them measures the command line rather than the aircraft.
+            row["reason"] = (
+                f"measured on different clocks — baseline on the "
+                f"{left.get('clock')} clock, current on the "
+                f"{right.get('clock')} clock")
+        elif (left.get("window") or right.get("window")) and \
+                left.get("window") != right.get("window"):
+            row["reason"] = (
+                f"measured over different windows — baseline over "
+                f"'{left.get('window')}', current over '{right.get('window')}'")
         else:
             verdict, delta, relative = _classify(
                 key, row["better"], float(left["value"]), float(right["value"]),

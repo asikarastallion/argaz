@@ -71,19 +71,44 @@ move no version number at all when they do:
 
 ## Identity fields
 
-Four of these fields decide whether two runs may be compared on their numbers.
-Each is a thing that changes what the aircraft or the test *is*, as opposed to
-how well it did:
+These fields decide whether two runs may be compared on their numbers. Each is
+a thing that changes what the aircraft or the test *is*, as opposed to how well
+it did:
 
-- `model.config_hash`
-- `procedure_hash`
-- `ardupilot.commit`
-- `ardupilot.firmware_commit`
+| field | what a change in it means |
+|---|---|
+| `model.config_hash` | the registry entry or a parameter file changed — a different aircraft |
+| `procedure_hash` | the flow or an acceptance criterion changed — a different test |
+| `ardupilot.commit` | a different ArduPilot checkout |
+| `ardupilot.firmware_commit` | a different binary actually flew |
+| `argaz.dirty_digest` | different uncommitted changes in ArgazUI |
+| `ardupilot.dirty_digest` | different uncommitted changes in ArduPilot |
+| `gazebo.version` | a different simulator — half the physics |
 
 A difference in any of them makes a comparison `incomparable` unless it is
 overridden explicitly. So does an *unknown* value on either side: that is not a
 claim that the runs differ, it is a statement that nothing here can show they
 are the same.
+
+The last three were added by the v1.6 corrective release. All three were
+already captured and none was compared, so two runs across a Gazebo upgrade —
+or across two different sets of uncommitted changes — reported themselves as
+the same configuration.
+
+### Why `dirty` is a digest and not a flag
+
+A commit does not identify a working tree. `dirty: true` says a tree had edits
+and cannot say *which*, so two runs flown from two different states of work in
+progress had the same identity — while two runs flown minutes apart from ONE
+dirty tree are perfectly comparable and must not be refused. A boolean cannot
+express both; a content digest of the uncommitted work can. A clean checkout
+reports the literal `clean`, which is a determination rather than the absence
+of one, so it is not `null`.
+
+The digest covers the diff of tracked files and the NAMES of untracked ones.
+Untracked content is deliberately not hashed: it can be an entire build tree,
+and the cost of reading it would land on every run to catch a case that
+`model.config_hash` already covers.
 
 ## Two passes per run
 

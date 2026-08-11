@@ -43,8 +43,17 @@ class FakeLink:
 
     def __init__(self, speedup: float = 1.0, script=None, clock: float = 100.0,
                  advance: bool = True) -> None:
-        self.state = VehicleState(connected=True, attitude_known=True,
-                                  prearm_known=True, vehicle_clock_s=clock)
+        # Every knowledge flag is set, because this fake is a vehicle that IS
+        # talking: the tests below drive its altitude, arm state and attitude
+        # directly, and a real vehicle whose altitude changes has by definition
+        # sent GLOBAL_POSITION_INT. Leaving them clear would make every
+        # criterion here `not evaluated` and this file would test the evidence
+        # guard instead of the temporal shapes — which is what
+        # `tests/test_evidence_guard.py` is for.
+        self.state = VehicleState(connected=True, heartbeat_known=True,
+                                  attitude_known=True, prearm_known=True,
+                                  position_known=True, vfr_known=True,
+                                  vehicle_clock_s=clock)
         self.stability = StabilityWatch()
         self.speedup = speedup
         self.ticks = 0

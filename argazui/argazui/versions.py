@@ -23,6 +23,7 @@ report raises it as an advisory rather than leaving it for someone to notice.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import subprocess
@@ -96,10 +97,47 @@ def git_identity(root: Path) -> dict:
         return {"commit": None, "describe": None, "dirty": None,
                 "root": str(root),
                 "reason": f"git could not read HEAD in {root}"}
+    porcelain = _git(root, "status", "--porcelain")
     return {"commit": commit, "short_commit": commit[:12],
             "describe": _git(root, "describe", "--tags", "--always", "--dirty") or None,
-            "dirty": bool(_git(root, "status", "--porcelain")),
+            "dirty": bool(porcelain),
+            # A CONTENT HASH OF THE UNCOMMITTED WORK, NOT JUST A FLAG
+            # ------------------------------------------------------
+            # `dirty: true` says a tree had edits. It cannot say WHICH, so two
+            # runs flown from two different work-in-progress states report the
+            # same identity and get compared on their numbers — while two runs
+            # flown minutes apart from ONE dirty tree are perfectly comparable
+            # and must not be refused.
+            #
+            # A boolean cannot tell those apart and a digest can. Clean trees
+            # share the sentinel below and match each other; identical dirty
+            # trees produce identical digests and match; different ones do not.
+            "dirty_digest": _worktree_digest(root, porcelain),
             "root": str(root), "reason": ""}
+
+
+# What a clean checkout reports instead of a digest. A literal rather than
+# None, because None is this project's word for "could not be determined" and
+# a clean tree is a determination.
+CLEAN_TREE = "clean"
+
+
+def _worktree_digest(root: Path, porcelain: str) -> str:
+    """`clean`, or a digest of everything not committed.
+
+    Covers the diff of tracked files and the NAMES of untracked ones. Untracked
+    content is deliberately not hashed: it can be an entire build tree, and the
+    cost of reading it would land on every run to detect a case — an untracked
+    file changing the flight — that `--add-param-file` and the model hash
+    already cover.
+    """
+    if not porcelain:
+        return CLEAN_TREE
+    digest = hashlib.sha256()
+    digest.update(porcelain.encode("utf-8", "replace"))
+    for args in (("diff", "--no-color"), ("diff", "--no-color", "--cached")):
+        digest.update(_git(root, *args, timeout=20.0).encode("utf-8", "replace"))
+    return "sha256:" + digest.hexdigest()[:32]
 
 
 @dataclass

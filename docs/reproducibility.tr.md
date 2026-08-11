@@ -72,19 +72,44 @@ değiştiklerinde hiçbir sürüm numarasını hareket ettirmez:
 
 ## Kimlik alanları
 
-Bu alanlardan dördü, iki koşunun sayıları üzerinden karşılaştırılıp
+Bu alanlar, iki koşunun sayıları üzerinden karşılaştırılıp
 karşılaştırılamayacağına karar verir. Her biri, aracın ya da testin *ne
 olduğunu* değiştiren şeylerdir — ne kadar iyi yaptığını değil:
 
-- `model.config_hash`
-- `procedure_hash`
-- `ardupilot.commit`
-- `ardupilot.firmware_commit`
+| alan | değişmesi ne demek |
+|---|---|
+| `model.config_hash` | kayıt girdisi ya da bir parametre dosyası değişti — başka bir araç |
+| `procedure_hash` | akış ya da bir kabul kriteri değişti — başka bir test |
+| `ardupilot.commit` | farklı bir ArduPilot çalışma kopyası |
+| `ardupilot.firmware_commit` | gerçekte farklı bir ikili dosya uçtu |
+| `argaz.dirty_digest` | ArgazUI'de farklı commit'lenmemiş değişiklikler |
+| `ardupilot.dirty_digest` | ArduPilot'ta farklı commit'lenmemiş değişiklikler |
+| `gazebo.version` | farklı bir simülatör — fiziğin yarısı |
 
 Herhangi birindeki fark, açıkça geçersiz kılınmadıkça karşılaştırmayı
 `incomparable` yapar. Taraflardan birinde *bilinmiyor* olması da öyle: bu,
 koşuların farklı olduğu iddiası değildir; buradaki hiçbir şeyin aynı olduklarını
 gösteremediğinin ifadesidir.
+
+Son üçü v1.6 düzeltme sürümünde eklendi. Üçü de zaten kaydediliyordu ama hiçbiri
+karşılaştırılmıyordu; dolayısıyla bir Gazebo yükseltmesinin iki yakasındaki — ya
+da iki farklı commit'lenmemiş değişiklik kümesiyle uçurulmuş — koşular kendilerini
+aynı yapılandırma olarak bildiriyordu.
+
+### `dirty` neden bir bayrak değil, bir özet
+
+Bir commit, bir çalışma kopyasını tanımlamaz. `dirty: true`, ağaçta değişiklik
+olduğunu söyler ama *hangisi* olduğunu söyleyemez; bu yüzden iki farklı yarım
+kalmış çalışma durumundan uçurulmuş iki koşu aynı kimliğe sahipti — oysa TEK bir
+kirli ağaçtan dakikalar arayla uçurulan iki koşu gayet karşılaştırılabilirdir ve
+reddedilmemelidir. Bir mantıksal değer ikisini birden ifade edemez; commit'lenmemiş
+işin içerik özeti edebilir. Temiz bir çalışma kopyası, `clean` yazar — bu bir
+belirlemedir, belirlemenin yokluğu değil, dolayısıyla `null` değildir.
+
+Özet, izlenen dosyaların farkını ve izlenmeyenlerin ADLARINI kapsar. İzlenmeyen
+dosyaların içeriği bilerek hash'lenmez: bu koca bir derleme ağacı olabilir ve
+okuma maliyeti, `model.config_hash`'in zaten kapsadığı bir durumu yakalamak için
+her koşuya binerdi.
 
 ## Koşu başına iki geçiş
 

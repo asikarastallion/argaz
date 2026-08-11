@@ -55,6 +55,30 @@ procedure before it can be flown — the thing that breaks CI.
 the chain does not resolve. A traceability scheme nobody verifies degrades
 silently.
 
+## Stale generated artefacts are a test failure
+
+`docs/status.md` and `docs/coverage.md` are machine output and are committed, so
+they can be wrong in a way source code cannot: the code moves and the document
+does not. v1.6 shipped with both still describing v1.5 — most visibly,
+`coverage.md` carried four dimensions while `coverage.py` declared five, so the
+published report told a reader the project measures something it no longer
+measures.
+
+A byte-comparison against freshly generated output cannot be the check. Both
+documents are computed from whatever runs are on disk, and that differs between
+a developer's machine and a CI runner by design. What is deterministic is their
+STRUCTURE, and that is exactly what went stale:
+
+* every coverage dimension the code declares has a section in `coverage.md`,
+  and `coverage.md` names no dimension the code has dropped;
+* `status.md` carries the headings this generator writes;
+* the README's `STATUS-SUMMARY` block names the same generation time as
+  `status.md`, so a commit cannot stage one and not the other.
+
+These live in `tests/test_identity_and_artefacts.py`, are marked `tier1`, and
+therefore run on every push in the job that already exists. No new workflow and
+no new CI step.
+
 ## Adding a regression gate
 
 `argazui compare` is built for this: exit `0` for no regression, `1` for a

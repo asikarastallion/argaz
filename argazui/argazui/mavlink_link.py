@@ -81,6 +81,35 @@ MODE_SETTLE_S = 2.0
 
 @dataclass
 class VehicleState:
+    """What the vehicle has told us, and — separately — what it has not.
+
+    EVERY FIELD HAS A DEFAULT, AND A DEFAULT IS NOT A MEASUREMENT
+    ------------------------------------------------------------
+    `alt` starts at 0.0 because a float has to start somewhere. It does NOT
+    mean the aircraft is on the ground, and the two readings are
+    indistinguishable by value alone: a landed aircraft and a position stream
+    that never arrived both present `alt == 0.0`.
+
+    That is not a theoretical concern. It produced a real false PASS — the
+    criterion `alt_below: 3` in every landing procedure evaluated true against
+    a field nothing had ever written to, and the run record said
+    "on the ground — alt=0.0m" for a flight whose GLOBAL_POSITION_INT never
+    arrived. ArduCopter reaching this state is documented in
+    `_request_streams` below; a `mavlink_degradation` fault reaches it on
+    purpose.
+
+    So every group of fields carries a `*_known` flag that is set when — and
+    only when — the message backing it has actually been absorbed. The flags
+    are monotonic: once a signal has been seen the flag stays set, because they
+    answer "has this ever been measured", not "is it fresh". Freshness is
+    `connected` and `heartbeat_age`.
+
+    `procrunner.CONDITION_EVIDENCE` maps each acceptance condition to the flag
+    it rests on, and a condition whose flag is clear cannot be satisfied. See
+    `ProcedureRunner._check`.
+    """
+
+    # Is the link live NOW? Cleared after 5 s without a heartbeat.
     connected: bool = False
     mode: str = "-"
     armed: bool = False
@@ -91,6 +120,16 @@ class VehicleState:
     climb: float = 0.0
     sysid: int = 0
     last_heartbeat: float = 0.0
+    # Has a vehicle HEARTBEAT ever been absorbed? Distinct from `connected`,
+    # which is about the last five seconds: `armed` and `mode` are meaningful
+    # the moment one heartbeat has arrived and stay meaningful afterwards, even
+    # across a deliberate blackout.
+    heartbeat_known: bool = False
+    # Has GLOBAL_POSITION_INT ever arrived? Backs `alt`, and therefore
+    # `alt_above` / `alt_below`.
+    position_known: bool = False
+    # Has VFR_HUD ever arrived? Backs `groundspeed` and `climb`.
+    vfr_known: bool = False
     # ARM oncesi kontrollerin durumu (SYS_STATUS prearm saglik biti).
     # Arac acildiktan ~10 sn sonra True olur; oncesinde ARM reddedilir.
     prearm_ok: bool = False
@@ -129,6 +168,21 @@ class VehicleState:
             return False
         return (self.vehicle_clock_s - self.mode_changed_at_s) >= MODE_SETTLE_S
 
+    def known(self) -> dict:
+        """Which telemetry groups have actually been observed at least once.
+
+        The one place the knowledge state is enumerated. `procrunner` maps
+        conditions onto these names, the interface renders them, and the run
+        record carries them — so "we never measured this" is a fact that
+        travels with the evidence instead of being reconstructed later from a
+        zero.
+        """
+        return {"heartbeat": self.heartbeat_known,
+                "position": self.position_known,
+                "vfr": self.vfr_known,
+                "attitude": self.attitude_known,
+                "prearm": self.prearm_known}
+
     @property
     def max_angular_rate(self) -> float:
         """Largest of |p|, |q|, |r| in deg/s — body frame, no singularity.
@@ -153,6 +207,10 @@ class VehicleState:
             "sysid": self.sysid,
             "prearm_ok": self.prearm_ok,
             "prearm_known": self.prearm_known,
+            # Which signals have actually been observed. Sent to the interface
+            # so a panel can show "—" for a quantity nothing has measured
+            # instead of a zero that reads like a reading.
+            "known": self.known(),
             # Seconds since the last vehicle heartbeat, or None if none has
             # ever arrived. The interface needs this to say WHY the link is
             # down instead of showing a bare dash: "no heartbeat for 12 s" and
@@ -676,6 +734,10 @@ class MavlinkLink:
             was_connected, was_mode = self.state.connected, self.state.mode
             was_armed = self.state.armed
             self.state.connected = True
+            # Monotonic, unlike `connected`: once the vehicle has identified
+            # itself, `armed` and `mode` are measurements rather than defaults,
+            # and they stay measurements across a blackout.
+            self.state.heartbeat_known = True
             self.state.last_heartbeat = time.time()
             self._request_streams()
             self.state.sysid = msg.get_srcSystem()
@@ -708,9 +770,11 @@ class MavlinkLink:
                                 self.state.yaw_rate))
         elif t == "GLOBAL_POSITION_INT":
             self.state.alt = msg.relative_alt / 1000.0
+            self.state.position_known = True
         elif t == "VFR_HUD":
             self.state.groundspeed = msg.groundspeed
             self.state.climb = msg.climb
+            self.state.vfr_known = True
         elif t == "SYS_STATUS":
             bit = mavutil.mavlink.MAV_SYS_STATUS_PREARM_CHECK
             if msg.onboard_control_sensors_enabled & bit:

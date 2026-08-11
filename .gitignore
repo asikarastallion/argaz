@@ -17,6 +17,12 @@
 # instead of committing them.
 /runs/
 
+# Suite records collected per tier, the way `status.yml` lays them out when it
+# downloads each workflow's artefact before regenerating docs/status.md. The
+# same shape is used to regenerate locally; the generated documents are
+# committed, the inputs they were generated from are not.
+/artefacts/
+
 # SITL leftovers in the argaz root from manual sessions
 /eeprom.bin
 /mav.parm

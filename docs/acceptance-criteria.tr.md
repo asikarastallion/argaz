@@ -108,10 +108,46 @@ araç odur.
 
 ### Sessizlik asla başarı değildir
 
-Dayandığı telemetri hiç gelmemiş bir `for:` ya da `never:`, ilgili sinyalin adı
-verilerek *değerlendirilmedi* olarak raporlanır. Hiç `ATTITUDE` mesajı almamış
-bir duruma karşı değerlendirilen bir tutum kriteri, her açı ve her hız için 0,0
-okurdu — hiçbir şey üzerinde ölçülmüş kusursuz bir uçuş.
+**Her** koşul, dayandığı telemetriyi adıyla bildirir; sinyali hiç gelmemiş bir
+koşul, dört biçimin hiçbirinde sağlanmış sayılamaz.
+
+| koşul | gerektirdiği |
+|---|---|
+| `armed`, `mode`, `mode_in` | araçtan bir `HEARTBEAT` |
+| `alt_above`, `alt_below` | `GLOBAL_POSITION_INT` |
+| `climb_rate_above`, `climb_rate_below`, `groundspeed_above` | `VFR_HUD` |
+| `roll_within`, `pitch_within`, `angular_rate_*`, `attitude_stable` | `ATTITUDE` |
+| `prearm_ok` | `SYS_STATUS` |
+| `param` | aracın okumayı yanıtlaması — bu zaten kapalı tarafa düşer |
+
+Gerekçe şu: araç durumundaki her alanın bir başlangıç değeri vardır ve
+başlangıç değeri bir ölçüm değildir. `alt`, bir kayan sayı bir yerden başlamak
+zorunda olduğu için 0,0'dan başlar; bu, aracın **yerde olduğu anlamına gelmez**
+ve yalnızca değere bakıldığında ikisi birbirinin aynısıdır. v1.6 düzeltme
+sürümüne kadar değerlendirici için de aynıydılar: `alt_below: 3` ve
+`armed: false` — ki ikisi birlikte her iniş prosedürünün kabul bloğunun
+tamamıdır — hiçbir şeyin yazmadığı bir duruma karşı doğru çıkıyordu ve konum
+akışı hiç gelmemiş bir uçuş için koşu kaydı `yerde — alt=0.0m` diyordu.
+
+Bu şekilde reddedilen bir kriter **değerlendirilmedi** durumundadır; bu üçüncü
+bir sonuçtur ve bir başarısızlık değildir:
+
+| `passed` | `evaluated` | anlamı |
+|---|---|---|
+| `true` | `true` | araç kriteri sağladı |
+| `false` | `true` | araç sağlamadı — araç hakkında bir hüküm |
+| `false` | `false` | hiçbir şey ölçülmedi — hiçbir şey hakkında hüküm **değil** |
+
+Koşu yine de geçmez. Değişen şey, nasıl raporlandığıdır: değerlendirilmemiş bir
+kriter `acceptance` değil `evidence` olarak sınıflandırılır, çünkü aracın yanlış
+bir şey yaptığı anlamına gelen tek kategori `acceptance`'tır. Bkz.
+[failure-classification.tr.md](failure-classification.tr.md).
+
+Bir `for:` ya da `never:`, penceresi **açılmadan önce** reddedilir; çünkü bir
+zaman aralığı hakkında olumlu bir iddiada bulunur. `within:` ve şema 1 biçimi
+ise birer bekleyiştir, dolayısıyla beklemeyi sürdürürler — bir bekleyişin
+ortasında gelmeye başlayan telemetri gayet geçerli bir uçuştur — ve yalnızca
+süre dolduğunda sinyal hâlâ eksikse reddedilirler.
 
 ## `attitude_stable` ve varlık sebebi
 

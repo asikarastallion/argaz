@@ -135,6 +135,42 @@ def test_the_v16_surfaces_are_translated():
             f"{lang} is missing {sorted(expected - catalogue[lang])}")
 
 
+def test_the_v16_corrective_surfaces_are_translated():
+    """The strings the corrective release added to the interface.
+
+    `proc_unevaluable` names the third criterion outcome — not a pass and not a
+    failure, but nothing measured. A Turkish reader shown that mark with an
+    English explanation would be told the one thing this release exists to make
+    unmissable, in a language they did not pick.
+    """
+    catalogue = interface_catalogue()
+    for lang in LANGUAGES:
+        assert "proc_unevaluable" in catalogue[lang], (
+            f"{lang} has no string for the unevaluated criterion state")
+
+
+def test_the_evidence_and_abort_messages_exist_in_both_languages():
+    """Backend strings the corrective release added, named explicitly.
+
+    Both are read by an operator at the moment something has gone wrong, which
+    is exactly when falling back to English is least acceptable.
+    """
+    for key in ("cond_no_evidence", "proc_no_vehicle_ready"):
+        for lang in LANGUAGES:
+            assert CATALOG.get(key, {}).get(lang), f"{key} has no {lang} text"
+
+
+def test_every_failure_category_explains_itself_in_both_languages():
+    """The taxonomy is a user-visible string, and it changed in this release."""
+    from argazui import failures
+
+    for category in failures.CATEGORIES:
+        entry = failures.CATALOGUE[category]
+        for lang in LANGUAGES:
+            for part in ("label", "what", "look_at"):
+                assert entry[part].get(lang), f"{category}.{part} has no {lang}"
+
+
 def test_the_experiment_verdicts_all_have_a_string_behind_them():
     """The panel builds a key from the verdict word, so a new one goes silent.
 

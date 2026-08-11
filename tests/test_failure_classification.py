@@ -140,12 +140,21 @@ def test_a_criterion_that_was_never_judged_says_so(text):
     The run record stores the message in whichever language the flight was
     flown in, so the classifier has to recognise both or a Turkish session
     would report every unevaluated criterion as a real failure.
+
+    The CATEGORY changed in the v1.6 corrective release, and the change is the
+    point of the test rather than an incidental update. `acceptance` is
+    documented as the only category that means the aircraft did something
+    wrong; a criterion whose telemetry never arrived says nothing about the
+    aircraft at all, so it is a hole in the EVIDENCE. Filing it under
+    `acceptance` was the same conflation this module exists to prevent, one
+    level further down. The code is unchanged, so anything counting
+    `criterion-not-judged` still finds it.
     """
     result = procedure_result(
         outcome="failed", ok=False,
         expect=[criterion(passed=False, text=text)])
     failure = failures.classify_procedure(result)
-    assert failure.category == failures.ACCEPTANCE
+    assert failure.category == failures.EVIDENCE
     assert failure.code == failures.CODE_CRITERION_NOT_JUDGED
 
 

@@ -186,6 +186,7 @@ def capture(model: Optional[dict] = None,
     argaz = {"version": __version__, "commit": argaz_git["commit"],
              "short_commit": argaz_git.get("short_commit"),
              "describe": argaz_git["describe"], "dirty": argaz_git["dirty"],
+             "dirty_digest": argaz_git.get("dirty_digest"),
              "root": argaz_git["root"]}
 
     # -------------------------------------------------------------- ardupilot
@@ -202,6 +203,7 @@ def capture(model: Optional[dict] = None,
         "short_commit": ardupilot_git.get("short_commit"),
         "describe": ardupilot_git["describe"],
         "dirty": ardupilot_git["dirty"],
+        "dirty_digest": ardupilot_git.get("dirty_digest"),
         "root": ardupilot_git["root"],
         "firmware": build.firmware or None,
         "firmware_commit": build.firmware_hash or None,
@@ -218,7 +220,9 @@ def capture(model: Optional[dict] = None,
     sitl_models = {"commit": models_git["commit"],
                    "short_commit": models_git.get("short_commit"),
                    "describe": models_git["describe"],
-                   "dirty": models_git["dirty"], "root": models_git["root"]}
+                   "dirty": models_git["dirty"],
+                   "dirty_digest": models_git.get("dirty_digest"),
+                   "root": models_git["root"]}
 
     # ------------------------------------------------------------ simulators
     gz_version, gz_reason = _tool_version("gz", ["gz", "sim", "--version"])
@@ -299,6 +303,21 @@ IDENTITY_FIELDS = (
     ("procedure_hash", "the procedures that were executed"),
     ("ardupilot.commit", "the ArduPilot checkout"),
     ("ardupilot.firmware_commit", "the firmware binary that flew"),
+    # ---------------------------------------------- added by v1.6 corrective
+    # A COMMIT DOES NOT IDENTIFY A WORKING TREE
+    # ----------------------------------------
+    # `dirty` was captured from the first release and compared by nothing, so
+    # two runs flown from two different sets of uncommitted changes on the same
+    # SHA reported themselves as the same configuration and were compared on
+    # their numbers. `dirty: true` on either side is not a claim that the trees
+    # differ — it is a statement that the commit alone cannot show they are the
+    # same, which is exactly the condition a comparison must not be made
+    # silently across. `ignore_config_drift` is how someone says they know.
+    ("argaz.dirty_digest", "uncommitted changes in the ArgazUI checkout"),
+    ("ardupilot.dirty_digest", "uncommitted changes in the ArduPilot checkout"),
+    # The simulator is half the physics. A Gazebo upgrade between two runs
+    # changes what the aircraft flew through, and it moves no commit here.
+    ("gazebo.version", "the Gazebo that provided the physics"),
 )
 
 
@@ -327,6 +346,15 @@ def differences(baseline: dict, current: dict) -> list[dict]:
             out.append({"field": dotted, "what": description,
                         "baseline": before, "current": after,
                         "reason": "unknown on at least one side"})
+        elif dotted.endswith(".dirty_digest") and before != after:
+            # Two dirty trees are not shown to be the same tree by both being
+            # dirty, and two runs from ONE dirty tree are perfectly comparable.
+            # A boolean cannot tell those apart; the digest can, and it says
+            # which of the two cases this is.
+            out.append({"field": dotted, "what": description,
+                        "baseline": before, "current": after,
+                        "reason": ("different uncommitted changes; the commit "
+                                   "alone cannot identify what flew")})
         elif before != after:
             out.append({"field": dotted, "what": description,
                         "baseline": before, "current": after,

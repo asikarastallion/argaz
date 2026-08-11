@@ -292,6 +292,35 @@ CATALOG: dict[str, dict[str, str]] = {
                                        "duydugu {needed} durum okumasindan yalnizca "
                                        "{samples} tanesi alinabildi"},
 
+    # Returned by `_check` for a condition whose telemetry has never arrived.
+    # Deliberately worded as a statement about the MEASUREMENT and not about
+    # the aircraft: 0.0 m is what an altitude field holds before anything
+    # writes to it, and reading that as "on the ground" is the defect this
+    # message exists to make impossible to miss.
+    "cond_no_evidence": {"en": "no measurement — this condition rests on "
+                               "{signals}, which has not arrived. Nothing was "
+                               "measured, which is not the same as nothing "
+                               "being wrong.",
+                         "tr": "olcum yok — bu kosul, henuz gelmemis olan "
+                               "{signals} verisine dayaniyor. Hicbir sey "
+                               "olculmedi; bu, hicbir sorun yok demek "
+                               "degildir."},
+    # The runner's refusal to fly against a simulator that never came up.
+    "proc_no_vehicle_ready": {"en": "no vehicle: no MAVLink heartbeat has ever "
+                                    "arrived, so there is nothing to fly this "
+                                    "procedure against. This is a simulation "
+                                    "startup failure, not a result about an "
+                                    "aircraft — check the launch commands at "
+                                    "the top of console.log and run "
+                                    "`argazui doctor`.",
+                              "tr": "arac yok: hic MAVLink heartbeat'i gelmedi, "
+                                    "dolayisiyla bu proseduru uygulayacak bir "
+                                    "arac yok. Bu bir simulasyon baslatma "
+                                    "hatasidir, bir arac hakkinda hukum degil — "
+                                    "console.log'un basindaki baslatma "
+                                    "komutlarina bakin ve `argazui doctor` "
+                                    "calistirin."},
+
     "proc_unknown_step": {"en": "unimplemented step type: {kind}",
                           "tr": "uygulanmamis adim tipi: {kind}"},
     "proc_unknown_enum": {"en": "unknown MAVLink name: {name}",

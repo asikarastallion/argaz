@@ -140,7 +140,14 @@ class StepResult:
     label: str
     status: str = "pending"        # pending | running | passed | failed | skipped
     text: str = ""
+    # How long this step took on THIS PROCESS's clock. It is host execution
+    # time and nothing else: under SITL speedup it is not a duration the
+    # aircraft experienced.
     seconds: float = 0.0
+    # The same duration on the vehicle's own clock, or None where that clock
+    # was not running. Any metric that describes the AIRCRAFT must use this
+    # one — see metrics.py `mode_transition_latency_max`.
+    vehicle_seconds: Optional[float] = None
     # `<procedure>#s3`, or `<procedure>#<declared>`. Recorded so a failure can
     # be pointed at from outside the document that describes it — see trace.py.
     step_id: str = ""
@@ -148,7 +155,9 @@ class StepResult:
     def as_dict(self) -> dict:
         return {"index": self.index, "kind": self.kind, "label": self.label,
                 "status": self.status, "text": self.text,
-                "seconds": round(self.seconds, 1), "step_id": self.step_id}
+                "seconds": round(self.seconds, 1),
+                "vehicle_seconds": self.vehicle_seconds,
+                "step_id": self.step_id}
 
 
 @dataclass
@@ -156,6 +165,21 @@ class ExpectResult:
     label: str
     condition: dict
     passed: bool = False
+    # Was this criterion actually judged against observed data?
+    #
+    # THREE STATES, NOT TWO
+    # ---------------------
+    #   passed=True,  evaluated=True   the aircraft met the criterion
+    #   passed=False, evaluated=True   the aircraft did not — a real verdict
+    #   passed=False, evaluated=False  nothing was measured; NOT a verdict
+    #
+    # The third state existed before this field did, but only as English or
+    # Turkish prose inside `text`, which three separate readers then recovered
+    # by substring-matching with three different rules — and disagreed. The
+    # status table rendered "not judged" as an aircraft failure while the
+    # traceability chain and the coverage report called it unevaluated. It is
+    # a field now, and `text` is for people.
+    evaluated: bool = True
     text: str = ""
     # The temporal shape this criterion was judged with, and the duration it
     # named. Recorded so a stored run says which question was asked, not only
@@ -179,7 +203,8 @@ class ExpectResult:
 
     def as_dict(self) -> dict:
         return {"label": self.label, "condition": _plain(self.condition),
-                "passed": self.passed, "text": self.text,
+                "passed": self.passed, "evaluated": self.evaluated,
+                "text": self.text,
                 "kind": self.kind, "duration": self.duration,
                 "observed": round(self.observed, 2), "clock": self.clock,
                 "criterion_id": self.criterion_id,
@@ -253,8 +278,48 @@ def _plain(obj):
     return obj
 
 
+# ------------------------------------------------------------- abort reasons
+# WHY AN ABORT CARRIES ITS REASON INSTEAD OF ONLY A SENTENCE
+# ---------------------------------------------------------
+# `classify_procedure` used to reconstruct why a procedure stopped by looking
+# at what the document contained. That works when a step failed, because there
+# is a failed step to find. It does not work for an abort that happens BEFORE
+# or BETWEEN steps — a fault mechanism this firmware does not have, an operator
+# pressing cancel, the overall timeout, a placeholder that does not resolve. In
+# every one of those the steps are `skipped` and the criteria are marked "not
+# evaluated", so the classifier fell through to the criterion loop and returned
+# `acceptance` — the one category that is documented as a verdict about the
+# aircraft.
+#
+# A missing SIM_GPS1_ENABLE was therefore reported as an aircraft that failed
+# its acceptance criteria. The reason travels with the exception now.
+ABORT_STEP = "step-failed"                    # a step returned not-ok
+ABORT_CANCELLED = "cancelled"                 # a person or a campaign stopped it
+ABORT_TIMEOUT = "overall-timeout"             # the procedure's own `timeout:`
+ABORT_NO_VEHICLE = "vehicle-never-connected"  # nothing to fly before it started
+ABORT_FAULT_UNAVAILABLE = "fault-unavailable"  # mechanism absent on this firmware
+ABORT_FAULT_REFUSED = "fault-refused"         # the vehicle would not accept it
+ABORT_FAULT_START = "fault-start-missed"      # the declared start state never held
+ABORT_OVERRIDE = "override-failed"            # a declared parameter would not set
+ABORT_CONFIG = "procedure-config-error"       # the document itself is wrong
+
+ABORT_KINDS = (ABORT_STEP, ABORT_CANCELLED, ABORT_TIMEOUT, ABORT_NO_VEHICLE,
+               ABORT_FAULT_UNAVAILABLE, ABORT_FAULT_REFUSED, ABORT_FAULT_START,
+               ABORT_OVERRIDE, ABORT_CONFIG)
+
+
 class ProcedureAborted(Exception):
-    """A step or criterion did not hold — a verdict about the aircraft."""
+    """The procedure stopped before it finished, and why.
+
+    `kind` is one of ABORT_KINDS. Only `ABORT_STEP` is potentially a statement
+    about the aircraft; every other value names something that went wrong with
+    the test, the simulator or the document, and `failures.classify_procedure`
+    dispatches on it before it looks at anything else.
+    """
+
+    def __init__(self, text: str, kind: str = ABORT_STEP) -> None:
+        super().__init__(text)
+        self.kind = kind
 
 
 OUTCOME_PASSED = "passed"
@@ -326,11 +391,67 @@ MIN_TEMPORAL_SAMPLES = 3
 # telemetry has actually been seen. A criterion that claims "the rate never
 # exceeded 90°/s" while no ATTITUDE ever arrived is reporting silence as
 # success, which is the exact failure this project was written to remove.
+#
+# WHY EVERY CONDITION IS LISTED, NOT ONLY THE ATTITUDE ONES
+# ---------------------------------------------------------
+# Until the v1.6 corrective release this table held attitude and pre-arm only,
+# and the guard below it was consulted by two of the four temporal shapes. Both
+# gaps were load-bearing: `alt_below: 3` and `armed: false` — between them the
+# ENTIRE acceptance block of all four landing procedures — evaluated true
+# against a `VehicleState` that had never received a message, because 0.0 and
+# False are what a float and a bool start as.
+#
+# A landing therefore reported PASS from fields nothing had written to, and the
+# recorded measurement ("alt=0.0m") was byte-identical to the one a genuine
+# landing produces. Every condition now names the signal it rests on, and
+# `_check` refuses any condition whose signal has not been observed.
 CONDITION_EVIDENCE = {
+    # attitude, in degrees and degrees per second
     "roll_within": "attitude_known", "pitch_within": "attitude_known",
     "angular_rate_above": "attitude_known", "angular_rate_below": "attitude_known",
-    "attitude_stable": "attitude_known", "prearm_ok": "prearm_known",
+    "attitude_stable": "attitude_known",
+    # SYS_STATUS pre-arm health bit
+    "prearm_ok": "prearm_known",
+    # GLOBAL_POSITION_INT.relative_alt
+    "alt_above": "position_known", "alt_below": "position_known",
+    # VFR_HUD
+    "climb_rate_above": "vfr_known", "climb_rate_below": "vfr_known",
+    "groundspeed_above": "vfr_known",
+    # HEARTBEAT. `mode` and `armed` are only meaningful once the vehicle has
+    # identified itself; "-" and False are placeholders, not readings.
+    "armed": "heartbeat_known", "mode": "heartbeat_known",
+    "mode_in": "heartbeat_known",
+    # `param` is deliberately absent: it reads the value live and returns None
+    # when the vehicle does not answer, so it already fails closed.
 }
+
+# The signal name a person reads, per state flag. `attitude_known` is not what
+# anybody calls the thing that did not arrive.
+EVIDENCE_LABEL = {
+    "attitude_known": "ATTITUDE",
+    "prearm_known": "SYS_STATUS (pre-arm health)",
+    "position_known": "GLOBAL_POSITION_INT (altitude)",
+    "vfr_known": "VFR_HUD (climb rate / ground speed)",
+    "heartbeat_known": "HEARTBEAT (arm state / mode)",
+}
+
+
+def missing_evidence(state, cond: dict) -> list[str]:
+    """The signals this condition rests on that have never been observed.
+
+    Empty means every signal backing it has arrived at least once, so the
+    condition can be judged. Module-level rather than a method because the
+    knowledge state is a property of the link and the mapping is a property of
+    the schema; neither belongs to a particular runner instance.
+    """
+    out: list[str] = []
+    for key in cond:
+        flag = CONDITION_EVIDENCE.get(key)
+        if flag and not getattr(state, flag, False):
+            label = EVIDENCE_LABEL.get(flag, flag)
+            if label not in out:
+                out.append(label)
+    return out
 
 
 class _Window:
@@ -460,6 +581,9 @@ class ProcedureRunner:
         self.on_event = on_event or (lambda e: None)
         self.lang = lang
         self._cancel = False
+        # Signals the most recent `_check` could not judge anything from. See
+        # `_check` and `_unevaluable`.
+        self._unmeasured: list[str] = []
 
     def cancel(self) -> None:
         self._cancel = True
@@ -477,7 +601,8 @@ class ProcedureRunner:
             try:
                 value = substitute(value, values)
             except KeyError as exc:
-                raise ProcedureAborted(t("proc_unknown_placeholder", name=exc)) from exc
+                raise ProcedureAborted(t("proc_unknown_placeholder", name=exc),
+                                       ABORT_CONFIG) from exc
             try:
                 return float(value)
             except ValueError:
@@ -512,8 +637,35 @@ class ProcedureRunner:
 
         Returns (satisfied, description-of-what-was-actually-seen) so a failure
         can say "alt 3.2 m" rather than only "not satisfied".
+
+        A CONDITION WHOSE TELEMETRY HAS NEVER ARRIVED IS NOT SATISFIED
+        --------------------------------------------------------------
+        The guard is here, at the single point every shape and every
+        `wait_for:` step passes through, rather than in the four evaluators.
+        Putting it in the evaluators is what produced the defect it exists to
+        fix: two of them consulted it and two did not, so `within` and the
+        schema-1 shape read an unwritten field as a measurement.
+
+        It is a per-check test and not a one-off precondition on purpose. A
+        procedure that waits for altitude is entitled to have altitude start
+        arriving half way through the wait, and refusing the criterion up front
+        would fail a flight that was fine. What must never happen is the check
+        SUCCEEDING on a signal that has still not arrived — so the wait simply
+        continues, and times out saying which stream was missing.
         """
         st = self.link.state
+        # Reset per check: `_unevaluable` reads it to tell "the aircraft did
+        # not comply" from "there was nothing to compare it against", without
+        # anybody having to match on translated prose.
+        self._unmeasured = []
+        absent = missing_evidence(st, cond)
+        if absent:
+            self._unmeasured = list(absent)
+            # Not "the condition is false". "Nothing was measured", which is a
+            # different answer and is reported as one — `_evaluate` turns this
+            # into a not-evaluable verdict rather than a failure about the
+            # aircraft.
+            return False, t("cond_no_evidence", signals=", ".join(absent))
         seen = []
         ok = True
         for key, want in cond.items():
@@ -592,7 +744,12 @@ class ProcedureRunner:
         measured = watch.seconds
 
         if measured < minimum:
-            # Not "we saw nothing wrong" — "we saw nothing".
+            # Not "we saw nothing wrong" — "we saw nothing". Recorded as an
+            # unmeasured signal so the verdict comes out `not evaluated`
+            # rather than as a failure about the airframe.
+            self._unmeasured.append(
+                EVIDENCE_LABEL["attitude_known"]
+                + f" (only {measured:.1f}s of {minimum:g}s)")
             return False, t("stab_no_data", measured=f"{measured:.1f}",
                             needed=f"{minimum:g}")
 
@@ -626,7 +783,7 @@ class ProcedureRunner:
         seen = ""
         while time.time() < deadline:
             if self._cancel:
-                raise ProcedureAborted(t("proc_cancelled"))
+                raise ProcedureAborted(t("proc_cancelled"), ABORT_CANCELLED)
             ok, seen = self._check(cond)
             if ok:
                 return True, seen
@@ -639,16 +796,39 @@ class ProcedureRunner:
 
         Returns an empty string when everything it rests on has been observed.
         A `for` or a `never` makes a positive claim about a stretch of time, so
-        it has to be refused outright when the stream backing it never arrived
-        — otherwise silence reads as good behaviour.
+        it is refused OUTRIGHT — before the window opens — when the stream
+        backing it never arrived. `within` and the schema-1 shape are refused
+        only if the stream is still absent when their deadline expires, because
+        those two are waits and a wait is entitled to have its data start
+        arriving part way through.
         """
-        state = self.link.state
-        for key in cond:
-            flag = CONDITION_EVIDENCE.get(key)
-            if flag and not getattr(state, flag, False):
-                return t("temporal_no_evidence", condition=key,
-                         signal=flag.replace("_known", ""))
-        return ""
+        absent = missing_evidence(self.link.state, cond)
+        if not absent:
+            return ""
+        return t("temporal_no_evidence", condition=", ".join(sorted(cond)),
+                 signal=", ".join(absent))
+
+    def _unevaluable(self, result: ExpectResult, cond: dict) -> bool:
+        """Marks a criterion as not judged when its telemetry never arrived.
+
+        Called after a wait has failed. Returns whether it did so, so the
+        caller can leave its own failure text alone when the aircraft really
+        was measured and really did not comply.
+        """
+        missing = self._unmeasurable(cond)
+        if not missing and self._unmeasured:
+            # Everything the condition rests on has arrived at some point, but
+            # the last check still could not judge it — an attitude envelope
+            # with too few accumulated seconds is the case this covers.
+            missing = t("temporal_no_evidence",
+                        condition=", ".join(sorted(cond)),
+                        signal=", ".join(self._unmeasured))
+        if not missing:
+            return False
+        result.passed = False
+        result.evaluated = False
+        result.text = missing
+        return True
 
     def _evaluate(self, exp: Expectation, cond: dict,
                   identifier: str = "") -> ExpectResult:
@@ -659,6 +839,11 @@ class ProcedureRunner:
                               declared_id=bool(exp.id))
         if exp.kind == "eventually":
             result.passed, result.text = self._wait_for(cond, exp.timeout)
+            if not result.passed:
+                # A criterion that timed out because its stream never arrived
+                # measured nothing, and "nothing was measured" is not the same
+                # answer as "the aircraft did not comply".
+                self._unevaluable(result, cond)
             return result
         if exp.kind == "within":
             return self._expect_within(result, cond, exp.within or 0.0)
@@ -673,7 +858,7 @@ class ProcedureRunner:
         seen = ""
         while True:
             if self._cancel:
-                raise ProcedureAborted(t("proc_cancelled"))
+                raise ProcedureAborted(t("proc_cancelled"), ABORT_CANCELLED)
             ok, seen = self._check(cond)
             result.observed, result.clock = window.elapsed, window.clock
             if ok:
@@ -687,6 +872,8 @@ class ProcedureRunner:
                 break
             window.tick()
         result.observed, result.clock = window.elapsed, window.clock
+        if self._unevaluable(result, cond):
+            return result
         result.text = t("temporal_within_fail", limit=format_duration(limit),
                         elapsed=format_duration(max(window.elapsed, 0.0)),
                         seen=seen) + window.note()
@@ -701,9 +888,7 @@ class ProcedureRunner:
         eventually, which is the opposite of what "continuously" means, and the
         failure text would no longer describe what the aircraft did.
         """
-        missing = self._unmeasurable(cond)
-        if missing:
-            result.text = missing
+        if self._unevaluable(result, cond):
             return result
 
         # Phase 1 — acquire. Bounded by `timeout`, which is the schema-1 wait.
@@ -718,7 +903,7 @@ class ProcedureRunner:
         window = _Window(self.link, hold)
         while not window.expired:
             if self._cancel:
-                raise ProcedureAborted(t("proc_cancelled"))
+                raise ProcedureAborted(t("proc_cancelled"), ABORT_CANCELLED)
             window.tick()
             ok, seen = self._check(cond)
             result.observed, result.clock = window.elapsed, window.clock
@@ -730,6 +915,7 @@ class ProcedureRunner:
                 return result
         result.observed, result.clock = window.elapsed, window.clock
         if window.samples < MIN_TEMPORAL_SAMPLES:
+            result.evaluated = False
             result.text = t("temporal_too_few_samples", samples=window.samples,
                             needed=MIN_TEMPORAL_SAMPLES)
             return result
@@ -743,16 +929,14 @@ class ProcedureRunner:
     def _expect_never(self, result: ExpectResult, cond: dict,
                       window_s: float) -> ExpectResult:
         """The condition must not become true at any observed moment."""
-        missing = self._unmeasurable(cond)
-        if missing:
-            result.text = missing
+        if self._unevaluable(result, cond):
             return result
 
         window = _Window(self.link, window_s)
         seen = ""
         while not window.expired:
             if self._cancel:
-                raise ProcedureAborted(t("proc_cancelled"))
+                raise ProcedureAborted(t("proc_cancelled"), ABORT_CANCELLED)
             violated, seen = self._check(cond)
             result.observed, result.clock = window.elapsed, window.clock
             if violated:
@@ -764,6 +948,7 @@ class ProcedureRunner:
             window.tick()
         result.observed, result.clock = window.elapsed, window.clock
         if window.samples < MIN_TEMPORAL_SAMPLES:
+            result.evaluated = False
             result.text = t("temporal_too_few_samples", samples=window.samples,
                             needed=MIN_TEMPORAL_SAMPLES)
             return result
@@ -791,7 +976,7 @@ class ProcedureRunner:
                 raise ProcedureAborted(
                     t("fault_unavailable", id=fault.id,
                       kind=faultlib.label_for(fault.kind, self.lang),
-                      err=exc)) from exc
+                      err=exc), ABORT_FAULT_UNAVAILABLE) from exc
             prepared[fault.id] = injector
             self._emit("fault_ready", fault=fault.as_dict(self.lang),
                        mechanism=injector.mechanism_text)
@@ -839,7 +1024,7 @@ class ProcedureRunner:
         deadline = time.time() + timeout
         while time.time() < deadline:
             if self._cancel:
-                raise ProcedureAborted(t("proc_cancelled"))
+                raise ProcedureAborted(t("proc_cancelled"), ABORT_CANCELLED)
             self.link.submit(_pump_for(TEMPORAL_SAMPLE_S),
                              timeout=TEMPORAL_SAMPLE_S + 6.0, label="resync")
             now = getattr(self.link.state, "vehicle_clock_s", 0.0) or 0.0
@@ -878,7 +1063,8 @@ class ProcedureRunner:
             if not holds:
                 raise ProcedureAborted(
                     t("fault_start_missed", id=fault.id,
-                      limit=format_duration(fault.start_within), seen=observed))
+                      limit=format_duration(fault.start_within), seen=observed),
+                    ABORT_FAULT_START)
 
         # --------------------------------------------------------- inject
         try:
@@ -887,7 +1073,8 @@ class ProcedureRunner:
             result.text = str(exc)
             self._emit("fault", fault=result.as_dict())
             raise ProcedureAborted(
-                t("fault_refused", id=fault.id, err=exc)) from exc
+                t("fault_refused", id=fault.id, err=exc),
+                ABORT_FAULT_REFUSED) from exc
         result.applied = True
         result.injected_at_s = getattr(self.link.state, "vehicle_clock_s", 0.0) or None
         result.changed = dict(injector.changed)
@@ -914,7 +1101,7 @@ class ProcedureRunner:
             # rather than the declaration being taken as what happened.
             while not window.expired:
                 if self._cancel:
-                    raise ProcedureAborted(t("proc_cancelled"))
+                    raise ProcedureAborted(t("proc_cancelled"), ABORT_CANCELLED)
                 window.tick()
                 self._evidence_seen(result.evidence_required, seen)
             result.held_s, result.clock = window.elapsed, window.clock
@@ -1109,7 +1296,7 @@ class ProcedureRunner:
                 raise ProcedureAborted(
                     t("proc_override_failed", name=name,
                       value=f"{value:g}" if isinstance(value, float) else value,
-                      text=res.get("text", "")))
+                      text=res.get("text", "")), ABORT_OVERRIDE)
 
     # ------------------------------------------------------------------ run
     def run(self, proc: Procedure, values: Optional[dict] = None) -> dict:
@@ -1123,6 +1310,7 @@ class ProcedureRunner:
         fault_results: list[FaultResult] = []
         started = time.time()
         aborted_text = ""
+        aborted_kind = ""
         outcome = OUTCOME_PASSED
 
         self._emit("start", procedure=proc.id, name=proc.label(self.lang),
@@ -1131,6 +1319,21 @@ class ProcedureRunner:
                    failures=[f.as_dict(self.lang) for f in proc.failures])
 
         try:
+            # BEFORE ANYTHING ELSE: is there a vehicle to fly?
+            #
+            # A procedure run against a simulator that never came up used to
+            # proceed step by step, time each one out, and be classified as a
+            # `procedure` failure — a statement about a flow that never had an
+            # aircraft under it. Gazebo failing to start, SITL failing to
+            # build and a wrong world file all arrived here looking identical
+            # to a mode change the autopilot refused.
+            #
+            # The environment is a different lifecycle layer from the flow, and
+            # a failure has to be reported at the layer it happened in.
+            if not self.link.state.heartbeat_known:
+                raise ProcedureAborted(
+                    t("proc_no_vehicle_ready"), ABORT_NO_VEHICLE)
+
             # Before anything is written to the vehicle: a scenario whose fault
             # mechanism is not on this firmware must not fly at all.
             injectors = self._prepare_faults(proc)
@@ -1146,10 +1349,11 @@ class ProcedureRunner:
 
             for step, result in zip(proc.steps, steps):
                 if self._cancel:
-                    raise ProcedureAborted(t("proc_cancelled"))
+                    raise ProcedureAborted(t("proc_cancelled"), ABORT_CANCELLED)
                 if time.time() - started > proc.timeout:
                     raise ProcedureAborted(
-                        t("proc_overall_timeout", seconds=f"{proc.timeout:g}"))
+                        t("proc_overall_timeout", seconds=f"{proc.timeout:g}"),
+                        ABORT_TIMEOUT)
 
                 if step.when is not None:
                     holds, seen = self._check(self._resolve_condition(step.when, values))
@@ -1163,8 +1367,18 @@ class ProcedureRunner:
                 self._emit("step", step=result.as_dict())
 
                 at = time.time()
+                at_vehicle = getattr(self.link.state, "vehicle_clock_s", 0.0) or 0.0
                 res = self._run_step(step, values, changed_params)
                 result.seconds = time.time() - at
+                # The same duration on the aircraft's own clock, where that
+                # clock was running. `seconds` is host execution time and is
+                # kept as such; `vehicle_seconds` is what a metric about the
+                # AIRCRAFT has to be built from, because ten wall seconds are
+                # not ten seconds of flight at speedup 5. See metrics.py.
+                now_vehicle = getattr(self.link.state, "vehicle_clock_s", 0.0) or 0.0
+                result.vehicle_seconds = (round(now_vehicle - at_vehicle, 3)
+                                          if at_vehicle and now_vehicle > at_vehicle
+                                          else None)
                 result.text = res.get("text", "")
                 result.status = "passed" if res.get("ok") else "failed"
                 self._emit("step", step=result.as_dict())
@@ -1197,6 +1411,13 @@ class ProcedureRunner:
 
         except ProcedureAborted as exc:
             aborted_text = str(exc)
+            # WHY THE REASON IS CARRIED AND NOT RE-DERIVED
+            # --------------------------------------------
+            # Everything an abort leaves behind looks the same: skipped steps
+            # and criteria that were never reached. Working the cause out again
+            # from that residue is what made a missing SIM_GPS1_ENABLE come out
+            # as an aircraft acceptance failure. See ABORT_KINDS.
+            aborted_kind = getattr(exc, "kind", ABORT_STEP)
             outcome = OUTCOME_FAILED
             expects = self._unevaluated(proc, steps)
         except Exception as exc:
@@ -1206,6 +1427,7 @@ class ProcedureRunner:
             # stopped updating. It is now an `error` outcome — distinct from a
             # `failed` one, because it says nothing about the aircraft.
             aborted_text = t("proc_internal_error", err=f"{type(exc).__name__}: {exc}")
+            aborted_kind = ""
             outcome = OUTCOME_ERROR
             expects = self._unevaluated(proc, steps)
         finally:
@@ -1232,6 +1454,16 @@ class ProcedureRunner:
             # asked about it. A procedure that declares no attitude limit still
             # leaves the evidence behind for whoever reads the run later.
             "stability": self.link.stability.report(),
+            # Why the procedure stopped early, when it did — one of
+            # ABORT_KINDS, or None when it ran to the end. `failures.py`
+            # dispatches on this before it looks at anything else.
+            "abort": ({"kind": aborted_kind, "text": aborted_text}
+                      if aborted_kind else None),
+            # How fast simulated time ran, measured from the vehicle's own
+            # clock. Recorded because every duration in this document that is
+            # NOT on the vehicle clock has to be readable in context, and
+            # because two runs at different speedups are not the same test.
+            "speedup": round(getattr(self.link, "speedup", 1.0) or 1.0, 3),
             "params_changed": _plain(changed_params),
             "seconds": round(time.time() - started, 1),
             "text": aborted_text or (t("proc_passed", name=proc.label(self.lang))
@@ -1258,7 +1490,8 @@ class ProcedureRunner:
                 s.status = "skipped" if s.status == "pending" else "failed"
         return [ExpectResult(label=e.label(self.lang),
                              condition=_plain(e.condition),
-                             passed=False, text=t("proc_not_evaluated"),
+                             passed=False, evaluated=False,
+                             text=t("proc_not_evaluated"),
                              kind=e.kind, duration=e.duration,
                              criterion_id=tracelib.criterion_id(proc.id, i, e.id),
                              declared_id=bool(e.id))
@@ -1298,4 +1531,5 @@ def _enum(module, name: str) -> int:
     try:
         return getattr(module, name)
     except AttributeError as exc:
-        raise ProcedureAborted(t("proc_unknown_enum", name=name)) from exc
+        raise ProcedureAborted(t("proc_unknown_enum", name=name),
+                               ABORT_CONFIG) from exc

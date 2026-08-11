@@ -104,6 +104,42 @@ uçan yazılım yinelemeler arasında değiştiyse bunu metrik bölümünün ba�
 söyler — çünkü ortada yapılan bir düzenlemeden kaynaklanan dağılım, araçtan
 kaynaklanan bir dağılım değildir.
 
+## Her yinelemenin başladığı ilk durum
+
+Bir kampanyanın iddiası şudur: *aynı araç, aynı prosedür, aynı yapılandırma, N
+kez*. Bu üçünden ikisi ortam parmak izinden denetlenebilir. Üçüncüsü
+denetlenemiyordu ve boşluk, simüle aracın kendi hafızasıydı.
+
+SITL'in çalışma dizini `argazui/run/<model_id>/`'dir ve aynı modelin bir
+sonraki açılışında yeniden kullanılır — `eeprom.bin` ve `logs/` dosyalarını
+ArduPilot ağacının dışında tutan şey budur. Ama bu aynı zamanda her yinelemenin,
+bir öncekinin bıraktığı tüm parametrelerle açılması demekti. Modelin
+`--add-param-file` dosyası her açılışta yeniden uygulanır, dolayısıyla o
+dosyanın adlandırdığı her şey geri gelir; gelmeyen şey, bir prosedürün
+değiştirip geri koyamadığı bir parametredir — ki koşucu bunu varsaymak yerine
+kaydeder.
+
+Bu nedenle her açılışta `sim_vehicle.py -w` verilir; araç yalnızca beyan
+edilmiş parametre dosyalarından başlar. Gerçekten önceki koşunun durumuna
+ihtiyaç duyan bir model bunu açıkça bildirir:
+
+```json
+{"id": "my_model", "persist_eeprom": true}
+```
+
+Her koşu ne yaptığını kendisi yazar; niyet edilenden değil, gerçekten yazılan
+komutlardan geri okunarak:
+
+```json
+"initial_state": {
+  "eeprom_wiped": true,
+  "launch_commands": ["source ...", "gz sim ...", "sim_vehicle.py ... -w ..."]
+}
+```
+
+`eeprom_wiped: null`, ArgazUI'nin SITL komut satırını hiç oluşturmadığı anlamına
+gelir — bir `ros2_launch` modeli — ki bu "silinmedi"den farklı bir cevaptır.
+
 ## Kampanyanın yapmadıkları
 
 - Hiçbir şeye karar vermez. Geniş bir dağılım hiçbir şeyi düşürmez; metrikler

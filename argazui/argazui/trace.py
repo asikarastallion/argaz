@@ -232,10 +232,18 @@ def _metrics_by_procedure(result: dict) -> dict[str, list[str]]:
 def _was_evaluated(criterion: dict) -> bool:
     """Did this criterion actually get judged, or was it never reached?
 
-    A criterion the procedure stopped short of says nothing about the aircraft,
-    and counting it as covered would inflate every coverage figure with claims
-    nobody tested.
+    A criterion the procedure stopped short of — or one whose telemetry never
+    arrived — says nothing about the aircraft, and counting it as covered would
+    inflate every coverage figure with claims nobody tested.
+
+    Reads the `evaluated` flag the runner records. The prose fallback below is
+    for runs archived before that field existed: matching on translated text
+    was the only mechanism available then, and this module, `failures.py` and
+    `status.py` each implemented it slightly differently and disagreed. There
+    is one answer now and it is a boolean.
     """
+    if "evaluated" in criterion:
+        return bool(criterion["evaluated"])
     if criterion.get("passed"):
         return True
     text = (criterion.get("text") or "").lower()

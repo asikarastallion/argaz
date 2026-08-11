@@ -127,11 +127,14 @@ CATALOGUE: dict[str, dict] = {
         "label": {"en": "Evidence / data", "tr": "Kanit / veri"},
         "what": {
             "en": "The flight happened and the proof of it is incomplete: no "
-                  "dataflash log, a truncated one, or a report that could not "
-                  "be produced. The run cannot support a claim either way.",
+                  "dataflash log, a truncated one, a report that could not be "
+                  "produced, or a criterion whose telemetry never arrived so "
+                  "nothing was measured. The run cannot support a claim either "
+                  "way.",
             "tr": "Ucus gerceklesti ama kaniti eksik: dataflash logu yok, "
-                  "yarim kalmis ya da rapor uretilemedi. Kosu hicbir yonde "
-                  "iddiayi destekleyemez."},
+                  "yarim kalmis, rapor uretilemedi ya da bir kriterin dayandigi "
+                  "telemetri hic gelmedigi icin hicbir sey olculmedi. Kosu "
+                  "hicbir yonde iddiayi destekleyemez."},
         "look_at": {
             "en": "artefacts.dataflash_check in result.json, and the working "
                   "directory the log should have been copied from.",
@@ -154,12 +157,12 @@ CATALOGUE: dict[str, dict] = {
     INFRASTRUCTURE: {
         "label": {"en": "Infrastructure / CI", "tr": "Altyapi / CI"},
         "what": {
-            "en": "ArgazUI, the MAVLink link or the CI job broke. This says "
-                  "nothing about the aircraft and must never be reported as if "
-                  "it did.",
-            "tr": "ArgazUI, MAVLink baglantisi ya da CI isi bozuldu. Bu, arac "
-                  "hakkinda hicbir sey soylemez ve oyleymis gibi "
-                  "raporlanmamalidir."},
+            "en": "ArgazUI, the MAVLink link or the CI job broke — or the run "
+                  "was stopped by hand before it finished. This says nothing "
+                  "about the aircraft and must never be reported as if it did.",
+            "tr": "ArgazUI, MAVLink baglantisi ya da CI isi bozuldu; ya da "
+                  "kosu bitmeden elle durduruldu. Bu, arac hakkinda hicbir sey "
+                  "soylemez ve oyleymis gibi raporlanmamalidir."},
         "look_at": {
             "en": "the traceback in the run's `text`, and the workflow log.",
             "tr": "kosunun `text` alanindaki hata izi ve is akisi kaydi."},
@@ -185,6 +188,40 @@ CODE_MISSING_ARTEFACT = "evidence-artefact-missing"
 CODE_RUNNER_ERROR = "runner-error"
 CODE_METRIC_DEGRADED = "metric-degraded"
 CODE_NOT_COMPARABLE = "runs-not-comparable"
+# Added by the v1.6 corrective release, one per abort reason the runner can
+# now state outright instead of leaving to be reconstructed.
+CODE_FAULT_UNAVAILABLE = "fault-mechanism-unavailable"
+CODE_FAULT_START_MISSED = "fault-start-missed"
+CODE_PROCEDURE_TIMEOUT = "procedure-timeout"
+CODE_CANCELLED = "procedure-cancelled"
+CODE_NO_VEHICLE = "vehicle-never-connected"
+CODE_CONFIG_ERROR = "procedure-config-error"
+
+# WHY AN ABORT REASON IS A TABLE AND NOT A CHAIN OF `if`s
+# -------------------------------------------------------
+# `procrunner.ABORT_KINDS` and this map are the contract between the two
+# modules, and a kind with no entry here is a bug that shows up as the wrong
+# category rather than as an exception. `_abort_failure` therefore treats an
+# unknown kind as an ordinary step failure and nothing silently becomes
+# `acceptance`.
+#
+# Only ABORT_STEP is absent from this table: a step that returned not-ok has a
+# failed step in the document, which the step loop below classifies with far
+# more detail than a kind could.
+ABORT_CATEGORIES: dict[str, tuple[str, str]] = {
+    # The simulator could not be brought into the state the run needed.
+    "fault-unavailable": (ENVIRONMENT, CODE_FAULT_UNAVAILABLE),
+    "fault-refused": (ENVIRONMENT, CODE_FAULT_NOT_APPLIED),
+    "override-failed": (ENVIRONMENT, CODE_OVERRIDE_FAILED),
+    "vehicle-never-connected": (ENVIRONMENT, CODE_NO_VEHICLE),
+    # The document itself is wrong. Not the aircraft, not the simulator.
+    "procedure-config-error": (ENVIRONMENT, CODE_CONFIG_ERROR),
+    # The flow ran and did not get where it was going.
+    "overall-timeout": (PROCEDURE, CODE_PROCEDURE_TIMEOUT),
+    "fault-start-missed": (PROCEDURE, CODE_FAULT_START_MISSED),
+    # A person or a campaign stopped it. Says nothing about anything.
+    "cancelled": (INFRASTRUCTURE, CODE_CANCELLED),
+}
 
 # Step kinds whose failure is the vehicle refusing to be made ready, rather
 # than the flow going wrong. Kept explicit: an `arm` that is refused and a
@@ -264,8 +301,44 @@ def _reads_as_readiness(text: str) -> bool:
     return any(hint in lowered for hint in READINESS_HINTS)
 
 
-def _not_judged(text: str) -> bool:
-    return bool(_NOT_JUDGED.search(text or ""))
+def _not_judged(criterion: dict) -> bool:
+    """Was this criterion left unjudged rather than judged and failed?
+
+    Reads the `evaluated` flag the runner now records. The prose fallback is
+    for runs written before that field existed: those documents say it in
+    English or Turkish and nothing else, and refusing to read them would
+    reclassify every archived run.
+    """
+    if "evaluated" in criterion:
+        return not criterion.get("evaluated")
+    return bool(_NOT_JUDGED.search(criterion.get("text") or ""))
+
+
+def _abort_failure(result: dict) -> Optional[Failure]:
+    """The classified reason a procedure stopped early, if it stopped early.
+
+    This runs BEFORE the step and criterion loops, and that order is the whole
+    point. An abort leaves skipped steps and unevaluated criteria behind, so a
+    classifier that looked at the residue first found a criterion that had not
+    passed and called it `acceptance` — the one category that means the
+    aircraft did something wrong. A fault mechanism this firmware does not have
+    was reported as an aircraft that failed its acceptance criteria.
+    """
+    abort = result.get("abort") or {}
+    kind = abort.get("kind")
+    if not kind:
+        return None
+    entry = ABORT_CATEGORIES.get(kind)
+    if entry is None:
+        # ABORT_STEP, or a kind added to the runner and not to the table. The
+        # step loop below has more detail; fall through to it rather than
+        # guessing a category here.
+        return None
+    category, code = entry
+    return Failure(category, code,
+                   detail=abort.get("text") or kind,
+                   source="procedure.abort",
+                   procedure=result.get("procedure") or "")
 
 
 # --------------------------------------------------------------- procedures
@@ -291,6 +364,13 @@ def classify_procedure(result: dict) -> Optional[Failure]:
                        detail=result.get("text") or "the procedure could not "
                                                     "be evaluated",
                        source="procrunner", procedure=procedure)
+
+    # Why it stopped, when the runner stated it. Before everything below,
+    # because everything below reads the residue an abort leaves rather than
+    # the abort itself. See `_abort_failure`.
+    aborted = _abort_failure(result)
+    if aborted is not None:
+        return aborted
 
     # A declared override that would not apply. The vehicle is not in the
     # configuration the procedure requires, so nothing after it means anything.
@@ -334,14 +414,29 @@ def classify_procedure(result: dict) -> Optional[Failure]:
         return Failure(PROCEDURE, code, detail=f"{label}: {text}",
                        source=source, procedure=procedure)
 
+    # A criterion that was judged and did not hold, before one that could not
+    # be judged at all: the first is a result about the aircraft and the second
+    # is a gap in the evidence, and when a run has both the aircraft result is
+    # the one worth naming.
     for index, criterion in enumerate(result.get("expect") or []):
-        if criterion.get("passed"):
+        if criterion.get("passed") or _not_judged(criterion):
             continue
-        text = criterion.get("text") or ""
-        code = (CODE_CRITERION_NOT_JUDGED if _not_judged(text)
-                else CODE_CRITERION_FAILED)
-        return Failure(ACCEPTANCE, code,
-                       detail=f"{criterion.get('label') or 'criterion'}: {text}",
+        return Failure(ACCEPTANCE, CODE_CRITERION_FAILED,
+                       detail=f"{criterion.get('label') or 'criterion'}: "
+                              f"{criterion.get('text') or ''}",
+                       source=f"expect[{index}]", procedure=procedure)
+
+    for index, criterion in enumerate(result.get("expect") or []):
+        if criterion.get("passed") or not _not_judged(criterion):
+            continue
+        # EVIDENCE, not ACCEPTANCE. The telemetry the criterion rests on never
+        # arrived, or too few samples of it did — so nothing was measured, and
+        # "nothing was measured" is not a verdict about the aircraft. Filing it
+        # under `acceptance` is the same conflation this module exists to
+        # prevent, one level down.
+        return Failure(EVIDENCE, CODE_CRITERION_NOT_JUDGED,
+                       detail=f"{criterion.get('label') or 'criterion'}: "
+                              f"{criterion.get('text') or ''}",
                        source=f"expect[{index}]", procedure=procedure)
 
     # Failed, and none of the above. The runner aborted before it filled in a

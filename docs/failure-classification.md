@@ -25,9 +25,9 @@ message. Each name below is a *different investigation*.
 | `vehicle_readiness` | The aircraft would not be made ready: pre-arm never passed, or an arm was refused. | the autopilot's own messages in `console.log` and `mavlink_events.jsonl` |
 | `procedure` | A step of the flow did not do what it asked — a mode refused, a command rejected, a wait timed out. The acceptance criteria were never reached. | the failing step in `result.json`, and `scenario.yaml` |
 | `acceptance` | The flow ran to the end and a declared criterion did not hold. | the `expect` block in `result.json`, and the plots in `report.md` |
-| `evidence` | It flew and the proof is incomplete: no dataflash log, a truncated one, or two runs that cannot be compared. | `artefacts.dataflash_check` in `result.json` |
+| `evidence` | It flew and the proof is incomplete: no dataflash log, a truncated one, two runs that cannot be compared, or a criterion whose telemetry never arrived so nothing was measured. | `artefacts.dataflash_check` in `result.json`, and any criterion with `evaluated: false` |
 | `regression` | Nothing failed. A measured quantity moved past its threshold against a named baseline. | `regression.md` and the baseline it names |
-| `infrastructure` | ArgazUI, the link or the CI job broke. | the traceback in the run's `text`, and the workflow log |
+| `infrastructure` | ArgazUI, the link or the CI job broke — or the run was cancelled by hand. | the traceback in the run's `text`, and the workflow log |
 
 > **Only `acceptance` is a verdict about an aircraft.**
 >
@@ -48,13 +48,18 @@ investigates"; the code answers "is this the same thing as last time".
 | `arm-refused` | `vehicle_readiness` |
 | `step-failed`, `step-timeout` | `procedure` |
 | `criterion-failed` | `acceptance` |
-| `criterion-not-judged` | `acceptance` |
+| `criterion-not-judged` | `evidence` |
 | `override-not-applied` | `environment` |
 | `fault-not-applied`, `fault-not-cleared` | `environment` |
 | `dataflash-missing`, `dataflash-truncated` | `evidence` |
 | `runs-not-comparable` | `evidence` |
 | `metric-degraded` | `regression` |
 | `runner-error` | `infrastructure` |
+| `procedure-cancelled` | `infrastructure` |
+| `procedure-timeout`, `fault-start-missed` | `procedure` |
+| `fault-mechanism-unavailable` | `environment` |
+| `vehicle-never-connected` | `environment` |
+| `procedure-config-error` | `environment` |
 | `iteration-launch-failed` | `environment` |
 
 ## The order of investigation
@@ -77,11 +82,45 @@ can prove happened is worth exactly as much as one that did not.
 
 ## `criterion-not-judged` is not `criterion-failed`
 
-A criterion whose telemetry never arrived is reported as *not judged*. It is
-still an `acceptance` failure — the procedure did not establish what it claimed
-to — but the code says the criterion was never actually evaluated. "Nothing was
-measured" and "something was wrong" are the two answers this project exists to
-keep apart, and collapsing them in either direction invents a result.
+A criterion whose telemetry never arrived is reported as *not judged*, and its
+result carries `evaluated: false`. The run still does not pass — the procedure
+did not establish what it claimed to — but the category is **`evidence`**, not
+`acceptance`.
+
+That changed in the v1.6 corrective release, and the change is the point.
+`acceptance` is defined above as the only category that is a verdict about the
+aircraft. A criterion nobody could measure says nothing about the aircraft at
+all, so filing it under `acceptance` was the same conflation this whole
+taxonomy exists to prevent, one level further down. The code is unchanged, so
+anything counting `criterion-not-judged` still finds it.
+
+"Nothing was measured" and "something was wrong" are the two answers this
+project exists to keep apart, and collapsing them in either direction invents a
+result.
+
+## An abort states its own reason
+
+A procedure that stops before it finishes leaves skipped steps and criteria
+that were never reached. Reconstructing the CAUSE from that residue does not
+work — every abort looks the same in the document — and the classifier used to
+find an unevaluated criterion and call it `acceptance`. A fault mechanism this
+firmware does not have was reported as an aircraft that failed its acceptance
+criteria.
+
+The runner records `result["abort"]` with one of these reasons, and the
+classifier dispatches on it before it looks at anything else:
+
+| abort | category |
+|---|---|
+| `fault-unavailable` — the mechanism is not on this firmware | `environment` |
+| `fault-refused` — the vehicle would not accept the change | `environment` |
+| `override-failed` — a declared parameter would not set | `environment` |
+| `vehicle-never-connected` — no heartbeat ever arrived | `environment` |
+| `procedure-config-error` — the document itself is wrong | `environment` |
+| `overall-timeout` — the procedure's own `timeout:` | `procedure` |
+| `fault-start-missed` — the declared start state never held | `procedure` |
+| `cancelled` — a person or a campaign stopped it | `infrastructure` |
+| `step-failed` | classified from the failing step, which knows more |
 
 ## Where it appears
 

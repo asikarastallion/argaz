@@ -101,6 +101,21 @@ SCENARIO_FENCE = "# ------------------------------------------------------------
 # the regression suite's runs/tests/ sub-directory, most obviously.
 RUN_ID_PATTERN = re.compile(r"^\d{8}T\d{6}Z_.+")
 
+
+def _eeprom_wiped(launch_commands: list) -> Optional[bool]:
+    """Did this run boot SITL from a wiped simulated eeprom?
+
+    Read back out of the launch commands rather than passed in, so it states
+    what was actually typed into the terminal instead of what somebody meant
+    to type. None when no `sim_vehicle.py` line is present at all — a
+    ros2_launch model, or a session that never launched anything.
+    """
+    for line in launch_commands or []:
+        if "sim_vehicle.py" not in line:
+            continue
+        return " -w " in f" {line} "
+    return None
+
 # CSI / OSC / two-character escapes. The terminal stream is full of colour and
 # cursor movement from MAVProxy's console; a log file wants the text only.
 _ANSI = re.compile(
@@ -154,6 +169,13 @@ class RunRecorder:
                  test_id: Optional[str] = None,
                  experiment: Optional[dict] = None) -> None:
         self.model = model
+        # The shell lines that brought the simulation up, verbatim. Recorded in
+        # `result.json` as well as in the console header because they are the
+        # only statement of the INITIAL CONDITION a run started from — whether
+        # the simulated eeprom was wiped is a `-w` in this list and nothing
+        # else, and a campaign claiming N identical repetitions has to be able
+        # to show it. See session.build_launch_commands.
+        self.launch_commands = list(launch_commands or [])
         # What this run was FOR. A pytest node id when a test drove it, and
         # None when a person pressed START — which is recorded as `manual`
         # rather than left blank, because "flown by hand" is a real answer and
@@ -521,6 +543,18 @@ class RunRecorder:
             "model": self.model_record(),
             "build": {},                 # filled in once the log has been read
             "work_dir": str(self.work_dir),
+            # What the run started FROM, in the two terms that can differ
+            # between two runs of the same model in the same checkout.
+            "initial_state": {
+                "launch_commands": list(self.launch_commands),
+                # `sim_vehicle.py -w`: the simulated eeprom was wiped, so the
+                # vehicle booted from its declared parameter files rather than
+                # from whatever the previous run of this model left behind.
+                # None where ArgazUI did not compose the SITL command line at
+                # all (a ros2_launch model), because "not wiped" and "not ours
+                # to wipe" are different answers.
+                "eeprom_wiped": _eeprom_wiped(self.launch_commands),
+            },
             "overrides": self.overrides(),
             "procedures": self._procedures,
             "artefacts": {
