@@ -106,7 +106,8 @@ repository's documentation instead of copying it. `tier1.yml` mounts them
 read-only now.
 
 That is fourteen of the fifteen standing tier-1 failures gone. The fifteenth,
-`sitl_tailsitter`, stays red on purpose.
+`sitl_tailsitter`, stays red on purpose. Confirmed in the image itself — CI on
+`87912b7` reports `1 failed, 621 passed`, against 15 at v1.6.0.
 
 ### Known limits, unchanged
 
