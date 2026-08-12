@@ -1,0 +1,211 @@
+/* The application shell: instrument bar, navigation rail, view container.
+   Fixed frame, one scrolling area. Nothing in here moves when a module
+   changes, which is what makes the aircraft's state readable at all times. */
+
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-rows: var(--topbar-h) auto 1fr;
+}
+
+/* ------------------------------------------------------------- top bar */
+.topbar {
+  display: flex; align-items: stretch; gap: 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line-2);
+  padding-left: 12px;
+  min-width: 0;
+}
+
+.brand {
+  display: flex; align-items: center; gap: 9px;
+  white-space: nowrap; padding-right: 14px;
+  border-right: 1px solid var(--line);
+}
+.brand-mark {
+  font-size: 15px; font-weight: 700; letter-spacing: 1.4px; color: var(--text);
+}
+.brand-mark b { color: var(--accent); font-weight: 700; }
+.brand em {
+  font-style: normal; font-size: var(--fs-xs); color: var(--dim);
+  letter-spacing: 0;
+}
+
+/* ---------------------------------------------------------- instruments */
+/* Label above value, a state bar down the left edge, hard divider between
+   fields. Deliberately not chips: a chip is a tag, and these are readings. */
+.readouts {
+  display: flex; align-items: stretch; flex: 1; min-width: 0;
+  overflow: hidden;
+}
+.readout {
+  display: flex; flex-direction: column; justify-content: center;
+  gap: 1px; padding: 0 11px;
+  border-left: 2px solid var(--line-2);
+  margin: 6px 0 6px 6px;
+  min-width: 0;
+}
+.readout:first-child { margin-left: 0; }
+.ro-label {
+  font-size: var(--fs-micro); letter-spacing: .9px; color: var(--dim);
+  text-transform: uppercase; line-height: 1;
+}
+.ro-value {
+  font-family: var(--mono); font-size: var(--fs-sm); color: var(--text);
+  line-height: 1.25; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.readout.wide { max-width: 230px; }
+.readout.num .ro-value { text-align: left; }
+
+.readout.on    { border-left-color: var(--ok); }
+.readout.on    .ro-value { color: var(--ok); }
+.readout.off   { border-left-color: var(--line-2); }
+.readout.off   .ro-value { color: var(--dim); }
+.readout.warn  { border-left-color: var(--warn); }
+.readout.warn  .ro-value { color: var(--warn); }
+.readout.bad   { border-left-color: var(--danger); }
+.readout.bad   .ro-value { color: var(--danger); }
+/* Armed is the one reading that is allowed to be filled: it is the difference
+   between a model on a bench and one whose motors will turn. */
+.readout.armed { border-left-color: var(--danger); background: var(--danger-bg); }
+.readout.armed .ro-value { color: #ffb2a8; font-weight: 700; letter-spacing: .6px; }
+
+/* ------------------------------------------------------- top bar actions */
+.topbar-actions { display: flex; align-items: center; gap: 8px; padding: 0 12px; }
+
+.langsw { display: flex; border: 1px solid var(--line-2); border-radius: var(--r); }
+.langbtn {
+  background: none; border: 0; color: var(--dim); font-family: inherit;
+  padding: 4px 9px; font-size: var(--fs-micro); font-weight: 600;
+  letter-spacing: .8px; cursor: pointer;
+}
+.langbtn + .langbtn { border-left: 1px solid var(--line-2); }
+.langbtn:hover { color: var(--text); }
+.langbtn.active { background: var(--accent-bg); color: var(--accent); }
+
+/* ------------------------------------------------------------ body split */
+.app-body {
+  display: grid; grid-template-columns: var(--rail-w) 1fr;
+  min-height: 0; overflow: hidden;
+}
+
+/* ------------------------------------------------------------------ rail */
+.rail {
+  display: flex; flex-direction: column; min-height: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--line-2);
+}
+.rail-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 0 12px; }
+
+.rail-group + .rail-group { margin-top: 6px; }
+.rail-label {
+  font-size: var(--fs-micro); letter-spacing: 1.1px; color: var(--dim);
+  text-transform: uppercase; padding: 10px 12px 5px;
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+}
+.rail-group:first-child .rail-label { border-top: 0; margin-top: 0; padding-top: 4px; }
+
+.rail-item {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  background: none; border: 0; border-left: 2px solid transparent;
+  color: var(--muted); font: inherit; font-size: var(--fs-sm);
+  padding: 5px 12px 5px 14px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rail-item:hover { color: var(--text); background: var(--panel-2); }
+.rail-item.active {
+  color: var(--text); background: var(--accent-bg);
+  border-left-color: var(--accent);
+}
+/* A section whose page is open, but not the entry that was used to get there
+   (the three operations anchors share one page). */
+.rail-item.in-view { color: var(--text); border-left-color: var(--accent-2); }
+.rail-item.ghost { color: var(--dim); font-size: var(--fs-xs); letter-spacing: .4px; }
+.rail-item.ghost:hover { color: var(--muted); }
+
+.rail-foot {
+  border-top: 1px solid var(--line); padding: 7px 12px;
+}
+.rail-keys { font-size: var(--fs-micro); color: var(--dim); letter-spacing: .3px; }
+
+/* ------------------------------------------------------------------ main */
+/* Every view occupies the same cell; only one is ever not [hidden]. Each one
+   owns its own scrolling so switching sections never moves another page. */
+.app-main { display: grid; min-height: 0; min-width: 0; overflow: hidden; }
+.view {
+  grid-area: 1 / 1;
+  min-height: 0; min-width: 0;
+  overflow-y: auto; overflow-x: hidden;
+  padding: 12px 14px 18px;
+  display: flex; flex-direction: column; gap: var(--gap);
+}
+/* A view that manages its own internal scrolling (the documentation portal). */
+.view-fill { overflow: hidden; padding: 0; }
+
+/* ------------------------------------------------------------ page header */
+.page-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "title actions" "sub actions";
+  align-items: start; column-gap: 14px;
+  padding-bottom: 8px; border-bottom: 1px solid var(--line-2);
+}
+.page-head h2 {
+  grid-area: title;
+  font-size: var(--fs); text-transform: uppercase; letter-spacing: 1.3px;
+  color: var(--text); font-weight: 600;
+}
+.page-sub {
+  grid-area: sub; margin: 4px 0 0; max-width: 118ch;
+  font-size: var(--fs-sm); color: var(--muted); line-height: 1.5;
+}
+.page-sub:empty { display: none; }
+.page-sub.warn-sub {
+  border-left: 2px solid var(--warn); padding-left: 9px; color: var(--muted);
+}
+.page-actions {
+  grid-area: actions; display: flex; align-items: center; gap: 8px;
+}
+
+/* ------------------------------------------------------------ split page */
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap);
+         align-items: start; min-height: 0; }
+.split-38 { grid-template-columns: minmax(320px, 38%) 1fr; }
+
+/* -------------------------------------------------------------- build bar */
+/* Deliberately loud and deliberately not dismissible: while the page and the
+   server are different builds, nothing else on the page can be trusted. */
+.build-warning {
+  margin: 0; padding: 10px 14px;
+  background: var(--warn-bg); border-bottom: 1px solid var(--warn);
+  color: #f0dcbb; font-size: var(--fs-sm); line-height: 1.5;
+}
+.build-warning b {
+  display: block; margin-bottom: 3px; color: var(--warn);
+  text-transform: uppercase; letter-spacing: .6px; font-size: var(--fs-xs);
+}
+.build-warning .build-fix {
+  margin: 8px 0 0; padding: 8px 10px; white-space: pre;
+  background: var(--well); border: 1px solid var(--line-2);
+  border-radius: var(--r); font-family: var(--mono); font-size: var(--fs-sm);
+  color: var(--text); overflow-x: auto;
+}
+.build-warning .build-how { margin-top: 6px; }
+
+/* ------------------------------------------------------------ responsive */
+/* The target is a desktop engineering workstation. These rules only stop the
+   layout breaking on a smaller one; they do not reflow it into a phone. */
+@media (max-width: 1500px) {
+  .brand em { display: none; }
+}
+@media (max-width: 1280px) {
+  :root { --rail-w: 164px; }
+  .readout.wide { max-width: 160px; }
+}
+@media (max-width: 1080px) {
+  .app-body { grid-template-columns: 132px 1fr; }
+  .split, .split-38 { grid-template-columns: 1fr; }
+  .readouts { overflow-x: auto; }
+}

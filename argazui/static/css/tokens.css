@@ -1,0 +1,62 @@
+/* Design tokens — the whole palette and scale of the application.
+ *
+ * Restrained on purpose. Six surface greys, one accent, three semantic
+ * colours. Colour in this interface means something: green is a verdict that
+ * held, amber is transitional or unjudged, red is a fault or a destructive
+ * control, blue is selection and information. Nothing is coloured to look
+ * lively, and there are no gradients anywhere in this file.
+ */
+:root {
+  /* ---------------------------------------------------------- surfaces */
+  --bg:        #0b0e13;   /* the desk the instruments sit on */
+  --panel:     #11151c;   /* an instrument face */
+  --panel-2:   #161b24;   /* a header or an inset row */
+  --panel-3:   #1c2330;   /* hover / selected row */
+  --well:      #080a0e;   /* terminals, code, log output */
+
+  /* ------------------------------------------------------------ lines */
+  --line:      #222a35;   /* ordinary separator */
+  --line-2:    #2d3846;   /* panel edge, table header rule */
+  --line-3:    #3a4757;   /* focus-adjacent, active tab edge */
+
+  /* -------------------------------------------------------------- ink */
+  --text:      #dde3ea;
+  --muted:     #8b97a8;
+  --dim:       #63707f;
+
+  /* ---------------------------------------------------------- meaning */
+  --accent:    #4a8fd4;   /* informational / selected / active */
+  --accent-2:  #2b5581;   /* accent border at rest */
+  --accent-bg: #14243a;
+  --ok:        #4aa971;
+  --ok-2:      #24593c;
+  --ok-bg:     #10231a;
+  --warn:      #cf9430;
+  --warn-2:    #5f4718;
+  --warn-bg:   #251c0c;
+  --danger:    #cf5348;
+  --danger-2:  #6d2b25;
+  --danger-bg: #2a1210;
+
+  /* legacy aliases kept because run reports, procedure marks and the
+     comparison table address them by name */
+  --bad:       var(--danger);
+
+  /* ------------------------------------------------------------- type */
+  --font: ui-sans-serif, "Inter", "Segoe UI", Roboto, "Helvetica Neue",
+          system-ui, sans-serif;
+  --mono: ui-monospace, "JetBrains Mono", "DejaVu Sans Mono", Menlo,
+          Consolas, monospace;
+  --fs:        13px;
+  --fs-sm:     12px;
+  --fs-xs:     11px;
+  --fs-micro:  10px;
+
+  /* ------------------------------------------------------- dimensions */
+  --r:         2px;       /* lightly rounded, never a pill */
+  --topbar-h:  46px;
+  --rail-w:    186px;
+  --row-h:     28px;
+  --gap:       10px;
+  --pad:       10px;
+}

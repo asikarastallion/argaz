@@ -1,5 +1,80 @@
 # Changelog
 
+## Unreleased — the interface becomes an application shell
+
+### What this change is about
+
+Presentation and organisation only. No engine, no endpoint, no contract and no
+verification semantics were touched: `git diff` over this change contains no
+Python outside `tests/`, and the only test edits are navigation steps and one
+path constant. What changed is that the interface stopped being one scrolling
+page of eleven panels.
+
+### The landing screen is the workstation, and only the workstation
+
+Vehicles, quick commands and the two terminals. Everything else — procedures,
+scenarios, campaigns, experiments, coverage, flight runs, mission scripts and
+the documentation portal — is a section reached from a persistent navigation
+rail, grouped as OPERATIONS / VERIFICATION / EVIDENCE / KNOWLEDGE.
+
+The reason is not tidiness. A page that showed a coverage matrix and a run
+browser beside the START button asked an operator to find the aircraft among
+the analytics every time they looked at it. One module is on screen at a time,
+the shell writes the section into the hash so every section is linkable, and
+`Alt+1…9` reaches one without leaving the terminal — bound in the capture
+phase, because xterm.js stops propagation of the keys it handles and the
+terminal is where an operator's hands actually are.
+
+`#run=` and `#docs=` keep their meaning: both name a page *within* a module
+rather than the module itself, and the shell does not overwrite them.
+
+### The status bar became an instrument bar
+
+Seven readings — vehicle, link, pre-arm, mode, arm state, altitude, ground
+speed — each a fixed label with a value beneath it and a state colour on its
+edge, rather than seven pills that rewrote their own labels. They stay in the
+top bar on every section, because reading a coverage table does not land an
+aircraft. Beside START/STOP the vehicle panel now states one line of what the
+aircraft is doing (`no vehicle selected` … `armed`, `link fault injected`),
+derived only from fields `/api/status` already sends.
+
+### Two pages that were only ever half-served
+
+**Procedures** was not a page at all: the interface showed the procedure it was
+running and nothing about the ones it was not. It now lists every declared
+procedure — from the coverage document, which knows them with nothing running —
+beside which of them the connected vehicle can actually run, and opens each
+one's contract: inputs, ordered steps, acceptance criteria, declared faults and
+parameter overrides, read from the same YAML the regression suite executes.
+
+**Scenarios** now carries the fault catalogue from `/api/faults`: what each
+mechanism does to the simulated aircraft, what is supposed to be observed, the
+parameter or socket behaviour behind it, and where it is declared. That
+endpoint has existed since v1.4 and nothing in the interface had ever shown it.
+
+### A design system rather than eleven panel styles
+
+`static/style.css` is now eight files: tokens, base, shell, components, and one
+per surface. Colour means something and nothing is coloured to look lively —
+green is a verdict that held, amber is transitional or unjudged, red is a fault
+or a destructive control, blue is selection. Tables declare their column
+proportions instead of negotiating them with their content, so a long run id no
+longer rewrites the geometry of the list it sits in.
+
+The string catalogue moved out of `app.js` into `static/i18n.js` — a table
+somebody edits does not belong inside the program that reads it — and the shell
+itself into `static/ui.js`. Both languages carry every new key;
+`test_localisation.py` reads the new file and still proves it.
+
+### Tests
+
+`tests/e2e/test_navigation.py` is new and asserts the property the redesign is
+for: the landing screen holds the workstation and nothing else, every rail
+destination opens exactly one section that renders, sections are linkable and
+reachable from the keyboard, and the instrument bar is readable from all of
+them. The panel tests now navigate to the section they assert on. No behavioural
+assertion was weakened to make anything pass.
+
 ## v1.7.0 — 2026-08-11 — reproducible and reliable verification execution
 
 ### What this release is about

@@ -1,0 +1,406 @@
+/* The primitives every page is built from.
+ *
+ * panel · section header · button · destructive button · table · badge ·
+ * status chip · field · tabs · empty state · error state · modal · sheet.
+ *
+ * If a page needs a variant, it belongs here as a modifier — not as a new
+ * rule in that page's file. Eight styles of the same button is what made the
+ * previous interface look assembled rather than designed.
+ */
+
+/* ------------------------------------------------------------------ panel */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  display: flex; flex-direction: column; min-width: 0;
+}
+
+.panel-head {
+  display: flex; align-items: center; gap: 10px;
+  min-height: 30px; padding: 0 10px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--line-2);
+  overflow: hidden;
+}
+/* When the header runs out of room the state gives way, never the control:
+   an operator can re-read a truncated word, but a clipped button cannot be
+   pressed. */
+.panel-head > .statechip, .panel-head > .panel-meta {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis;
+}
+.panel-head > .btn { flex: 0 0 auto; }
+.panel-head h2, .panel-head h3 {
+  font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 1.1px;
+  color: var(--muted); font-weight: 600; white-space: nowrap;
+}
+.panel-head .panel-meta {
+  font-size: var(--fs-xs); color: var(--dim); font-family: var(--mono);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* The state reads next to the title it belongs to; controls go to the far
+   right, where they are in the same place on every panel. */
+.panel-head > .btn:first-of-type { margin-left: auto; }
+
+.panel-body { padding: var(--pad); min-width: 0; }
+
+/* A block subordinate to the panel it sits in — same edges, no chrome. */
+.subpanel { border-top: 1px solid var(--line-2); }
+.subpanel-head {
+  display: flex; align-items: center; gap: 10px;
+  min-height: 26px; padding: 0 10px; background: var(--panel-2);
+  border-bottom: 1px solid var(--line);
+}
+.subpanel-head h3 {
+  font-size: var(--fs-micro); text-transform: uppercase; letter-spacing: 1.1px;
+  color: var(--muted); font-weight: 600;
+}
+.subpanel-head > .btn { margin-left: auto; }
+
+/* A rule with a label on it: groups content inside a panel body. */
+.sec-head {
+  font-size: var(--fs-micro); text-transform: uppercase; letter-spacing: 1.1px;
+  color: var(--dim); padding-bottom: 4px; margin-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* ----------------------------------------------------------------- button */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--line-2); border-radius: var(--r);
+  padding: 0 11px; min-height: 26px;
+  font-family: inherit; font-size: var(--fs-sm); line-height: 1;
+  cursor: pointer; white-space: nowrap;
+}
+.btn:hover:not(:disabled) { background: var(--panel-3); border-color: var(--line-3); }
+.btn:active:not(:disabled) { background: var(--panel-2); }
+.btn:disabled { opacity: .38; cursor: not-allowed; }
+
+.btn.xs { min-height: 21px; padding: 0 7px; font-size: var(--fs-xs); }
+.btn.small { min-height: 22px; padding: 0 8px; font-size: var(--fs-xs); }
+.btn.wide { width: 100%; }
+
+/* A button with no box: for refresh, copy, expand — actions that are not
+   decisions. Still a button, still focusable, just quieter. */
+.btn.ghost {
+  background: none; border-color: transparent; color: var(--muted);
+}
+.btn.ghost:hover:not(:disabled) {
+  background: var(--panel-2); border-color: var(--line); color: var(--text);
+}
+
+.btn.primary { border-color: var(--accent-2); color: var(--text); }
+.btn.primary:hover:not(:disabled) { background: var(--accent-bg); border-color: var(--accent); }
+
+/* The two operational controls. They must not look alike: one commits an
+   aircraft to a simulation, the other tears down running processes. */
+.btn.start {
+  background: var(--ok-bg); border-color: var(--ok-2); color: #8fdcae;
+  font-weight: 600; letter-spacing: 1.1px; text-transform: uppercase;
+}
+.btn.start:hover:not(:disabled) { background: #143024; border-color: var(--ok); }
+.btn.stop {
+  background: var(--danger-bg); border-color: var(--danger-2); color: #f0a89f;
+  font-weight: 600; letter-spacing: 1.1px; text-transform: uppercase;
+}
+.btn.stop:hover:not(:disabled) { background: #351613; border-color: var(--danger); }
+
+/* Destructive, but not a primary control: cancel a campaign, cancel a run. */
+.btn.danger { border-color: var(--danger-2); color: #e2938a; background: none; }
+.btn.danger:hover:not(:disabled) { background: var(--danger-bg); border-color: var(--danger); }
+
+a.btn { text-decoration: none; }
+
+/* --------------------------------------------------------------- controls */
+.ctlrow { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+
+.field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.field > span {
+  font-size: var(--fs-micro); text-transform: uppercase; letter-spacing: .9px;
+  color: var(--dim);
+}
+.field.narrow { width: 84px; }
+/* Grows with the panel, but stops: a select stretched across 1600 pixels puts
+   its own value a hand's width from the control that runs it. */
+.field.wide { flex: 1; max-width: 760px; }
+
+select, input[type="number"], input[type="text"], input[type="search"] {
+  background: var(--well); color: var(--text);
+  border: 1px solid var(--line-2); border-radius: var(--r);
+  padding: 0 8px; min-height: 26px; font-family: inherit; font-size: var(--fs-sm);
+}
+select { min-width: 260px; }
+select:focus, input:focus { outline: none; border-color: var(--accent); }
+input[type="number"] { font-family: var(--mono); }
+
+/* ------------------------------------------------------------------ tabs */
+.tabs { display: flex; gap: 0; }
+.tab {
+  background: none; color: var(--dim);
+  border: 1px solid transparent; border-bottom: 2px solid transparent;
+  padding: 0 12px; min-height: 28px;
+  font-family: inherit; font-size: var(--fs-xs); letter-spacing: .9px;
+  cursor: pointer;
+}
+.tab:hover { color: var(--text); }
+.tab.active {
+  color: var(--text); border-bottom-color: var(--accent);
+  background: var(--panel);
+}
+
+/* ----------------------------------------------------------------- table */
+/* One table style for the whole application. Compact rows, aligned columns,
+   a single rule under the header, no zebra striping — the eye follows the
+   column, and stripes would compete with the state colours in the cells. */
+.dtable, .cmp-table, .tbl {
+  width: 100%; border-collapse: collapse; font-size: var(--fs-sm);
+}
+.dtable th, .cmp-table th, .tbl th {
+  text-align: left; vertical-align: bottom;
+  font-size: var(--fs-micro); text-transform: uppercase; letter-spacing: .9px;
+  font-weight: 600; color: var(--dim);
+  padding: 5px 10px; border-bottom: 1px solid var(--line-2);
+  white-space: nowrap; position: sticky; top: 0; background: var(--panel);
+  z-index: 1;
+}
+.dtable td, .cmp-table td, .tbl td {
+  padding: 5px 10px; border-bottom: 1px solid var(--line);
+  vertical-align: top; color: var(--text);
+}
+.dtable tbody tr:last-child td,
+.cmp-table tbody tr:last-child td,
+.tbl tbody tr:last-child td { border-bottom: 0; }
+.dtable tbody tr:hover td { background: var(--panel-2); }
+.dtable td small, .cmp-table td small {
+  display: block; color: var(--dim); font-size: var(--fs-xs);
+  font-family: var(--mono);
+}
+.dtable td.num, .cmp-table td.num { text-align: right; }
+.dtable .mono, .cmp-table .mono { font-family: var(--mono); font-size: var(--fs-xs); }
+
+/* Column widths are declared, never negotiated.
+   `table-layout: fixed` puts every column in the same place on every row, on
+   every reload and in both languages — which is the whole point of a table in
+   an instrument application. Left to the content-driven algorithm, one long
+   run id or one long question rewrites the geometry of the list and squeezes
+   the columns beside it until their text overlaps. Each list declares its own
+   proportions in its page's stylesheet; this is the shared default. */
+.dtable { table-layout: fixed; }
+.dtable > * > tr > th, .dtable > * > tr > td { white-space: normal; }
+/* Only the subject column may break inside a word: it is the one that carries
+   run ids and dotted campaign names long enough to need it. */
+.dtable > * > tr > :first-child { width: 38%; overflow-wrap: anywhere; }
+/* Descriptive text in a list is prose, not an identifier. */
+.dtable td small.prose {
+  font-family: var(--font); color: var(--muted); font-size: var(--fs-xs);
+  white-space: normal; margin-top: 2px;
+}
+.dtable > * > tr > td.prose-cell {
+  white-space: normal; width: 28%; color: var(--muted);
+}
+/* Detail tables are read as documents rather than scanned as lists: they size
+   to their content and give the slack to whichever column carries the prose. */
+.cmp-table { width: auto; min-width: 100%; }
+
+/* Row-level selection, used by the procedure catalogue. */
+.dtable tr.selected td { background: var(--accent-bg); }
+.dtable tr.rowlink { cursor: pointer; }
+
+.table-wrap { overflow: auto; max-height: none; min-width: 0; }
+
+/* The help sheets use .tbl as a two-column definition table. */
+.tbl th { width: 1%; color: var(--text); vertical-align: top;
+          text-transform: none; letter-spacing: 0; font-size: var(--fs-sm);
+          position: static; }
+.tbl td { color: var(--muted); }
+
+/* ------------------------------------------------------- label/value list */
+.kv { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; }
+.kv dt {
+  font-size: var(--fs-micro); text-transform: uppercase; letter-spacing: .8px;
+  color: var(--dim); align-self: center;
+}
+.kv dd {
+  margin: 0; font-family: var(--mono); font-size: var(--fs-xs); color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* --------------------------------------------------------------- badges */
+/* A verdict, a level, a category. Square, bordered, uppercase — never a pill
+   and never filled, so a table of them still reads as a table. */
+.badge, .runbadge {
+  display: inline-block; padding: 1px 6px; border-radius: var(--r);
+  font-size: var(--fs-micro); font-weight: 600; letter-spacing: .7px;
+  text-transform: uppercase;
+  border: 1px solid var(--line-2); color: var(--muted); background: var(--panel-2);
+  white-space: nowrap;
+}
+.badge.ok,   .runbadge.passed    { color: var(--ok);     border-color: var(--ok-2);     background: var(--ok-bg); }
+.badge.bad,  .runbadge.failed    { color: var(--danger); border-color: var(--danger-2); background: var(--danger-bg); }
+.badge.warn, .runbadge.error     { color: var(--warn);   border-color: var(--warn-2);   background: var(--warn-bg); }
+.badge.info, .runbadge.recording { color: var(--accent); border-color: var(--accent-2); background: var(--accent-bg); }
+.runbadge.incomplete, .runbadge.no-procedure { color: var(--dim); }
+
+/* ------------------------------------------------------- status indicator */
+/* A dot and a word. The dot is what is read at a glance across a room; the
+   word is what is read when it matters. */
+.statechip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--fs-xs); letter-spacing: .7px; text-transform: uppercase;
+  color: var(--muted); white-space: nowrap;
+}
+.statechip::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--dim); flex: 0 0 auto;
+}
+.statechip[data-state="ready"],
+.statechip[data-state="ok"]       { color: var(--ok); }
+.statechip[data-state="ready"]::before,
+.statechip[data-state="ok"]::before { background: var(--ok); }
+.statechip[data-state="armed"],
+.statechip[data-state="fault"]    { color: var(--danger); }
+.statechip[data-state="armed"]::before,
+.statechip[data-state="fault"]::before { background: var(--danger); }
+.statechip[data-state="starting"],
+.statechip[data-state="waiting"]  { color: var(--warn); }
+.statechip[data-state="starting"]::before,
+.statechip[data-state="waiting"]::before { background: var(--warn); }
+.statechip[data-state="running"],
+.statechip[data-state="selected"] { color: var(--accent); }
+.statechip[data-state="running"]::before,
+.statechip[data-state="selected"]::before { background: var(--accent); }
+
+/* The WebSocket state, beside the terminal tabs. Same vocabulary. */
+.wschip {
+  font-size: var(--fs-xs); padding: 1px 7px; border-radius: var(--r);
+  border: 1px solid var(--line-2); background: var(--panel-2); color: var(--dim);
+  white-space: nowrap;
+}
+.wschip.open { color: var(--ok); border-color: var(--ok-2); }
+.wschip.connecting { color: var(--warn); border-color: var(--warn-2); }
+.wschip.closed { color: var(--danger); border-color: var(--danger-2); }
+
+/* Inline chip used in the help sheets' prose. */
+.chip {
+  display: inline-block; padding: 0 6px; border-radius: var(--r);
+  font-size: var(--fs-xs); border: 1px solid var(--line-2); background: var(--panel-2);
+}
+.chip.ok { color: var(--ok); border-color: var(--ok-2); }
+
+/* -------------------------------------------------------- empty / error */
+/* An empty table says why it is empty. A blank box is an absence of
+   information, not a state. */
+.empty, .runs-empty {
+  color: var(--dim); font-size: var(--fs-sm); padding: 14px 10px;
+  line-height: 1.5;
+}
+.empty-strong { color: var(--muted); }
+
+.panel-error {
+  margin: 8px 10px; padding: 7px 10px; font-size: var(--fs-sm);
+  color: #f3cdc7; background: var(--danger-bg);
+  border: 1px solid var(--danger-2); border-left-width: 2px;
+  border-left-color: var(--danger); border-radius: var(--r);
+  font-family: var(--mono); line-height: 1.5; overflow-wrap: anywhere;
+}
+
+/* A load in progress, stated rather than left blank. */
+.loading { color: var(--dim); font-size: var(--fs-sm); padding: 10px; }
+
+/* ----------------------------------------------------------------- modal */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(3, 5, 8, .66);
+  display: flex; align-items: center; justify-content: center; z-index: 100;
+}
+.modal {
+  background: var(--panel); border: 1px solid var(--line-3);
+  border-radius: var(--r); padding: 16px 18px; max-width: 560px;
+}
+.modal h3 {
+  margin: 0 0 10px; font-size: var(--fs); text-transform: uppercase;
+  letter-spacing: 1px; color: var(--text);
+}
+.modal p {
+  color: var(--muted); font-family: var(--mono); font-size: var(--fs-sm);
+  line-height: 1.55; max-height: 52vh; overflow-y: auto; margin: 0;
+}
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+/* ----------------------------------------------------------------- sheet */
+/* A full-record overlay: the run sheet, the help pages, the project card.
+   Not a card floating on a gradient — a bordered document over a dimmed
+   application. */
+.sheet-backdrop {
+  position: fixed; inset: 0; background: rgba(3, 5, 8, .72);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 200; padding: 22px;
+}
+.sheet {
+  background: var(--panel); border: 1px solid var(--line-3);
+  border-radius: var(--r);
+  width: min(920px, 100%); max-height: 90vh;
+  display: flex; flex-direction: column;
+}
+.sheet.narrow { width: min(560px, 100%); }
+.sheet.wide { width: min(1180px, 100%); }
+.sheet > header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 0 12px; min-height: 34px;
+  background: var(--panel-2); border-bottom: 1px solid var(--line-2);
+}
+.sheet > header h2 {
+  margin: 0; font-size: var(--fs-xs); letter-spacing: 1.1px;
+  text-transform: uppercase; color: var(--muted); font-weight: 600;
+  font-family: var(--mono); overflow: hidden; text-overflow: ellipsis;
+}
+.sheet-close {
+  background: none; border: 1px solid var(--line-2); color: var(--muted);
+  border-radius: var(--r); width: 22px; height: 22px; cursor: pointer;
+  font-size: var(--fs-xs); line-height: 1; flex: 0 0 auto;
+}
+.sheet-close:hover { color: var(--danger); border-color: var(--danger-2); }
+.sheet-body { padding: 14px 16px 20px; overflow-y: auto; }
+.sheet-body h3 {
+  margin: 20px 0 7px; font-size: var(--fs-xs); letter-spacing: 1px;
+  text-transform: uppercase; color: var(--muted);
+  border-bottom: 1px solid var(--line); padding-bottom: 4px;
+}
+.sheet-body h3:first-child { margin-top: 0; }
+.sheet-body .lead { margin-top: 0; color: var(--text); }
+.sheet-body code {
+  background: var(--well); border: 1px solid var(--line);
+  border-radius: var(--r); padding: 0 4px; font-size: var(--fs-xs);
+}
+.steps { margin: 0; padding-left: 18px; }
+.steps li { margin-bottom: 8px; }
+
+/* ------------------------------------------------------------- contact */
+.contact { display: flex; flex-direction: column; gap: 6px; }
+.contact-row {
+  display: flex; align-items: center; gap: 10px; text-decoration: none;
+  background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: var(--r); padding: 8px 10px; color: var(--text);
+}
+.contact-row:hover { border-color: var(--accent-2); background: var(--panel-3); }
+.contact-row .ic {
+  width: 26px; height: 26px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--well); border: 1px solid var(--line);
+  border-radius: var(--r); color: var(--accent);
+  font-size: var(--fs-xs); font-weight: 700;
+}
+.contact-row b { display: block; font-size: var(--fs-sm); font-weight: 600; }
+.contact-row em { font-style: normal; font-size: var(--fs-xs); color: var(--muted); }
+
+/* ------------------------------------------------------------- lightbox */
+.lightbox { cursor: zoom-out; }
+.lightbox figure { margin: 0; text-align: center; max-width: 90vw; }
+.lightbox img {
+  max-width: 90vw; max-height: 80vh;
+  border: 1px solid var(--line-2); border-radius: var(--r);
+}
+.lightbox figcaption {
+  margin-top: 10px; color: var(--muted); font-size: var(--fs-sm);
+  font-family: var(--mono);
+}

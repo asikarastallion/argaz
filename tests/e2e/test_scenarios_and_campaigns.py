@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 
-from harness import assert_no_console_errors, open_page
+from harness import assert_no_console_errors, open_page, open_section
 
 pytestmark = [pytest.mark.e2e, pytest.mark.tier1]
 
@@ -31,7 +31,7 @@ def test_the_scenario_panel_explains_itself_before_a_vehicle_exists(
     an absence of information, and this panel is the one place in the interface
     where a user can deliberately break the simulated aircraft.
     """
-    page = open_page(browser_page, server)
+    page = open_section(open_page(browser_page, server), "scenarios")
     panel = page.locator("#scen-panel")
     assert panel.is_visible()
 
@@ -46,7 +46,7 @@ def test_the_scenario_panel_explains_itself_before_a_vehicle_exists(
 
 
 def test_the_campaign_panel_lists_nothing_and_says_so(browser_page, server):
-    page = open_page(browser_page, server)
+    page = open_section(open_page(browser_page, server), "campaigns")
     panel = page.locator("#camp-panel")
     assert panel.is_visible()
 
@@ -72,17 +72,21 @@ def test_both_new_panels_switch_language(browser_page, server):
     def text(selector: str) -> str:
         return page.locator(selector).inner_text().lower()
 
+    open_section(page, "scenarios")
     assert "senaryolar" in text("#scen-panel h2")
-    # Not "kampanyası": the heading is uppercased by CSS, and Turkish dotless
-    # ı survives that round trip as i. The stem is what is being checked.
-    assert "kampanya" in text("#camp-panel h2")
     assert "si̇müle" in text('[data-i18n="scen_warn"]')
-    assert "çalışan kampanya yok" in text("#camp-active")
     # The hint this panel writes itself, rather than through data-i18n.
     assert "araç başlat" in text("#scen-hint")
 
+    open_section(page, "campaigns")
+    # Not "kampanyası": the heading is uppercased by CSS, and Turkish dotless
+    # ı survives that round trip as i. The stem is what is being checked.
+    assert "kampanya" in text("#camp-panel h2")
+    assert "çalışan kampanya yok" in text("#camp-active")
+
     page.click('[data-set-lang="en"]')
     page.wait_for_timeout(600)
+    open_section(page, "scenarios")
     assert "scenarios" in text("#scen-panel h2")
     assert "start a vehicle" in text("#scen-hint")
     assert_no_console_errors(page, "after switching language twice")

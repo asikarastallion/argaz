@@ -1,0 +1,231 @@
+/* The operations screen: vehicle registry, launch controls, quick commands,
+   live plot address, the running procedure and the two terminals.
+
+   Two columns at every practical desktop width. The left column is the
+   aircraft; the right column is what you do to it and what it says back. */
+
+/* The screen is filled deliberately: the registry grows into the space it is
+   given and the terminal takes what is left, so the workstation looks the same
+   shape on a 768-pixel laptop and a 1080-pixel desk monitor. */
+.view-ops { padding: 10px 12px 14px; overflow: hidden; }
+
+.ops-grid {
+  display: grid;
+  grid-template-columns: minmax(340px, 27%) 1fr;
+  gap: var(--gap);
+  align-items: stretch;
+  min-height: 0; height: 100%;
+}
+.ops-right {
+  display: flex; flex-direction: column; gap: var(--gap);
+  min-width: 0; min-height: 0;
+}
+#panel-commands { flex: 0 0 auto; max-height: 62%; overflow-y: auto; }
+
+/* ------------------------------------------------------------- vehicles */
+.panel-vehicles { min-height: 0; }
+.panel-vehicles .vehicle-body {
+  display: flex; flex-direction: column; min-height: 0; flex: 1;
+}
+.registry {
+  flex: 1; min-height: 132px; overflow-y: auto;
+  border-bottom: 1px solid var(--line-2);
+}
+.reg-head {
+  position: sticky; top: 0; z-index: 1;
+  font-size: var(--fs-micro); letter-spacing: 1.1px; color: var(--dim);
+  background: var(--panel-2); border-bottom: 1px solid var(--line);
+  padding: 3px 10px;
+}
+.reg-list { list-style: none; margin: 0; padding: 0; }
+.reg-list li { border-bottom: 1px solid var(--line); }
+.reg-list li:last-child { border-bottom: 0; }
+.reg-list label {
+  display: grid; grid-template-columns: auto auto 1fr;
+  align-items: center; gap: 8px;
+  padding: 4px 10px; cursor: pointer;
+  border-left: 2px solid transparent;
+}
+.reg-list label:hover { background: var(--panel-2); }
+.reg-list label.sel { background: var(--accent-bg); border-left-color: var(--accent); }
+.reg-list input[type="radio"] { accent-color: var(--accent); margin: 0; }
+.reg-list img.mthumb {
+  width: 38px; height: 24px; object-fit: cover; border-radius: var(--r);
+  background: var(--well); border: 1px solid var(--line);
+}
+.reg-list .mname { font-size: var(--fs-sm); color: var(--text); }
+.reg-list .mmeta {
+  display: block; font-size: var(--fs-micro); color: var(--dim);
+  font-family: var(--mono);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.reg-list .mmeta.review { color: var(--warn); }
+.reg-list .empty { padding: 8px 10px; font-size: var(--fs-xs); }
+
+/* ------------------------------------------------------ selected vehicle */
+.vehicle-detail { padding: var(--pad); display: flex; flex-direction: column; gap: 8px; }
+
+.preview {
+  margin: 0; border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--well); overflow: hidden;
+}
+.preview img {
+  display: block; width: 100%; height: 116px; object-fit: cover; cursor: zoom-in;
+}
+.preview figcaption {
+  font-size: var(--fs-micro); color: var(--dim); text-align: center;
+  padding: 3px 0; border-top: 1px solid var(--line); letter-spacing: .4px;
+}
+.preview.placeholder {
+  height: 116px; display: flex; align-items: center; justify-content: center;
+  font-size: var(--fs-xs); color: var(--dim);
+  border-style: dashed; background: none;
+}
+.selected {
+  font-size: var(--fs); font-weight: 600; color: var(--text);
+  overflow-wrap: anywhere;
+}
+.vehicle-detail .kv { padding-top: 2px; }
+
+.launch { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 2px; }
+.launch .btn { min-height: 34px; font-size: var(--fs); }
+
+/* ------------------------------------------------------- quick commands */
+.buttons { display: flex; flex-wrap: wrap; gap: 6px; align-items: stretch; }
+.cmdgroup {
+  display: flex; align-items: stretch;
+  border: 1px solid var(--line-2); border-radius: var(--r);
+  background: var(--panel-2);
+}
+.cmdgroup .btn {
+  border: 0; background: none; border-radius: 0; min-height: 28px;
+  font-size: var(--fs-sm); letter-spacing: .4px;
+}
+.cmdgroup .btn:hover:not(:disabled) { background: var(--panel-3); }
+.cmdgroup input {
+  width: 62px; min-height: 0; border: 0; border-left: 1px solid var(--line-2);
+  border-radius: 0; background: var(--well); font-size: var(--fs-xs);
+  text-align: right;
+}
+.cmdgroup .unit {
+  display: flex; align-items: center; padding: 0 7px;
+  font-size: var(--fs-micro); color: var(--dim); letter-spacing: .5px;
+  border-left: 1px solid var(--line); background: var(--well);
+  text-transform: uppercase; white-space: nowrap;
+}
+/* A command that has a procedure behind it is marked, because pressing it
+   runs a declared, verified sequence rather than sending one MAVLink message. */
+.cmdgroup.proc { border-color: var(--accent-2); }
+
+/* ------------------------------------------------------------- live plot */
+/* An address to paste, not a control. */
+.livestream {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  padding: 7px 10px; border-top: 1px solid var(--line-2);
+  background: var(--panel-2);
+}
+.livestream .ls-label {
+  font-size: var(--fs-micro); letter-spacing: 1.1px; color: var(--dim);
+  text-transform: uppercase;
+}
+.livestream .ls-field { display: inline-flex; align-items: center; gap: 5px; }
+.livestream .ls-field em { font-style: normal; font-size: var(--fs-micro);
+                           color: var(--dim); text-transform: uppercase;
+                           letter-spacing: .7px; }
+.livestream .ls-addr {
+  font-family: var(--mono); font-size: var(--fs-sm);
+  background: var(--well); border: 1px solid var(--line);
+  border-radius: var(--r); padding: 1px 7px; color: var(--text); user-select: all;
+}
+.livestream .ls-state { font-size: var(--fs-xs); color: var(--dim); }
+.livestream .ls-state.on { color: var(--ok); }
+/* The two explanatory lines are reference, not instrument: they stay small and
+   out of the way of the address a user came here to copy. */
+.livestream .hint {
+  margin: 0; flex-basis: 100%; font-size: var(--fs-xs); line-height: 1.45;
+  color: var(--dim); max-width: 132ch;
+}
+.livestream .ls-warn { color: var(--warn); }
+
+/* --------------------------------------------------------- procedure run */
+#proc-panel .proc-verdict {
+  font-size: var(--fs-xs); color: var(--muted); font-family: var(--mono);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#proc-panel .proc-verdict.ok  { color: var(--ok); }
+#proc-panel .proc-verdict.bad { color: var(--danger); }
+
+.proc-steps {
+  list-style: none; margin: 0; padding: 4px 10px 0;
+  font-size: var(--fs-sm);
+}
+.proc-steps .step {
+  display: grid; grid-template-columns: 16px minmax(160px, auto) 1fr;
+  gap: 8px; padding: 2px 0; border-bottom: 1px solid var(--line);
+  color: var(--muted);
+}
+.proc-steps .step:last-child { border-bottom: 0; }
+.proc-steps .step .mark { text-align: center; font-weight: 700; }
+.proc-steps .step .what { color: var(--text); }
+.proc-steps .step .detail {
+  color: var(--dim); font-family: var(--mono); font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
+}
+.proc-steps .step.running .mark,
+.proc-steps .step.running .what { color: var(--accent); }
+.proc-steps .step.passed .mark { color: var(--ok); }
+.proc-steps .step.failed .mark,
+.proc-steps .step.failed .what { color: var(--danger); }
+.proc-steps .step.skipped { opacity: .5; }
+
+.proc-expect { padding: 0 10px; font-size: var(--fs-sm); }
+.proc-expect:empty { display: none; }
+.proc-expect .expect-head {
+  color: var(--dim); font-size: var(--fs-micro); text-transform: uppercase;
+  letter-spacing: 1px; margin: 8px 0 3px;
+  border-bottom: 1px solid var(--line); padding-bottom: 3px;
+}
+.proc-expect .expect {
+  display: grid; grid-template-columns: 16px minmax(160px, auto) 1fr;
+  gap: 8px; padding: 2px 0;
+}
+.proc-expect .expect .mark { text-align: center; font-weight: 700; }
+.proc-expect .expect.passed .mark { color: var(--ok); }
+.proc-expect .expect.failed .mark,
+.proc-expect .expect.failed .what { color: var(--danger); }
+/* A criterion nothing could be measured for. Deliberately NOT red: red is the
+   colour of a verdict about the aircraft, and this is the absence of one. */
+.proc-expect .expect.unevaluated .mark,
+.proc-expect .expect.unevaluated .what { color: var(--warn); }
+.proc-expect .expect .detail {
+  color: var(--dim); font-family: var(--mono); font-size: var(--fs-xs);
+}
+.expect.sub { padding-left: 20px; }
+.expect.running .mark { color: var(--accent); }
+#proc-panel .hint { padding: 0 10px 8px; }
+
+/* -------------------------------------------------------------- terminal */
+.terminal-panel { flex: 1 1 auto; min-height: 220px; }
+.terminal-panel .panel-head { padding-right: 10px; gap: 0; }
+.terminal-panel .panel-head h2 { margin-right: 14px; }
+.terminal-panel .panel-head .tabs { margin-bottom: -1px; }
+.terminal-panel .panel-head .wschip { margin-left: auto; }
+.termwrap { background: var(--well); flex: 1; min-height: 160px; }
+.termbox { height: 100%; padding: 6px 8px; }
+.tabhint { margin: 0; padding: 5px 10px; border-top: 1px solid var(--line);
+           font-size: var(--fs-xs); }
+
+/* ----------------------------------------------------------- responsive */
+@media (max-height: 820px) {
+  .preview img, .preview.placeholder { height: 92px; }
+  #panel-commands { max-height: 58%; }
+}
+/* Below this the two columns stop being two columns, and the screen scrolls
+   as one page rather than as three independent boxes. */
+@media (max-width: 1180px) {
+  .view-ops { overflow-y: auto; }
+  .ops-grid { grid-template-columns: 1fr; height: auto; }
+  .registry { max-height: 240px; flex: 0 0 auto; }
+  #panel-commands { max-height: none; }
+  .termwrap { min-height: 300px; }
+}

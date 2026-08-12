@@ -14,7 +14,8 @@ import json
 
 import pytest
 
-from harness import assert_no_console_errors, open_page, start_server
+from harness import (assert_no_console_errors, open_page, open_section,
+                     start_server)
 
 pytestmark = [pytest.mark.e2e, pytest.mark.tier1]
 
@@ -68,7 +69,7 @@ def _rows(page) -> int:
 
 def test_the_panel_shows_only_the_newest_runs_until_asked(browser_page, runs_server):
     """Five rows by default, however many runs exist."""
-    page = open_page(browser_page, runs_server)
+    page = open_section(open_page(browser_page, runs_server), "runs")
     page.wait_for_function(f"() => document.querySelectorAll('#runs-table tbody tr').length "
                            f">= {COLLAPSED}", timeout=20000)
 
@@ -86,7 +87,7 @@ def test_the_panel_shows_only_the_newest_runs_until_asked(browser_page, runs_ser
 
 
 def test_show_more_reveals_the_rest_and_show_less_collapses_again(browser_page, runs_server):
-    page = open_page(browser_page, runs_server)
+    page = open_section(open_page(browser_page, runs_server), "runs")
     page.wait_for_function(f"() => document.querySelectorAll('#runs-table tbody tr').length "
                            f">= {COLLAPSED}", timeout=20000)
     total = len(runs_server.api("/api/runs")["runs"])
@@ -112,7 +113,7 @@ def test_a_deep_link_to_a_collapsed_run_still_opens_and_expands_the_list(
     link — a panel that hides data is fine, a link that silently does nothing
     is not.
     """
-    page = open_page(browser_page, runs_server)
+    page = open_section(open_page(browser_page, runs_server), "runs")
     page.wait_for_function(f"() => document.querySelectorAll('#runs-table tbody tr').length "
                            f">= {COLLAPSED}", timeout=20000)
 

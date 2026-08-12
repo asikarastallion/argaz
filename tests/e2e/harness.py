@@ -193,6 +193,22 @@ def open_page(page, server: Server, wait_ms: int = 2500):
     return page
 
 
+def open_section(page, name: str, wait_ms: int = 400):
+    """Bring one module page on screen, the way a person does.
+
+    The interface is an application shell: the landing screen is the operator's
+    workstation — vehicles, quick commands, terminals — and everything else is
+    a section reached from the navigation rail (see `static/ui.js`). A test that
+    asserts on a module's panel has to be looking at that module, which is what
+    this does. Only one section is ever not `[hidden]`, so waiting on the view
+    is enough; there is no animation to race.
+    """
+    page.locator(f'.rail-item[data-nav="{name}"]').first.click()
+    page.wait_for_selector(f'[data-view="{name}"]:not([hidden])', timeout=10000)
+    page.wait_for_timeout(wait_ms)
+    return page
+
+
 def assert_no_console_errors(page, context: str = "") -> None:
     errors = getattr(page, "console_errors", [])
     assert not errors, (

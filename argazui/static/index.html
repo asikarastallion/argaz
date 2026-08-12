@@ -4,241 +4,501 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ArgazUI</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>%F0%9F%9A%81</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%230b0e13'/><path d='M6 22 L16 8 L26 22' stroke='%234a8fd4' stroke-width='2.4' fill='none'/><path d='M10 22 h12' stroke='%236f7d90' stroke-width='2'/></svg>">
 <link rel="stylesheet" href="/static/vendor/xterm.css">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 
-<header class="topbar">
-  <div class="brand">Argaz<span>UI</span>
-    <em data-i18n="tagline">ArduPilot SITL + Gazebo control panel</em>
-  </div>
+<!-- =====================================================================
+     APPLICATION SHELL
+     A fixed instrument bar, a persistent navigation rail and one visible
+     module at a time. The operations screen is the only screen that flies
+     an aircraft; everything else reads what flying one produced.
+     ===================================================================== -->
+<div class="app">
 
-  <div class="indicators">
-    <span class="pill wide" id="pill-model">Vehicle: —</span>
-    <span class="pill" id="pill-link">MAVLink: —</span>
-    <span class="pill" id="pill-ready">READY: —</span>
-    <span class="pill" id="pill-mode">Mode: —</span>
-    <span class="pill" id="pill-armed">DISARMED</span>
-    <span class="pill" id="pill-alt">Alt: — m</span>
-    <span class="pill" id="pill-spd">Spd: — m/s</span>
-  </div>
-
-  <nav class="topnav">
-    <div class="langsw" title="Language / Dil">
-      <button class="langbtn active" data-set-lang="en">EN</button>
-      <button class="langbtn" data-set-lang="tr">TR</button>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">ARGAZ<b>UI</b></span>
+      <em data-i18n="tagline">ArduPilot SITL + Gazebo control panel</em>
     </div>
-    <button class="navbtn" id="btn-docs" data-i18n="nav_docs">DOCS</button>
-    <button class="navbtn" data-sheet="sheet-help" data-i18n="nav_help">HOW TO USE</button>
-    <button class="navbtn" data-sheet="sheet-about" data-i18n="nav_about">CONTACT</button>
-  </nav>
-</header>
 
-<!-- Persistent and unmissable: the page and the server are different builds.
-     Placed above everything because every other reading on the page becomes
-     untrustworthy once this is true. -->
-<div class="build-warning" id="build-warning" hidden></div>
-
-<main>
-  <!-- ---------------------------------------------------------- model picker -->
-  <section class="panel models">
-    <div class="cols">
-      <div class="col" data-class="Copter"><h3>COPTER</h3><ul id="list-Copter"></ul></div>
-      <div class="col" data-class="Plane"><h3>PLANE</h3><ul id="list-Plane"></ul></div>
-      <div class="col" data-class="VTOL"><h3>VTOL</h3><ul id="list-VTOL"></ul></div>
-      <div class="col launch">
-        <h3 data-i18n="selected_model">SELECTED MODEL</h3>
-        <figure class="preview" id="preview" hidden>
-          <img id="preview-img" alt="">
-          <figcaption data-i18n="click_to_enlarge">click to enlarge</figcaption>
-        </figure>
-        <div class="preview placeholder" id="preview-none" data-i18n="pick_for_preview">
-          select a model to preview
-        </div>
-        <div class="selected" id="selected-name">— none selected —</div>
-        <div class="selected-meta" id="selected-meta"></div>
-        <button class="btn big start" id="btn-start" disabled data-i18n="btn_start">▶ START</button>
-        <button class="btn big stop" id="btn-stop" data-i18n="btn_stop">■ STOP</button>
-        <button class="btn link" id="btn-rescan" data-i18n="btn_rescan">⟳ rescan models</button>
+    <!-- The instrument strip. Present on every module page, because an
+         operator reading a coverage table still has an aircraft in the air. -->
+    <div class="readouts" id="readouts">
+      <div class="readout wide" id="pill-model">
+        <span class="ro-label" data-i18n="ro_vehicle">VEHICLE</span>
+        <span class="ro-value">—</span>
+      </div>
+      <div class="readout" id="pill-link">
+        <span class="ro-label" data-i18n="ro_link">LINK</span>
+        <span class="ro-value">—</span>
+      </div>
+      <div class="readout" id="pill-ready">
+        <span class="ro-label" data-i18n="ro_ready">READY</span>
+        <span class="ro-value">—</span>
+      </div>
+      <div class="readout" id="pill-mode">
+        <span class="ro-label" data-i18n="ro_mode">MODE</span>
+        <span class="ro-value">—</span>
+      </div>
+      <div class="readout" id="pill-armed">
+        <span class="ro-label" data-i18n="ro_arm">ARM</span>
+        <span class="ro-value">—</span>
+      </div>
+      <div class="readout num" id="pill-alt">
+        <span class="ro-label" data-i18n="ro_alt">ALT</span>
+        <span class="ro-value">—</span>
+      </div>
+      <div class="readout num" id="pill-spd">
+        <span class="ro-label" data-i18n="ro_spd">SPD</span>
+        <span class="ro-value">—</span>
       </div>
     </div>
-    <p class="panel-error" id="err-models" hidden></p>
-  </section>
 
-  <!-- --------------------------------------------------------- quick commands -->
-  <section class="panel">
-    <h2><span data-i18n="quick_commands">Quick Commands</span>
-        <small id="cmd-context"></small></h2>
-    <div id="buttons" class="buttons"></div>
-    <p class="panel-error" id="err-buttons" hidden></p>
-    <p class="hint" id="cmd-hint"></p>
-
-    <!-- Live telemetry mirror. Sits here rather than in its own panel because
-         it is a property of the running vehicle, like the buttons above it:
-         the port is open for exactly as long as there is a flight to plot. -->
-    <!-- Address and Port are shown as two separately labelled, separately
-         copyable values, and never as one "127.0.0.1:14552" token. That token
-         is what a user pastes into PlotJuggler's Address box, where a host:port
-         string parses as no address at all — see live_warn and USAGE.md 5d. -->
-    <div class="livestream" id="livestream" hidden>
-      <span class="ls-label" data-i18n="live_plot">LIVE PLOT</span>
-      <span class="ls-field"><em data-i18n="live_field_address">Address</em>
-        <code class="ls-addr" id="ls-addr">—</code>
-        <button class="btn link" id="btn-copy-host" data-i18n="live_copy_host">⧉</button></span>
-      <span class="ls-field"><em data-i18n="live_field_port">Port</em>
-        <code class="ls-addr" id="ls-port">—</code>
-        <button class="btn link" id="btn-copy-plot" data-i18n="live_copy">⧉</button></span>
-      <span class="ls-state" id="ls-state"></span>
-      <span class="hint" id="ls-hint"></span>
-      <span class="hint ls-warn" id="ls-warn"></span>
+    <div class="topbar-actions">
+      <div class="langsw" title="Language / Dil">
+        <button class="langbtn active" data-set-lang="en">EN</button>
+        <button class="langbtn" data-set-lang="tr">TR</button>
+      </div>
     </div>
-  </section>
+  </header>
 
-  <!-- ------------------------------------------------------------- procedure -->
-  <!-- Hidden until a procedure runs. Shows the same steps the regression test
-       executes, because both come from the same YAML file. -->
-  <section class="panel" id="proc-panel" hidden>
-    <h2><span data-i18n="proc_title">Procedure</span>
-        <small id="proc-name"></small>
-        <button class="btn link" id="btn-proc-cancel" data-i18n="proc_cancel">✕ cancel</button></h2>
-    <ol id="proc-steps" class="proc-steps"></ol>
-    <!-- Injected faults sit ABOVE the acceptance criteria for the same reason
-         the flight report puts them above the measurements: every verdict
-         below was reached on an aircraft something was deliberately done to. -->
-    <div id="proc-faults" class="proc-expect"></div>
-    <div id="proc-expect" class="proc-expect"></div>
-    <p class="hint" id="proc-hint"></p>
-  </section>
+  <!-- Persistent and unmissable: the page and the server are different builds.
+       Placed above everything because every other reading on the page becomes
+       untrustworthy once this is true. -->
+  <div class="build-warning" id="build-warning" hidden></div>
 
-  <!-- ------------------------------------------------- scenarios (v1.4) -->
-  <!-- Off-nominal flows. Never auto-selected: a fault must not start because
-       a capability heuristic decided it applied. -->
-  <section class="panel" id="scen-panel">
-    <h2><span data-i18n="scen_title">Scenarios (fault injection)</span></h2>
-    <p class="hint" data-i18n="scen_warn"></p>
-    <div id="scen-list" class="scen-list"></div>
-    <p class="hint" id="scen-hint"></p>
-  </section>
+  <div class="app-body">
 
-  <!-- ------------------------------------------------- campaigns (v1.4) -->
-  <section class="panel" id="camp-panel">
-    <h2><span data-i18n="camp_title">Repeatability campaign</span>
-        <button class="btn link" id="btn-camp-cancel" data-i18n="camp_cancel"
-                hidden>✕ cancel campaign</button></h2>
-    <div class="row">
-      <select id="camp-procedure"></select>
-      <label class="camp-n"><span data-i18n="camp_runs">Runs</span>
-        <input type="number" id="camp-runs" min="2" max="50" value="5"></label>
-      <button class="btn" id="btn-camp-start" data-i18n="camp_start">▶ RUN CAMPAIGN</button>
-    </div>
-    <p class="hint" data-i18n="camp_hint"></p>
-    <p class="panel-error" id="err-camp" hidden></p>
-    <p class="hint" id="camp-active"></p>
-    <div class="runs-wrap"><table class="runs" id="camp-table"><tbody></tbody></table></div>
-    <div id="camp-detail" class="cmp" hidden></div>
-  </section>
+    <!-- ------------------------------------------------------------- rail -->
+    <nav class="rail" id="rail" aria-label="ArgazUI">
+      <div class="rail-scroll">
+        <div class="rail-group">
+          <div class="rail-label" data-i18n="nav_group_operations">OPERATIONS</div>
+          <button class="rail-item" data-nav="operations" data-anchor="panel-vehicles"
+                  data-key="1"><span data-i18n="nav_vehicles">Vehicles</span></button>
+          <button class="rail-item" data-nav="operations" data-anchor="panel-commands"
+                  data-key="2"><span data-i18n="nav_quick_commands">Quick Commands</span></button>
+          <button class="rail-item" data-nav="operations" data-anchor="panel-terminal"
+                  data-key="3"><span data-i18n="nav_terminal">Terminal</span></button>
+        </div>
 
-  <!-- ------------------------------------------------ experiments (v1.6) -->
-  <!-- A controlled comparison declared in a file. Several campaigns in
-       sequence, so every row names its arm: losing track of which side of the
-       comparison the aircraft is on is the confusion this panel prevents. -->
-  <section class="panel" id="exp-panel">
-    <h2><span data-i18n="exp_title">Experiments</span>
-        <button class="btn link" id="btn-exp-cancel" data-i18n="exp_cancel"
-                hidden>✕ cancel experiment</button></h2>
-    <p class="hint" data-i18n="exp_hint"></p>
-    <div class="row">
-      <select id="exp-select"></select>
-      <button class="btn" id="btn-exp-start" data-i18n="exp_start">▶ RUN EXPERIMENT</button>
-    </div>
-    <p class="panel-error" id="err-exp" hidden></p>
-    <p class="hint" id="exp-active"></p>
-    <div class="runs-wrap"><table class="runs" id="exp-table"><tbody></tbody></table></div>
-    <div id="exp-detail" class="cmp" hidden></div>
-  </section>
+        <div class="rail-group">
+          <div class="rail-label" data-i18n="nav_group_verification">VERIFICATION</div>
+          <button class="rail-item" data-nav="procedures"
+                  data-key="4"><span data-i18n="nav_procedures">Procedures</span></button>
+          <button class="rail-item" data-nav="scenarios"
+                  data-key="5"><span data-i18n="nav_scenarios">Scenarios</span></button>
+          <button class="rail-item" data-nav="campaigns"
+                  data-key="6"><span data-i18n="nav_campaigns">Campaigns</span></button>
+          <button class="rail-item" data-nav="experiments"
+                  data-key="7"><span data-i18n="nav_experiments">Experiments</span></button>
+          <button class="rail-item" data-nav="coverage"
+                  data-key="8"><span data-i18n="nav_coverage">Coverage</span></button>
+        </div>
 
-  <!-- -------------------------------------------------------- coverage (v1.5) -->
-  <!-- What this project declares and has never run. The uncovered lists are
-       the payload; a percentage on its own invites a reader to stop. -->
-  <section class="panel" id="cov-panel">
-    <h2><span data-i18n="cov_title">Coverage</span>
-        <button class="btn link" id="btn-cov-refresh" data-i18n="btn_refresh">⟳ refresh</button></h2>
-    <p class="hint" data-i18n="cov_hint"></p>
-    <div class="runs-wrap"><table class="runs" id="cov-table"><tbody></tbody></table></div>
-    <div id="cov-detail" class="cmp" hidden></div>
-    <p class="panel-error" id="err-cov" hidden></p>
-  </section>
+        <div class="rail-group">
+          <div class="rail-label" data-i18n="nav_group_evidence">EVIDENCE</div>
+          <button class="rail-item" data-nav="runs"
+                  data-key="9"><span data-i18n="nav_runs">Flight Runs</span></button>
+          <button class="rail-item" data-nav="script"><span
+                  data-i18n="nav_script">Mission Script</span></button>
+        </div>
 
-  <!-- -------------------------------------------------------------- run list -->
-  <!-- Every START..STOP leaves a directory under runs/. This panel is a
-       reader for those directories: nothing here changes a run. -->
-  <section class="panel">
-    <h2><span data-i18n="runs_title">Flight Runs</span>
-        <small id="runs-root"></small>
-        <button class="btn link" id="btn-runs-refresh" data-i18n="btn_refresh">⟳ refresh</button></h2>
-    <div class="runs-wrap"><table class="runs" id="runs-table"><tbody></tbody></table></div>
-    <!-- Real usage produces dozens of runs; the panel shows the newest few and
-         opens on demand. View only — nothing under runs/ changes. -->
-    <button class="btn link runs-more" id="btn-runs-more" hidden></button>
-    <p class="panel-error" id="err-runs" hidden></p>
-    <p class="hint" id="runs-hint"></p>
-  </section>
+        <div class="rail-group">
+          <div class="rail-label" data-i18n="nav_group_knowledge">KNOWLEDGE</div>
+          <button class="rail-item" id="btn-docs" data-nav="docs"><span
+                  data-i18n="nav_docs">DOCS</span></button>
+          <button class="rail-item ghost navbtn" data-sheet="sheet-help"><span
+                  data-i18n="nav_help">HOW TO USE</span></button>
+          <button class="rail-item ghost navbtn" data-sheet="sheet-about"><span
+                  data-i18n="nav_about">CONTACT</span></button>
+        </div>
+      </div>
 
-  <!-- --------------------------------------------------------- mission script -->
-  <section class="panel">
-    <h2><span data-i18n="mission_script">Mission Script</span>
-        <small id="scripts-dir"></small></h2>
-    <div class="row">
-      <select id="script-select"></select>
-      <button class="btn" id="btn-script" data-i18n="btn_run_script">▶ RUN SCRIPT</button>
-      <button class="btn link" id="btn-script-refresh" data-i18n="btn_refresh">⟳ refresh</button>
-    </div>
-    <p class="panel-error" id="err-scripts" hidden></p>
-    <p class="hint" id="script-hint"></p>
-  </section>
+      <div class="rail-foot">
+        <span class="rail-keys" data-i18n="nav_keys">Alt+1…9 switches section</span>
+      </div>
+    </nav>
 
-  <!-- --------------------------------------------------------------- terminal -->
-  <section class="panel terminal-panel">
-    <h2><span data-i18n="terminal">Terminal</span>
-        <small data-i18n="terminal_sub">real bash sessions — you can type here too</small></h2>
-    <div class="tabs">
-      <button class="tab active" data-stream="sim" data-i18n="tab_sim">SIMULATION</button>
-      <button class="tab" data-stream="shell" data-i18n="tab_shell">COMMAND / SCRIPT</button>
-      <span class="wschip connecting" id="ws-state">…</span>
-      <span class="tabhint" id="tabhint"></span>
-    </div>
-    <div class="termwrap">
-      <div id="term-sim" class="termbox"></div>
-      <div id="term-shell" class="termbox" hidden></div>
-    </div>
-  </section>
-</main>
+    <!-- ------------------------------------------------------------- main -->
+    <main class="app-main" id="app-main">
 
-<!-- =============================================================== DOCS PORTAL -->
-<!-- A tree, a search over headings and a deep link — not twenty browser tabs.
-     Every page here is a file in the repository or a named section of one; the
-     footer of each page says which. See argazui/argazui/docs.py for why the
-     portal deliberately holds no prose of its own. -->
-<div class="sheet-backdrop" id="sheet-docs" hidden>
-  <div class="sheet docs">
-    <header>
-      <h2 data-i18n="nav_docs_title">Engineering documentation</h2>
-      <button class="sheet-close" data-close>✕</button>
-    </header>
-    <div class="docs-body">
-      <nav class="docs-nav">
-        <input type="search" id="docs-search" class="docs-search" autocomplete="off">
-        <p class="hint docs-searchhint" id="docs-searchhint"></p>
-        <div class="docs-tree" id="docs-tree"></div>
-      </nav>
-      <article class="docs-page" id="docs-page">
-        <p class="docs-notice" id="docs-notice" hidden></p>
-        <div class="docs-content" id="docs-content"></div>
-        <p class="hint docs-source" id="docs-source"></p>
-      </article>
-    </div>
+      <!-- ============================================== OPERATIONS ======= -->
+      <!-- The operator's workstation: pick an aircraft, start it, command it,
+           watch the two shells. Nothing else lives here. -->
+      <section class="view view-ops" data-view="operations" id="view-operations">
+        <div class="ops-grid">
+
+          <!-- ------------------------------------------------- vehicles -->
+          <section class="panel panel-vehicles" id="panel-vehicles">
+            <header class="panel-head">
+              <h2><span data-i18n="veh_title">VEHICLE</span></h2>
+              <span class="statechip" id="veh-state" data-state="none">—</span>
+              <button class="btn ghost xs" id="btn-rescan"
+                      data-i18n="btn_rescan">⟳ rescan models</button>
+            </header>
+
+            <div class="vehicle-body">
+              <div class="registry" id="registry">
+                <div class="reg-group">
+                  <div class="reg-head" data-i18n="cls_copter">COPTER</div>
+                  <ul class="reg-list" id="list-Copter"></ul>
+                </div>
+                <div class="reg-group">
+                  <div class="reg-head" data-i18n="cls_plane">PLANE</div>
+                  <ul class="reg-list" id="list-Plane"></ul>
+                </div>
+                <div class="reg-group">
+                  <div class="reg-head" data-i18n="cls_vtol">VTOL</div>
+                  <ul class="reg-list" id="list-VTOL"></ul>
+                </div>
+              </div>
+
+              <div class="vehicle-detail">
+                <div class="sec-head" data-i18n="selected_model">SELECTED MODEL</div>
+                <figure class="preview" id="preview" hidden>
+                  <img id="preview-img" alt="">
+                  <figcaption data-i18n="click_to_enlarge">click to enlarge</figcaption>
+                </figure>
+                <div class="preview placeholder" id="preview-none"
+                     data-i18n="pick_for_preview">select a model to preview</div>
+                <div class="selected" id="selected-name">— none selected —</div>
+                <dl class="kv" id="selected-meta"></dl>
+                <div class="launch">
+                  <button class="btn start" id="btn-start" disabled
+                          data-i18n="btn_start">START</button>
+                  <button class="btn stop" id="btn-stop" disabled
+                          data-i18n="btn_stop">STOP</button>
+                </div>
+              </div>
+            </div>
+            <p class="panel-error" id="err-models" hidden></p>
+          </section>
+
+          <div class="ops-right">
+
+            <!-- --------------------------------------------- commands -->
+            <section class="panel" id="panel-commands">
+              <header class="panel-head">
+                <h2><span data-i18n="quick_commands">QUICK COMMANDS</span></h2>
+                <span class="panel-meta" id="cmd-context"></span>
+              </header>
+              <div class="panel-body">
+                <div id="buttons" class="buttons"></div>
+                <p class="panel-error" id="err-buttons" hidden></p>
+                <p class="hint" id="cmd-hint"></p>
+              </div>
+
+              <!-- Live telemetry mirror. Sits with the buttons because it is a
+                   property of the running vehicle, like they are: the port is
+                   open for exactly as long as there is a flight to plot.
+                   Address and Port are shown as two separately labelled,
+                   separately copyable values, and never as one
+                   "127.0.0.1:14552" token. That token is what a user pastes
+                   into PlotJuggler's Address box, where a host:port string
+                   parses as no address at all — see live_warn, USAGE.md 5d. -->
+              <div class="livestream" id="livestream" hidden>
+                <span class="ls-label" data-i18n="live_plot">LIVE PLOT</span>
+                <span class="ls-field"><em data-i18n="live_field_address">Address</em>
+                  <code class="ls-addr" id="ls-addr">—</code>
+                  <button class="btn ghost xs" id="btn-copy-host"
+                          data-i18n="live_copy_host">⧉</button></span>
+                <span class="ls-field"><em data-i18n="live_field_port">Port</em>
+                  <code class="ls-addr" id="ls-port">—</code>
+                  <button class="btn ghost xs" id="btn-copy-plot"
+                          data-i18n="live_copy">⧉</button></span>
+                <span class="ls-state" id="ls-state"></span>
+                <span class="hint" id="ls-hint"></span>
+                <span class="hint ls-warn" id="ls-warn"></span>
+              </div>
+
+              <!-- The procedure a quick command started, verified step by step.
+                   It belongs to the button that launched it, so it renders
+                   here rather than on another page the operator would have to
+                   leave the aircraft to reach. Hidden until one runs. -->
+              <div class="subpanel" id="proc-panel" hidden>
+                <header class="subpanel-head">
+                  <h3><span data-i18n="proc_title">PROCEDURE</span></h3>
+                  <span class="proc-verdict" id="proc-name"></span>
+                  <button class="btn danger xs" id="btn-proc-cancel"
+                          data-i18n="proc_cancel">✕ cancel</button>
+                </header>
+                <ol id="proc-steps" class="proc-steps"></ol>
+                <!-- Injected faults sit ABOVE the acceptance criteria for the
+                     same reason the flight report puts them above the
+                     measurements: every verdict below was reached on an
+                     aircraft something was deliberately done to. -->
+                <div id="proc-faults" class="proc-expect"></div>
+                <div id="proc-expect" class="proc-expect"></div>
+                <p class="hint" id="proc-hint"></p>
+              </div>
+            </section>
+
+            <!-- --------------------------------------------- terminal -->
+            <section class="panel terminal-panel" id="panel-terminal">
+              <header class="panel-head">
+                <h2><span data-i18n="terminal">TERMINAL</span></h2>
+                <div class="tabs">
+                  <button class="tab active" data-stream="sim"
+                          data-i18n="tab_sim">SIMULATION</button>
+                  <button class="tab" data-stream="shell"
+                          data-i18n="tab_shell">COMMAND / SCRIPT</button>
+                </div>
+                <span class="wschip connecting" id="ws-state">…</span>
+              </header>
+              <div class="termwrap">
+                <div id="term-sim" class="termbox"></div>
+                <div id="term-shell" class="termbox" hidden></div>
+              </div>
+              <p class="hint tabhint" id="tabhint"></p>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== PROCEDURES ======= -->
+      <!-- The declared catalogue on the left, one procedure's contract on the
+           right. The steps and criteria shown here are read from the same YAML
+           the regression suite executes; nothing is restated in this page. -->
+      <section class="view" data-view="procedures" id="proc-view" hidden>
+        <header class="page-head">
+          <h2><span data-i18n="nav_procedures">PROCEDURES</span></h2>
+          <p class="page-sub" data-i18n="proc_page_sub"></p>
+        </header>
+        <div class="split split-38">
+          <section class="panel">
+            <header class="panel-head">
+              <h3><span data-i18n="proc_catalogue">DECLARED PROCEDURES</span></h3>
+              <button class="btn ghost xs" id="btn-proc-refresh"
+                      data-i18n="btn_refresh">⟳ refresh</button>
+            </header>
+            <div class="table-wrap">
+              <table class="dtable" id="proc-table"><tbody></tbody></table>
+            </div>
+            <p class="hint" id="proc-list-hint"></p>
+          </section>
+          <section class="panel">
+            <header class="panel-head">
+              <h3><span id="proc-detail-title" data-i18n="proc_detail">PROCEDURE DETAIL</span></h3>
+            </header>
+            <div class="panel-body" id="proc-detail"></div>
+          </section>
+        </div>
+      </section>
+
+      <!-- =============================================== SCENARIOS ======= -->
+      <!-- Off-nominal flows. Never auto-selected: a fault must not start
+           because a capability heuristic decided it applied. -->
+      <section class="view" data-view="scenarios" id="scen-panel" hidden>
+        <header class="page-head">
+          <h2><span data-i18n="scen_title">Scenarios (fault injection)</span></h2>
+          <p class="page-sub warn-sub" data-i18n="scen_warn"></p>
+        </header>
+        <section class="panel">
+          <header class="panel-head">
+            <h3><span data-i18n="scen_applicable">APPLICABLE TO THE CONNECTED VEHICLE</span></h3>
+          </header>
+          <div class="panel-body">
+            <div id="scen-list" class="scen-list"></div>
+            <p class="hint" id="scen-hint"></p>
+          </div>
+        </section>
+
+        <!-- What can be injected at all, from the module that implements it.
+             Served rather than restated: a copy of this list in the front end
+             would drift, and what it would be wrong about is what a fault
+             does to the aircraft. -->
+        <section class="panel">
+          <header class="panel-head">
+            <h3><span data-i18n="fault_catalogue">FAULT MECHANISMS</span></h3>
+          </header>
+          <div class="table-wrap">
+            <table class="dtable" id="fault-table"><tbody></tbody></table>
+          </div>
+          <p class="panel-error" id="err-faults" hidden></p>
+        </section>
+      </section>
+
+      <!-- =============================================== CAMPAIGNS ======= -->
+      <section class="view" data-view="campaigns" id="camp-panel" hidden>
+        <header class="page-head">
+          <h2><span data-i18n="camp_title">Repeatability campaign</span></h2>
+          <p class="page-sub" data-i18n="camp_hint"></p>
+        </header>
+
+        <section class="panel">
+          <header class="panel-head">
+            <h3><span data-i18n="camp_new">NEW CAMPAIGN</span></h3>
+            <span class="panel-meta" id="camp-active"></span>
+            <button class="btn danger xs" id="btn-camp-cancel"
+                    data-i18n="camp_cancel" hidden>✕ cancel campaign</button>
+          </header>
+          <div class="panel-body">
+            <div class="ctlrow">
+              <label class="field"><span data-i18n="camp_procedure">Procedure</span>
+                <select id="camp-procedure"></select></label>
+              <label class="field narrow"><span data-i18n="camp_runs">Runs</span>
+                <input type="number" id="camp-runs" min="2" max="50" value="5"></label>
+              <button class="btn primary" id="btn-camp-start"
+                      data-i18n="camp_start">▶ RUN CAMPAIGN</button>
+            </div>
+            <p class="panel-error" id="err-camp" hidden></p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <header class="panel-head">
+            <h3><span data-i18n="camp_recorded">RECORDED CAMPAIGNS</span></h3>
+          </header>
+          <div class="table-wrap">
+            <table class="dtable" id="camp-table"><tbody></tbody></table>
+          </div>
+          <div id="camp-detail" class="cmp" hidden></div>
+        </section>
+      </section>
+
+      <!-- ============================================= EXPERIMENTS ======= -->
+      <!-- A controlled comparison declared in a file. Several campaigns in
+           sequence, so every row names its arm: losing track of which side of
+           the comparison the aircraft is on is the confusion this prevents. -->
+      <section class="view" data-view="experiments" id="exp-panel" hidden>
+        <header class="page-head">
+          <h2><span data-i18n="exp_title">Experiments</span></h2>
+          <p class="page-sub" data-i18n="exp_hint"></p>
+        </header>
+
+        <section class="panel">
+          <header class="panel-head">
+            <h3><span data-i18n="exp_run_head">RUN AN EXPERIMENT</span></h3>
+            <span class="panel-meta" id="exp-active"></span>
+            <button class="btn danger xs" id="btn-exp-cancel"
+                    data-i18n="exp_cancel" hidden>✕ cancel experiment</button>
+          </header>
+          <div class="panel-body">
+            <div class="ctlrow">
+              <label class="field"><span data-i18n="exp_definition">Definition</span>
+                <select id="exp-select"></select></label>
+              <button class="btn primary" id="btn-exp-start"
+                      data-i18n="exp_start">▶ RUN EXPERIMENT</button>
+            </div>
+            <p class="panel-error" id="err-exp" hidden></p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <header class="panel-head">
+            <h3><span data-i18n="exp_declared">DECLARED EXPERIMENTS</span></h3>
+          </header>
+          <div class="table-wrap">
+            <table class="dtable" id="exp-table"><tbody></tbody></table>
+          </div>
+          <div id="exp-detail" class="cmp" hidden></div>
+        </section>
+      </section>
+
+      <!-- ================================================ COVERAGE ======= -->
+      <!-- What this project declares and has never run. The uncovered lists
+           are the payload; a percentage on its own invites a reader to stop. -->
+      <section class="view" data-view="coverage" id="cov-panel" hidden>
+        <header class="page-head">
+          <h2><span data-i18n="cov_title">Coverage</span></h2>
+          <p class="page-sub" data-i18n="cov_hint"></p>
+          <div class="page-actions">
+            <button class="btn ghost xs" id="btn-cov-refresh"
+                    data-i18n="btn_refresh">⟳ refresh</button>
+          </div>
+        </header>
+        <section class="panel">
+          <header class="panel-head">
+            <h3><span data-i18n="cov_matrix">VERIFICATION MATRIX</span></h3>
+          </header>
+          <div class="table-wrap">
+            <table class="dtable" id="cov-table"><tbody></tbody></table>
+          </div>
+          <div id="cov-detail" class="cmp" hidden></div>
+          <p class="panel-error" id="err-cov" hidden></p>
+        </section>
+      </section>
+
+      <!-- ============================================ FLIGHT RUNS ======== -->
+      <!-- Every START..STOP leaves a directory under runs/. This page is a
+           reader for those directories: nothing here changes a run. -->
+      <section class="view" data-view="runs" id="runs-view" hidden>
+        <header class="page-head">
+          <h2><span data-i18n="runs_title">Flight Runs</span></h2>
+          <p class="page-sub" id="runs-hint"></p>
+          <div class="page-actions">
+            <code class="path" id="runs-root"></code>
+            <button class="btn ghost xs" id="btn-runs-refresh"
+                    data-i18n="btn_refresh">⟳ refresh</button>
+          </div>
+        </header>
+        <section class="panel">
+          <header class="panel-head">
+            <h3><span data-i18n="runs_recorded">RECORDED RUNS</span></h3>
+          </header>
+          <div class="table-wrap">
+            <table class="dtable runs" id="runs-table"><tbody></tbody></table>
+          </div>
+          <!-- Real usage produces dozens of runs; the page shows the newest few
+               and opens on demand. View only — nothing under runs/ changes. -->
+          <button class="btn ghost runs-more" id="btn-runs-more" hidden></button>
+          <p class="panel-error" id="err-runs" hidden></p>
+        </section>
+      </section>
+
+      <!-- ========================================= MISSION SCRIPT ======== -->
+      <section class="view" data-view="script" id="script-view" hidden>
+        <header class="page-head">
+          <h2><span data-i18n="mission_script">Mission Script</span></h2>
+          <p class="page-sub" id="script-hint"></p>
+          <div class="page-actions">
+            <code class="path" id="scripts-dir"></code>
+            <button class="btn ghost xs" id="btn-script-refresh"
+                    data-i18n="btn_refresh">⟳ refresh</button>
+          </div>
+        </header>
+        <section class="panel">
+          <header class="panel-head">
+            <h3><span data-i18n="script_available">AVAILABLE SCRIPTS</span></h3>
+          </header>
+          <div class="panel-body">
+            <div class="ctlrow">
+              <label class="field wide"><span data-i18n="script_file">Script</span>
+                <select id="script-select"></select></label>
+              <button class="btn primary" id="btn-script"
+                      data-i18n="btn_run_script">▶ RUN SCRIPT</button>
+            </div>
+            <p class="panel-error" id="err-scripts" hidden></p>
+            <p class="hint" data-i18n="script_note"></p>
+          </div>
+        </section>
+      </section>
+
+      <!-- ==================================================== DOCS ======= -->
+      <!-- A tree, a search over headings and a deep link — not twenty browser
+           tabs. Every page here is a file in the repository or a named section
+           of one; the footer of each page says which. See
+           argazui/argazui/docs.py for why the portal holds no prose itself. -->
+      <section class="view view-fill" data-view="docs" id="sheet-docs" hidden>
+        <div class="docs-body">
+          <nav class="docs-nav">
+            <input type="search" id="docs-search" class="docs-search" autocomplete="off">
+            <p class="hint docs-searchhint" id="docs-searchhint"></p>
+            <div class="docs-tree" id="docs-tree"></div>
+          </nav>
+          <article class="docs-page" id="docs-page">
+            <p class="docs-notice" id="docs-notice" hidden></p>
+            <div class="docs-content" id="docs-content"></div>
+            <p class="hint docs-source" id="docs-source"></p>
+          </article>
+        </div>
+      </section>
+
+    </main>
   </div>
 </div>
 
@@ -252,26 +512,42 @@
 
     <div class="sheet-body" data-lang-block="en">
       <ol class="steps">
-        <li><b>Pick a model.</b> Choose one from the COPTER / PLANE / VTOL columns.
-            The right-hand panel shows a preview and how it will be launched.</li>
-        <li><b>▶ START.</b> Gazebo, SITL and MAVProxy come up. The commands are typed
+        <li><b>Pick a model.</b> Choose one from the COPTER / PLANE / VTOL list in
+            the VEHICLE panel. The panel beside it shows a preview and how it will
+            be launched.</li>
+        <li><b>START.</b> Gazebo, SITL and MAVProxy come up. The commands are typed
             into the SIMULATION terminal verbatim, so you can see exactly what ran.</li>
         <li><b>Wait for READY.</b> ARM is <u>rejected</u> until the
-            <span class="chip ok">READY</span> chip in the top bar turns green. This is
-            normal — the autopilot needs to settle its sensors and set a home
-            position (usually 10–35 s).</li>
+            <span class="chip ok">READY</span> readout in the instrument bar reads
+            GO. This is normal — the autopilot needs to settle its sensors and set a
+            home position (usually 10–35 s).</li>
         <li><b>Fly.</b> The Quick Commands change with the vehicle class. Every result
             is written to the terminal; if a command is rejected, the autopilot's own
             reason is shown.</li>
         <li><b>Run a mission script</b> (optional). Python files in <code>scripts/</code>
-            are listed here and run in the COMMAND tab.</li>
-        <li><b>■ STOP.</b> Gazebo, SITL, MAVProxy and RViz are shut down cleanly.</li>
+            are listed under MISSION SCRIPT and run in the COMMAND tab.</li>
+        <li><b>STOP.</b> Gazebo, SITL, MAVProxy and RViz are shut down cleanly.</li>
         <li><b>Read the run.</b> The session is archived under
             <code>runs/&lt;UTC-time&gt;_&lt;model&gt;/</code> and appears in
             <b>FLIGHT RUNS</b>: the console log, the MAVLink events, every
             parameter, the autopilot's dataflash log, and a report built from
             it (mode timeline, altitude and attitude plots, vibration, EKF).</li>
       </ol>
+
+      <h3>Where things are</h3>
+      <table class="tbl">
+        <tr><th>OPERATIONS</th>
+            <td>The only screen that flies an aircraft: the vehicle registry, the
+                quick commands and the two terminals.</td></tr>
+        <tr><th>VERIFICATION</th>
+            <td>Procedures, scenarios, repeatability campaigns, experiments and
+                coverage — what this project asserts and how it asserts it.</td></tr>
+        <tr><th>EVIDENCE</th>
+            <td>Flight runs and mission scripts: what the assertions were made
+                from.</td></tr>
+        <tr><th>KNOWLEDGE</th>
+            <td>The documentation portal, this page and the project contact.</td></tr>
+      </table>
 
       <h3>The two terminal tabs</h3>
       <table class="tbl">
@@ -290,7 +566,7 @@
 
       <h3>MAVLink ports</h3>
       <table class="tbl">
-        <tr><th>14550</th><td>ArgazUI — quick command buttons and the status chips</td></tr>
+        <tr><th>14550</th><td>ArgazUI — quick command buttons and the instrument bar</td></tr>
         <tr><th>14551</th><td>Your mission scripts. Two listeners cannot share one UDP
             port, which is why they are split — use <b>14551</b> in your scripts.</td></tr>
         <tr><th>14552</th><td>Live plot. ArgazUI <i>sends</i> telemetry here while a
@@ -306,8 +582,8 @@
       <h3>Common situations</h3>
       <table class="tbl">
         <tr><th>ARM rejected</th>
-            <td>Almost always the vehicle is not ready yet. Wait for <b>READY</b> to turn
-                green and try again. The reason appears in the terminal (e.g.
+            <td>Almost always the vehicle is not ready yet. Wait for <b>READY</b> to
+                read GO and try again. The reason appears in the terminal (e.g.
                 <i>Arm: AHRS: waiting for home</i>).</td></tr>
         <tr><th>AUTO does nothing</th>
             <td>Without a loaded mission the autopilot will not stay in AUTO and falls
@@ -328,7 +604,7 @@
                 a scenario writes a <code>SIM_*</code> parameter or changes
                 ArgazUI's socket handling, nothing has a path to hardware, and
                 everything it changed is restored when the run ends. Started by
-                name from the SCENARIOS panel, never bound to a button.</td></tr>
+                name from the SCENARIOS page, never bound to a button.</td></tr>
         <tr><th>A fault that cannot be injected</th>
             <td>The procedure is aborted before the aircraft leaves the ground
                 and the run is recorded as an <code>environment</code> failure.
@@ -380,27 +656,44 @@
 
     <div class="sheet-body" data-lang-block="tr" hidden>
       <ol class="steps">
-        <li><b>Model seç.</b> Soldaki COPTER / PLANE / VTOL sütunlarından birini işaretle.
-            Sağdaki panelde aracın önizlemesi ve nasıl başlatılacağı görünür.</li>
-        <li><b>▶ BAŞLAT.</b> Gazebo, SITL ve MAVProxy açılır. Komutlar SİMÜLASYON
+        <li><b>Model seç.</b> ARAÇ panelindeki COPTER / PLANE / VTOL listesinden
+            birini işaretle. Yanındaki bölümde aracın önizlemesi ve nasıl
+            başlatılacağı görünür.</li>
+        <li><b>BAŞLAT.</b> Gazebo, SITL ve MAVProxy açılır. Komutlar SİMÜLASYON
             terminaline aynen yazılır — ne çalıştırıldığını görebilirsin.</li>
-        <li><b>HAZIR göstergesini bekle.</b> Üst çubuktaki
-            <span class="chip ok">HAZIR</span> yeşile dönmeden ARM <u>reddedilir</u>.
-            Bu normaldir: otopilotun sensörleri oturması ve ev konumunu belirlemesi
-            gerekir (genelde 10–35 sn).</li>
+        <li><b>HAZIR göstergesini bekle.</b> Üst gösterge çubuğundaki
+            <span class="chip ok">HAZIR</span> alanı GEÇTİ demeden ARM
+            <u>reddedilir</u>. Bu normaldir: otopilotun sensörleri oturması ve ev
+            konumunu belirlemesi gerekir (genelde 10–35 sn).</li>
         <li><b>Uçur.</b> Hızlı Komutlar bölümündeki butonlar aracın sınıfına göre
             değişir. Her komutun sonucu terminale yazılır; reddedilirse otopilotun
             gerekçesi de görünür.</li>
         <li><b>Görev scripti çalıştır</b> (isteğe bağlı). <code>scripts/</code>
-            klasöründeki Python dosyaları listelenir, KOMUT sekmesinde çalışırlar.</li>
-        <li><b>■ DURDUR.</b> Gazebo, SITL, MAVProxy ve RViz temizce kapatılır.</li>
+            klasöründeki Python dosyaları GÖREV SCRİPTİ sayfasında listelenir,
+            KOMUT sekmesinde çalışırlar.</li>
+        <li><b>DURDUR.</b> Gazebo, SITL, MAVProxy ve RViz temizce kapatılır.</li>
         <li><b>Koşuyu oku.</b> Oturum
             <code>runs/&lt;UTC-zaman&gt;_&lt;model&gt;/</code> altına arşivlenir ve
-            <b>UÇUŞ KOŞULARI</b> panelinde görünür: konsol kaydı, MAVLink
+            <b>UÇUŞ KOŞULARI</b> sayfasında görünür: konsol kaydı, MAVLink
             olayları, tüm parametreler, otopilotun dataflash logu ve ondan
             üretilen rapor (mod zaman çizelgesi, irtifa ve tutum grafikleri,
             titreşim, EKF).</li>
       </ol>
+
+      <h3>Ne nerede</h3>
+      <table class="tbl">
+        <tr><th>OPERASYON</th>
+            <td>Araç uçuran tek ekran: araç listesi, hızlı komutlar ve iki
+                terminal.</td></tr>
+        <tr><th>DOĞRULAMA</th>
+            <td>Prosedürler, senaryolar, tekrarlanabilirlik kampanyaları, deneyler
+                ve kapsam — bu projenin neyi, nasıl iddia ettiği.</td></tr>
+        <tr><th>KANIT</th>
+            <td>Uçuş koşuları ve görev scriptleri: iddiaların dayandığı
+                kayıtlar.</td></tr>
+        <tr><th>BİLGİ</th>
+            <td>Dokümantasyon portalı, bu sayfa ve proje iletişimi.</td></tr>
+      </table>
 
       <h3>Terminalin iki sekmesi</h3>
       <table class="tbl">
@@ -436,8 +729,8 @@
       <h3>Sık karşılaşılanlar</h3>
       <table class="tbl">
         <tr><th>ARM reddedildi</th>
-            <td>Neredeyse her zaman araç henüz hazır değildir. <b>HAZIR</b> yeşile
-                dönünce tekrar dene. Gerekçe terminalde yazar (ör.
+            <td>Neredeyse her zaman araç henüz hazır değildir. <b>HAZIR</b> alanı
+                GEÇTİ deyince tekrar dene. Gerekçe terminalde yazar (ör.
                 <i>Arm: AHRS: waiting for home</i>).</td></tr>
         <tr><th>AUTO çalışmıyor</th>
             <td>Yüklü bir görev (waypoint) yoksa otopilot AUTO'da kalmaz, RTL'e düşer.
@@ -458,7 +751,7 @@
                 simülasyondur</b>: senaryo bir <code>SIM_*</code> parametresi
                 yazar ya da ArgazUI'nin soket davranışını değiştirir; hiçbirinin
                 donanıma giden yolu yoktur ve değiştirdiği her şey koşu bitince
-                geri alınır. SENARYOLAR panelinden adıyla başlatılır, hiçbir
+                geri alınır. SENARYOLAR sayfasından adıyla başlatılır, hiçbir
                 butona bağlanmaz.</td></tr>
         <tr><th>Enjekte edilemeyen arıza</th>
             <td>Prosedür, araç yerden kalkmadan durdurulur ve koşu
@@ -612,20 +905,20 @@
 
 <!-- ============================================================= run report -->
 <div class="sheet-backdrop" id="sheet-run" hidden>
-  <div class="sheet">
+  <div class="sheet wide">
     <header>
       <h2 id="run-title">Run</h2>
       <button class="sheet-close" data-close>✕</button>
     </header>
     <div class="sheet-body">
-      <div class="row run-actions">
+      <div class="ctlrow run-actions">
         <button class="btn" id="btn-run-bin" data-i18n="runs_download">↓ dataflash .BIN</button>
         <button class="btn" id="btn-run-mavex" data-i18n="runs_copy_mavexplorer">⧉ copy MAVExplorer command</button>
-        <button class="btn link" id="btn-run-rebuild" data-i18n="runs_rebuild">⟳ rebuild report</button>
+        <button class="btn ghost" id="btn-run-rebuild" data-i18n="runs_rebuild">⟳ rebuild report</button>
         <!-- Compares this run's metrics against the newest earlier run of the
              same model. The convenience baseline is for reading, not for
              gating: CI names its baseline (see docs/regression.md). -->
-        <button class="btn link" id="btn-run-compare" data-i18n="runs_compare">⇄ compare with the previous run</button>
+        <button class="btn ghost" id="btn-run-compare" data-i18n="runs_compare">⇄ compare with the previous run</button>
         <span class="hint" id="run-action-hint"></span>
       </div>
       <div id="run-compare" class="run-compare" hidden></div>
@@ -662,6 +955,8 @@
 
 <script src="/static/vendor/xterm.js"></script>
 <script src="/static/vendor/addon-fit.js"></script>
+<script src="/static/i18n.js"></script>
+<script src="/static/ui.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

@@ -1,0 +1,112 @@
+/* Evidence pages: the run browser, the run sheet, and the three documents a
+   run sheet opens with — evidence manifest, traceability chain, regression
+   comparison. Nothing here changes a run; it is all a reader. */
+
+/* ------------------------------------------------------------- run table */
+/* when · model · procedure · verdict · actions */
+#runs-table > * > tr > :nth-child(1) { width: 22%; }
+#runs-table > * > tr > :nth-child(2) { width: 18%; }
+#runs-table > * > tr > :nth-child(3) { width: 16%; }
+#runs-table > * > tr > :nth-child(4) { width: 20%; }
+#runs-table > * > tr > :nth-child(5) { width: 24%; }
+
+.runs-when b { display: block; font-weight: 600; white-space: nowrap; }
+.runs-id {
+  display: block; font-size: var(--fs-micro); color: var(--dim);
+  font-family: var(--mono);
+}
+.runs-proc { color: var(--muted); font-family: var(--mono); font-size: var(--fs-xs); }
+.runs-dur { color: var(--dim); font-size: var(--fs-xs); margin-left: 8px;
+            font-variant-numeric: tabular-nums; }
+/* The controls a run offers, right-aligned so they are in the same place on
+   every row.
+   Deliberately NOT `display: flex` on the cell itself: a table cell that is a
+   flex container stops taking part in column sizing, so the column is measured
+   as if it were empty and the buttons wrap into a three-line stack. The cell
+   stays a table cell and its contents are inline. */
+.dtable > * > tr > td.runs-actions,
+td.runs-actions { text-align: right; white-space: nowrap; }
+.runs-actions > * { display: inline-flex; vertical-align: middle; }
+.runs-actions > * + * { margin-left: 6px; }
+.runs-adv { font-size: var(--fs-micro); color: var(--dim); white-space: nowrap; }
+.runs-adv.on { color: var(--warn); }
+.runs-adv.pending { color: var(--dim); font-style: italic; }
+.runs-more { margin: 8px 10px; align-self: flex-start; }
+
+/* The classified reason a run did not pass, beside its verdict badge. */
+.runs-why {
+  display: inline-block;
+  font-size: var(--fs-micro); text-transform: uppercase; letter-spacing: .6px;
+  padding: 0 4px; margin-left: 6px; border-radius: var(--r);
+  border: 1px solid currentColor;
+}
+.runs-why.acceptance { color: var(--danger); }
+.runs-why.vehicle_readiness { color: var(--warn); }
+.runs-why.environment, .runs-why.infrastructure { color: var(--dim); }
+.runs-why.evidence, .runs-why.regression { color: #a37ec4; }
+
+/* -------------------------------------------------------------- run sheet */
+/* A run id is an identifier, so it is shown exactly as it is written on disk.
+   The sheet header uppercases its title by default, which would silently
+   rewrite the one string in this dialog that has to match a directory name. */
+#sheet-run > .sheet > header h2 {
+  font-family: var(--mono); color: var(--text); text-transform: none;
+  letter-spacing: .2px;
+}
+.run-actions { padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.run-actions .hint { margin: 0; }
+
+.run-plots { display: grid; gap: 10px; margin: 12px 0; }
+.run-plots img {
+  width: 100%; border: 1px solid var(--line-2); border-radius: var(--r);
+  background: #fff;
+}
+pre.report {
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  font-family: var(--mono); font-size: var(--fs-sm); line-height: 1.55;
+  color: var(--text);
+  background: var(--well); border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  padding: 12px; margin: 0; max-height: 52vh; overflow-y: auto;
+}
+
+/* ------------------------------------------------ evidence & trace blocks */
+.run-evidence, .run-trace, .run-compare {
+  margin: 12px 0; padding: 10px 12px;
+  border: 1px solid var(--line-2); border-radius: var(--r);
+  background: var(--panel-2);
+}
+.run-evidence h3, .run-trace h3 {
+  margin: 0 0 6px; font-size: var(--fs-xs); text-transform: uppercase;
+  letter-spacing: 1.1px; color: var(--muted);
+}
+.run-evidence .ok { color: var(--ok); }
+.run-evidence .bad, .run-trace .bad { color: var(--danger); }
+.run-evidence small, .run-trace small { color: var(--dim); }
+.run-trace code, .run-evidence code {
+  font-family: var(--mono); font-size: var(--fs-xs); color: var(--muted);
+}
+.run-trace ul { margin: 6px 0 0; padding-left: 18px; font-size: var(--fs-sm); }
+
+/* ----------------------------------------------------- regression compare */
+/* Deliberately plain: the verdict words carry the colour and nothing else
+   does, so `degraded` is the only thing that shouts. */
+.run-compare table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.run-compare th, .run-compare td {
+  text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.run-compare th {
+  color: var(--dim); font-weight: 600; font-size: var(--fs-micro);
+  text-transform: uppercase; letter-spacing: .8px;
+}
+.run-compare td.num { text-align: right; font-variant-numeric: tabular-nums;
+                      font-family: var(--mono); }
+.run-compare .v-degraded { color: var(--danger); font-weight: 600; }
+.run-compare .v-improved { color: var(--ok); }
+.run-compare .v-unchanged { color: var(--muted); }
+.run-compare .v-incomparable { color: var(--dim); font-style: italic; }
+.run-compare .cmp-head { margin: 0 0 8px; }
+.run-compare .cmp-note { font-size: var(--fs-sm); color: var(--muted); margin: 8px 0 0; }
+.run-compare ul { margin: 4px 0 0; padding-left: 18px; font-size: var(--fs-sm);
+                  color: var(--muted); }

@@ -1,0 +1,67 @@
+/* Base layer: the document, typography defaults and the two rules every
+   other file depends on — box sizing and [hidden]. */
+
+* { box-sizing: border-box; }
+
+/* The application toggles visibility with the `hidden` attribute everywhere.
+   Several components set an explicit `display`, which would otherwise win
+   against the user-agent rule and leave a "hidden" element on screen. This is
+   the single place that settles it. */
+[hidden] { display: none !important; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: var(--fs)/1.45 var(--font);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;              /* each view scrolls itself */
+}
+
+h1, h2, h3, h4 { margin: 0; font-weight: 600; }
+
+a { color: var(--accent); }
+
+code, kbd, pre, .mono { font-family: var(--mono); }
+
+/* Numeric readings line up in columns. Applied wherever a value is a
+   measurement rather than a word. */
+.num, .dtable td.num, .dtable th.num, .ro-value {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------- focus ring */
+/* Visible, one style, everywhere. The navigation is meant to be usable from
+   the keyboard, and an invisible focus ring is the same as no keyboard. */
+:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* --------------------------------------------------------------- scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--line-2); border: 3px solid transparent;
+  background-clip: content-box; border-radius: 6px;
+}
+*::-webkit-scrollbar-thumb:hover { background-color: var(--line-3); background-clip: content-box; }
+
+/* ------------------------------------------------------------- text bits */
+.hint {
+  color: var(--muted); font-size: var(--fs-sm); margin: 6px 0 0;
+  line-height: 1.5;
+}
+.hint:empty { display: none; }
+.note { font-size: var(--fs-sm); color: var(--muted); }
+.path {
+  font-family: var(--mono); font-size: var(--fs-xs); color: var(--dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 46ch;
+}

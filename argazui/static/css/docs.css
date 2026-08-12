@@ -1,0 +1,111 @@
+/* The documentation portal, as a module page: a tree on the left, one
+   repository document on the right. It manages its own scrolling, so the
+   navigation stays put while a long document moves. */
+
+#sheet-docs .docs-body {
+  display: grid; grid-template-columns: 272px 1fr;
+  height: 100%; min-height: 0;
+}
+.docs-nav {
+  display: flex; flex-direction: column; min-height: 0;
+  padding: 10px; gap: 2px;
+  border-right: 1px solid var(--line-2); background: var(--panel);
+}
+.docs-search { width: 100%; }
+.docs-searchhint { margin: 5px 2px 4px; font-size: var(--fs-xs); }
+.docs-tree { overflow-y: auto; min-height: 0; padding-right: 2px; }
+.docs-group {
+  margin: 12px 0 3px; font-size: var(--fs-micro); letter-spacing: 1.1px;
+  text-transform: uppercase; color: var(--dim);
+  border-top: 1px solid var(--line); padding-top: 8px;
+}
+.docs-tree > .docs-group:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
+.docs-link {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  background: none; border: 0; border-left: 2px solid transparent;
+  color: var(--text); font: inherit; font-size: var(--fs-sm);
+  padding: 4px 8px;
+}
+.docs-link:hover { background: var(--panel-2); }
+.docs-link.active {
+  background: var(--accent-bg); border-left-color: var(--accent);
+}
+.docs-link small {
+  display: block; color: var(--dim); font-size: var(--fs-micro);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.docs-link.missing { color: var(--warn); }
+.docs-heading {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  background: none; border: 0; color: var(--muted); font: inherit;
+  font-size: var(--fs-xs); padding: 1px 8px 1px 20px;
+}
+.docs-heading.deep { padding-left: 32px; }
+.docs-heading:hover { color: var(--accent); }
+
+.docs-page {
+  min-width: 0; overflow-y: auto; padding: 18px 26px 40px;
+  background: var(--bg);
+}
+.docs-notice {
+  margin: 0 0 14px; padding: 7px 10px; font-size: var(--fs-sm);
+  border: 1px solid var(--line-2); border-left: 2px solid var(--warn);
+  border-radius: var(--r); color: var(--muted); background: var(--panel-2);
+}
+.docs-source {
+  margin-top: 24px; border-top: 1px solid var(--line); padding-top: 8px;
+  font-size: var(--fs-xs);
+}
+
+/* ----------------------------------------------------- rendered markdown */
+.docs-content { font-size: var(--fs); line-height: 1.62; max-width: 108ch; }
+.docs-content h1 {
+  font-size: 17px; margin: 0 0 12px; letter-spacing: .2px;
+  padding-bottom: 7px; border-bottom: 1px solid var(--line-2);
+}
+.docs-content h2 {
+  font-size: var(--fs); margin: 24px 0 7px; padding-bottom: 4px;
+  text-transform: uppercase; letter-spacing: .9px; color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+.docs-content h3 { font-size: var(--fs); margin: 16px 0 5px; color: var(--text); }
+.docs-content h4, .docs-content h5, .docs-content h6 {
+  font-size: var(--fs-sm); margin: 12px 0 4px; color: var(--muted);
+}
+.docs-content p { margin: 0 0 9px; }
+.docs-content ul, .docs-content ol { margin: 0 0 9px; padding-left: 22px; }
+.docs-content li { margin-bottom: 3px; }
+.docs-content code {
+  background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: var(--r); padding: 0 4px; font-size: var(--fs-xs);
+  font-family: var(--mono);
+}
+.docs-content pre {
+  background: var(--well); border: 1px solid var(--line-2);
+  border-radius: var(--r); padding: 10px 12px; overflow-x: auto; margin: 0 0 12px;
+  font-size: var(--fs-sm); line-height: 1.5;
+}
+.docs-content pre code { background: none; border: 0; padding: 0; }
+.docs-content blockquote {
+  margin: 0 0 12px; padding: 2px 0 2px 11px; color: var(--muted);
+  border-left: 2px solid var(--line-2);
+}
+.docs-content table {
+  width: 100%; border-collapse: collapse; font-size: var(--fs-sm);
+  margin: 0 0 14px; display: block; overflow-x: auto;
+}
+.docs-content th, .docs-content td {
+  border: 1px solid var(--line); padding: 4px 8px; text-align: left;
+  vertical-align: top;
+}
+.docs-content th {
+  background: var(--panel-2); color: var(--muted);
+  font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .7px;
+}
+.docs-content hr { border: 0; border-top: 1px solid var(--line); margin: 18px 0; }
+.docs-content :target { scroll-margin-top: 12px; }
+.docs-content mark { background: #3c4520; color: var(--text); border-radius: var(--r); }
+
+@media (max-width: 1080px) {
+  #sheet-docs .docs-body { grid-template-columns: 200px 1fr; }
+}

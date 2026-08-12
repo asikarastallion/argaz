@@ -1,0 +1,108 @@
+/* Verification pages: procedures, scenarios, campaigns, experiments, coverage.
+   They all render the same shape of thing — a declaration, what was run
+   against it, and what may be concluded — so they share one rule set. Two
+   would drift, and the numbers under them would stop meaning the same. */
+
+/* ------------------------------------------------------------ procedures */
+.proc-detail-empty { color: var(--dim); font-size: var(--fs-sm); padding: 4px 0; }
+
+.proc-doc { display: flex; flex-direction: column; gap: 12px; }
+.proc-doc .proc-id {
+  font-family: var(--mono); font-size: var(--fs-xs); color: var(--dim);
+}
+.proc-doc .proc-name { font-size: var(--fs); font-weight: 600; }
+.proc-doc .proc-desc { color: var(--muted); font-size: var(--fs-sm); margin: 0; }
+.proc-doc ol, .proc-doc ul { margin: 0; padding-left: 20px; }
+.proc-doc li { margin: 2px 0; font-size: var(--fs-sm); }
+.proc-doc .crit { color: var(--text); }
+.proc-doc code { font-family: var(--mono); font-size: var(--fs-xs); color: var(--muted); }
+
+/* ------------------------------------------------------------- scenarios */
+.scen-list { display: flex; flex-direction: column; gap: 8px; }
+.scen {
+  border: 1px solid var(--line); border-left: 2px solid var(--warn);
+  border-radius: var(--r); background: var(--panel-2);
+  padding: 8px 10px;
+  display: grid; grid-template-columns: 1fr auto; gap: 4px 12px;
+  align-items: center;
+}
+.scen-head { display: flex; gap: 10px; align-items: baseline; }
+.scen-head b { font-size: var(--fs-sm); }
+.scen-id { font-family: var(--mono); font-size: var(--fs-micro); color: var(--dim); }
+.scen-what { grid-column: 1; font-size: var(--fs-sm); color: var(--muted); }
+.scen-faults {
+  grid-column: 1; font-family: var(--mono); font-size: var(--fs-xs);
+  color: var(--warn);
+}
+.scen .btn { grid-column: 2; grid-row: 1 / span 3; align-self: center; }
+
+/* ------------------------------------------------------- column proportions */
+/* Declared per list, in the file that owns the page. */
+/* Column 4 carries "not covered", which in Turkish is one 11-letter word. */
+#proc-table > * > tr > :nth-child(1) { width: 42%; }
+#proc-table > * > tr > :nth-child(2) { width: 14%; }
+#proc-table > * > tr > :nth-child(3) { width: 20%; }
+#proc-table > * > tr > :nth-child(4) { width: 24%; }
+#camp-table > * > tr > :nth-child(1) { width: 40%; }
+#camp-table > * > tr > :nth-child(4) { width: 8%; }
+#camp-table > * > tr > :nth-child(5) { width: 12%; }
+#exp-table  > * > tr > :nth-child(1) { width: 44%; }
+#exp-table  > * > tr > :nth-child(2) { width: 10%; }
+#exp-table  > * > tr > :nth-child(5) { width: 16%; }
+#cov-table  > * > tr > :nth-child(1) { width: 34%; }
+#cov-table  > * > tr > :nth-child(2) { width: 12%; }
+#cov-table  > * > tr > :nth-child(3) { width: 22%; }
+
+/* The fault catalogue is four columns of prose and identifiers rather than a
+   list of short facts, so it gets proportions of its own. */
+#fault-table > * > tr > :nth-child(1) { width: 21%; }
+#fault-table > * > tr > :nth-child(2) { width: 22%; }
+#fault-table > * > tr > :nth-child(3) { width: 35%; }
+#fault-table > * > tr > :nth-child(4) { width: 22%; }
+#fault-table .mono { font-family: var(--mono); font-size: var(--fs-xs); }
+#fault-table a { color: var(--accent); }
+
+/* --------------------------------------- campaign / experiment / coverage */
+/* The box a campaign, an experiment or an uncovered list opens into.
+   Only a failed criterion is coloured. Everything else is deliberately quiet:
+   in a document whose whole subject is what may and may not be claimed, the
+   one thing that should shout is the thing that did not hold. */
+.cmp {
+  padding: 10px; border-top: 1px solid var(--line-2); overflow-x: auto;
+  font-size: var(--fs-sm);
+}
+.cmp > b { font-size: var(--fs); }
+.cmp h4 {
+  margin: 14px 0 5px; font-size: var(--fs-micro); color: var(--muted);
+  text-transform: uppercase; letter-spacing: 1.1px;
+  border-bottom: 1px solid var(--line); padding-bottom: 3px;
+}
+.cmp .v-failed, .cmp .v-degraded { color: var(--danger); font-weight: 600; }
+.cmp .v-passed { color: var(--ok); }
+.cmp .v-flaky, .cmp .v-incomplete, .cmp .v-not-judged { color: var(--warn); }
+.cmp .v-not-run { color: var(--dim); font-style: italic; }
+.cmp .hint { margin-top: 6px; }
+
+/* A statement that the things being compared were not identical. Amber rule,
+   never red: it qualifies the numbers, it does not condemn them. */
+.cmp-drift, .run-compare .cmp-drift {
+  border-left: 2px solid var(--warn); padding: 4px 0 4px 9px; margin: 8px 0;
+  color: var(--muted); font-size: var(--fs-sm);
+}
+
+.exp-limits { margin: 6px 0 0; padding-left: 18px; font-size: var(--fs-sm);
+              color: var(--muted); }
+.exp-limits li { margin: 4px 0; }
+.exp-limits b { color: var(--text); }
+
+#cov-detail code, #cov-table code { font-family: var(--mono); font-size: var(--fs-xs); }
+
+/* Coverage reads as a matrix: a fraction, a bar, and the names it is short of.
+   The bar is a proportion of a declared set, not a score. */
+.covbar {
+  display: block; width: 90px; height: 4px; background: var(--line);
+  border-radius: 1px; overflow: hidden; margin: 4px 0 0 auto;
+}
+.covbar i { display: block; height: 100%; background: var(--accent); }
+.covbar.full i { background: var(--ok); }
+.covbar.none i { background: var(--line-2); }

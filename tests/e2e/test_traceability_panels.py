@@ -19,7 +19,7 @@ import urllib.error
 
 import pytest
 
-from harness import assert_no_console_errors, open_page
+from harness import assert_no_console_errors, open_page, open_section
 
 pytestmark = [pytest.mark.e2e, pytest.mark.tier1]
 
@@ -31,7 +31,7 @@ def test_the_coverage_panel_names_what_was_not_covered(browser_page, server):
     A percentage on its own is an invitation to stop reading, so the panel has
     to make the names reachable rather than showing a number and a bar.
     """
-    page = open_page(browser_page, server)
+    page = open_section(open_page(browser_page, server), "coverage")
     panel = page.locator("#cov-panel")
     assert panel.is_visible()
 
@@ -54,7 +54,7 @@ def test_the_coverage_panel_names_what_was_not_covered(browser_page, server):
 
 
 def test_the_coverage_panel_switches_language(browser_page, server):
-    page = open_page(browser_page, server)
+    page = open_section(open_page(browser_page, server), "coverage")
     page.click('[data-set-lang="tr"]')
     page.wait_for_timeout(600)
     assert "kapsam" in page.locator("#cov-panel h2").inner_text().lower()

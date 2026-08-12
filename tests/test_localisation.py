@@ -25,7 +25,9 @@ from argazui.i18n import CATALOG, DEFAULT_LANG, LANGUAGES
 pytestmark = pytest.mark.tier1
 
 ROOT = Path(__file__).resolve().parent.parent
-APP_JS = ROOT / "argazui" / "static" / "app.js"
+# The catalogue is a table somebody edits, so it lives in its own file rather
+# than inside the program that reads it. This is that file.
+I18N_JS = ROOT / "argazui" / "static" / "i18n.js"
 INDEX_HTML = ROOT / "argazui" / "static" / "index.html"
 
 # Keys sit at the start of a line or after a comma, always followed by a
@@ -45,11 +47,11 @@ def _block(source: str, lang: str) -> str:
             depth -= 1
             if depth == 0:
                 return source[index:position + 1]
-    raise AssertionError(f"the {lang} catalogue in app.js is not brace-balanced")
+    raise AssertionError(f"the {lang} catalogue in i18n.js is not brace-balanced")
 
 
 def interface_catalogue() -> dict[str, set]:
-    source = APP_JS.read_text(encoding="utf-8")
+    source = I18N_JS.read_text(encoding="utf-8")
     return {lang: set(_KEY.findall(_block(source, lang))) for lang in LANGUAGES}
 
 
@@ -80,7 +82,7 @@ def test_no_backend_message_is_the_english_text_pasted_into_turkish():
 def test_the_interface_catalogue_has_the_same_keys_in_both_languages():
     catalogue = interface_catalogue()
     english, turkish = catalogue["en"], catalogue["tr"]
-    assert english, "the English catalogue could not be read out of app.js"
+    assert english, "the English catalogue could not be read out of i18n.js"
     assert not english - turkish, f"missing from Turkish: {sorted(english - turkish)}"
     assert not turkish - english, f"only in Turkish: {sorted(turkish - english)}"
 

@@ -643,8 +643,9 @@ of the same Dockerfile fly the same autopilot. Definitions are under
 
 ## Documentation
 
-All of it is also in the interface, under **DOCS** in the top bar: a tree, a
-search across every heading, and deep links. The portal serves these files —
+All of it is also in the interface, under **Documentation** in the navigation
+rail: a tree, a search across every heading, and deep links. The portal serves
+these files —
 it does not copy them — so there is exactly one place to edit any of it.
 
 | Document | Contents |

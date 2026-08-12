@@ -7,792 +7,7 @@
   // ------------------------------------------------------------------- i18n
   // English is the default; the EN/TR switch in the top bar changes both the
   // interface and the backend messages (see POST /api/lang).
-  const I18N = {
-    en: {
-      tagline: "ArduPilot SITL + Gazebo control panel",
-      nav_help: "HOW TO USE", nav_about: "CONTACT", nav_docs: "DOCS",
-      nav_help_title: "How to Use", nav_about_title: "Contact & Project",
-      nav_docs_title: "Engineering documentation",
-
-      docs_search: "Search pages and headings…",
-      docs_search_hint: "{pages} pages. Search matches page titles and every " +
-                        "heading inside them.",
-      docs_search_results: "{pages} page(s), {headings} heading(s) match " +
-                           "\"{query}\".",
-      docs_search_none: "Nothing matches \"{query}\".",
-      docs_loading: "loading…",
-      docs_failed: "This page could not be loaded: {error}",
-      docs_missing: "unavailable",
-      docs_source: "Source: {source} — this page is that file in the " +
-                   "repository, shown here. Edit the file to change it.",
-      docs_source_section: "Source: {source}, section “{section}” — this page " +
-                           "is that part of the file, shown here. Edit the " +
-                           "file to change it.",
-      docs_source_generated: "Generated from the page registry in " +
-                             "argazui/argazui/docs.py. It states no technical " +
-                             "fact of its own.",
-      docs_untranslated: "This page has no Turkish source. What follows is the " +
-                         "canonical English document in the repository — a " +
-                         "stale translation of a technical page would be worse " +
-                         "than an honest English one.",
-      docs_link_file: "file",
-      selected_model: "SELECTED MODEL",
-      click_to_enlarge: "click to enlarge",
-      pick_for_preview: "select a model to preview",
-      no_preview: "no image for this model",
-      none_selected: "— none selected —",
-      btn_start: "▶ START", btn_stop: "■ STOP",
-      btn_rescan: "⟳ rescan models",
-      rescan_title: "Re-scan the SITL_Models documentation",
-      quick_commands: "Quick Commands",
-      mission_script: "Mission Script",
-      btn_run_script: "▶ RUN SCRIPT", btn_refresh: "⟳ refresh",
-      terminal: "Terminal",
-      terminal_sub: "real bash sessions — you can type here too",
-      tab_sim: "SIMULATION", tab_shell: "COMMAND / SCRIPT",
-      cancel: "Cancel", confirm_yes: "Yes, apply", confirm: "Confirm",
-
-      vehicle: "Vehicle", mode: "Mode", alt: "Alt", spd: "Spd",
-      armed: "ARMED", disarmed: "DISARMED",
-      link_connected: "MAVLink: connected (sys {sysid})",
-      link_none: "MAVLink: —",
-      ready_unknown: "READY: —", ready_ok: "READY ✓", ready_no: "NOT READY",
-      ready_t_unknown: "Pre-arm check status appears here once the vehicle connects.",
-      ready_t_ok: "Pre-arm checks passed — you can ARM.",
-      ready_t_no: "The autopilot is not ready yet (sensors settling / waiting for " +
-                  "home). ARM will be rejected right now.",
-      t_model: "Running model",
-      t_link: "ArgazUI's MAVLink connection (port 14550)",
-      t_mode: "Active flight mode",
-      t_armed: "Whether the motors are armed",
-      t_alt: "Altitude relative to the launch point",
-      t_spd: "Ground speed",
-
-      no_models: "— no models —",
-      needs_review: " ⚠ verify manually",
-      cls: "class", method: "method", env: "env",
-      rviz_yes: "RViz/DDS: yes", rviz_no: "RViz/DDS: no",
-      ctx_none: "(no model selected)", ctx_idle: " — vehicle not running",
-      hint_mode_settling: "waiting for the mode to settle — a command sent now would be silently overwritten by the flight-mode switch",
-      hint_pick: "Pick a model. The buttons change with the vehicle class " +
-                 "(Copter/Plane/VTOL).",
-      hint_buttons: "Buttons are sent over MAVLink (port 14550). Results appear in " +
-                    "the terminal. Edit config/buttons.json to add your own.",
-      hint_scripts: "Scripts must connect to the MAVLink output on port {script} " +
-                    "(the interface uses {ui}, so they do not clash).",
-      no_scripts: "— scripts/ folder is empty —",
-      live_plot: "LIVE PLOT",
-      live_field_address: "Address", live_field_port: "Port",
-      live_copy: "⧉", live_copy_host: "⧉",
-      live_copy_t: "copy the port", live_copy_host_t: "copy the address",
-      live_copied: "{what} copied to the clipboard",
-      live_copy_failed: "could not copy — the value is {what}",
-      live_idle: "opens when a vehicle starts",
-      live_open: "streaming · {n} messages",
-      live_waiting: "open, nothing sent yet",
-      live_error: "not sending: {error}",
-      live_hint: "PlotJuggler → Streaming → UDP Server → Start. Put {host} in " +
-                 "Address and {port} in Port — two separate boxes — and set " +
-                 "Message Protocol to JSON. One JSON object per MAVLink " +
-                 "message, so every field becomes its own series " +
-                 "(ATTITUDE/roll, VFR_HUD/alt …). The port is open only while " +
-                 "a vehicle runs.",
-      live_warn: "⚠ Type only {host} in PlotJuggler's Address box — not " +
-                 "\"{host}:{port}\", and not blank. Either of those parses as " +
-                 "no address, and PlotJuggler then shows \"Couldn't bind to " +
-                 "IPv4 UDP server\" even though it is receiving fine. Pressing " +
-                 "OK on that dialog is what stops the stream: close it with " +
-                 "the window ✕, or Stop and reconnect with a bare address.",
-      live_title: "ArgazUI sends live telemetry to this loopback UDP port; " +
-                  "PlotJuggler listens on it. Nothing has to be listening — " +
-                  "the datagrams simply go nowhere.",
-      confirm_cmds: "These commands will be sent:",
-      confirm_stop: "The running Gazebo / SITL / MAVProxy processes will be shut down.",
-      ui_connected: "interface connected.",
-      ui_lost: "connection lost, retrying in 2 s...",
-      proc_title: "Procedure",
-      proc_cancel: "✕ cancel",
-      proc_running: "running...",
-      proc_passed: "PASSED — every acceptance criterion was met",
-      proc_failed: "FAILED",
-      proc_accept: "Acceptance criteria",
-      // The third criterion outcome. Not a failure and not a pass: the
-      // telemetry the criterion rests on never arrived, so nothing was
-      // measured. Shown as a tooltip on the mark; the detail beside it names
-      // the signal and arrives from the backend already translated.
-      proc_unevaluable: "not judged — nothing was measured for this criterion",
-      proc_alternatives: "alternatives:",
-      proc_source: "from",
-      confirm_proc: "This runs the procedure below. Each step is verified "
-        + "against the vehicle's actual state, not just the ACK.",
-      proc_no_match: "no procedure fits this vehicle",
-      hint_sim: "Gazebo / SITL / MAVProxy run here. For models launched with " +
-                "sim_vehicle.py you can type MAVProxy commands directly.",
-      hint_shell: "Plain bash shell — mission scripts run here, and you can type " +
-                  "any command.",
-      runs_title: "Flight Runs",
-      runs_none: "No runs yet. Every START…STOP writes one here: the console log, " +
-                 "the MAVLink events, the parameters, the dataflash log and a report.",
-      runs_hint: "One directory per session under {root}. A run is archived when you " +
-                 "press STOP; the report is generated from the autopilot's own " +
-                 "dataflash log a few seconds later.",
-      runs_recording: "recording…",
-      runs_show_more: "⌄ show {hidden} older run(s) — {total} in total",
-      runs_show_less: "⌃ show only the {shown} most recent",
-      runs_open: "report",
-      runs_download: "↓ dataflash .BIN",
-      runs_copy_mavexplorer: "⧉ copy MAVExplorer command",
-      runs_copied: "copied to the clipboard",
-      runs_copy_failed: "could not copy — the command is: {cmd}",
-      runs_rebuild: "⟳ rebuild report",
-      runs_rebuilding: "rebuilding the report…",
-      runs_compare: "⇄ compare with the previous run",
-      runs_comparing: "comparing…",
-      runs_compare_failed: "could not compare: {error}",
-      cmp_title: "Compared against {baseline}",
-      cmp_passed: "No regression — no metric degraded past its threshold.",
-      cmp_regressed: "REGRESSION — at least one metric degraded past its threshold.",
-      cmp_incomparable: "Not comparable — these two runs were not produced " +
-                        "under conditions that make their numbers mean the " +
-                        "same thing, so nothing was compared.",
-      cmp_blocking: "{field}: {reason} (baseline {baseline}, current {current})",
-      cmp_drift: "Configuration differences: a comparison across these " +
-                 "measures the change as much as it measures the aircraft.",
-      cmp_metric: "Metric", cmp_baseline: "Baseline", cmp_current: "Current",
-      cmp_delta: "Δ", cmp_relative: "Δ%", cmp_verdict: "Verdict",
-      cmp_v_improved: "improved", cmp_v_degraded: "degraded",
-      cmp_v_unchanged: "unchanged", cmp_v_incomparable: "incomparable",
-      cmp_note: "Metrics are measurements, not acceptance criteria. A " +
-                "regression here does not mean a criterion failed — it means " +
-                "the aircraft is doing the same thing measurably less well " +
-                "than the baseline did.",
-      runs_no_report: "No report for this run yet.",
-      runs_no_bin: "this run has no dataflash log",
-      runs_advisories: "{n} advisory",
-      runs_clean: "no advisories",
-      runs_adv_pending: "advisories: pending",
-      runs_adv_title: "Health findings from the dataflash log (vibration, EKF, " +
-                      "attitude tracking). They never change a run's pass/fail " +
-                      "result — that comes from the procedure's acceptance criteria.",
-      st_passed: "PASSED", st_failed: "FAILED", st_error: "ERROR",
-      st_no_procedure: "no procedure", st_incomplete: "incomplete",
-      st_passed_title: "Every acceptance criterion of every procedure held.",
-      st_failed_title: "A step or an acceptance criterion did not hold.",
-      st_error_title: "The procedure could not be evaluated — a fault in ArgazUI " +
-                      "or the link, not a verdict about the aircraft.",
-      st_no_procedure_title: "The model was started and stopped without running a " +
-                             "procedure, so nothing was asserted.",
-      runs_files: "Files in this run: {files}",
-
-      // ------------------------------------------------- v1.5: traceability
-      ev_title: "Evidence manifest",
-      ev_complete: "Complete — every required artefact is in this run's directory.",
-      ev_incomplete: "**Incomplete** — {n} required artefact(s) are missing, so " +
-                     "the claims in this run rest on evidence that is not here.",
-      ev_counts: "{present} of {expected} expected artefacts present; " +
-                 "{explained} absent with a stated reason.",
-      ev_unexplained: "{n} optional artefact(s) are absent with no reason " +
-                      "recorded. \"Absent because matplotlib is missing\" and " +
-                      "\"absent\" are different facts.",
-      ev_artefact: "Artefact", ev_level: "Level", ev_present: "Present",
-      ev_size: "Size", ev_producer: "Produced by",
-      ev_yes: "yes", ev_no: "no", ev_missing: "MISSING",
-      ev_none: "This run has no evidence manifest — it predates ArgazUI 1.5.",
-
-      tr_title: "Traceability",
-      tr_intent: "Intent", tr_manual: "flown by hand — no test asserts this",
-      tr_verdict: "Verdict", tr_ok: "Every link in the chain resolves.",
-      tr_problems: "{n} problem(s) in the chain — an identifier or an evidence " +
-                   "reference does not resolve.",
-      tr_derived: "{n} identifier(s) come from a position rather than a " +
-                  "declaration, so they would change if a line were inserted " +
-                  "above them.",
-      tr_step: "step", tr_criterion: "criterion", tr_fault: "fault",
-      tr_metric: "metric", tr_evaluated: "evaluated", tr_unevaluated: "not evaluated",
-      tr_measured: "measured", tr_unmeasured: "not measured",
-      tr_none: "This run has no result.json, so there is no chain to follow.",
-
-      cov_title: "Coverage",
-      cov_hint: "What this project declares and what has actually been run. " +
-                "Not a test count: that number goes up when somebody adds a " +
-                "test and never down when somebody adds a procedure nobody " +
-                "runs. The uncovered lists are the point.",
-      cov_dimension: "Dimension", cov_covered: "Covered", cov_declared: "Declared",
-      cov_uncovered: "Not covered", cov_show: "show",
-      cov_failed: "Coverage could not be read: {error}",
-      cov_none: "No coverage information is available.",
-      cov_all: "All {n} covered.",
-      cov_unattributed: "{n} evaluated criterion result(s) come from runs " +
-                        "recorded before criterion identifiers existed. They " +
-                        "are not matched by position — a coverage figure " +
-                        "inflated by a guess is what this project exists to " +
-                        "remove.",
-
-      // ------------------------------------------------- v1.4: why it failed
-      // The classified category, never the raw message. "acceptance" and
-      // "environment" send a reader to two different files, which is the whole
-      // reason the category exists.
-      fail_title: "Why it did not pass",
-      fail_environment: "environment", fail_vehicle_readiness: "vehicle readiness",
-      fail_procedure: "procedure", fail_acceptance: "acceptance criterion",
-      fail_evidence: "evidence", fail_regression: "regression",
-      fail_infrastructure: "infrastructure",
-      fail_note: "Only “acceptance criterion” is a verdict about the aircraft. " +
-                 "The others say the simulation, the tooling or the evidence " +
-                 "went wrong.",
-
-      // ------------------------------------------------ v1.4: scenarios
-      scen_title: "Scenarios (fault injection)",
-      scen_none: "No scenario matches the connected vehicle. Scenarios live in " +
-                 "argazui/procedures/ with role: scenario.",
-      scen_idle: "Start a vehicle to see which scenarios apply to it.",
-      scen_run: "▶ RUN SCENARIO",
-      scen_faults: "{n} declared fault(s)",
-      scen_warn: "A scenario deliberately degrades the SIMULATED vehicle — the " +
-                 "GPS, or this program's own link to it. Everything it changes " +
-                 "is restored when the run ends, and nothing here can reach " +
-                 "hardware.",
-      scen_fault_line: "{fault} on {target}, held {duration}, injected after " +
-                       "step {step}",
-      proc_faults: "Injected faults",
-      fault_injected: "injected",
-      fault_cleared: "cleared",
-      fault_not_judged: "not judged",
-      link_fault_on: "LINK FAULT ACTIVE — telemetry is being discarded on purpose",
-
-      // ------------------------------------------------ v1.4: campaigns
-      camp_title: "Repeatability campaign",
-      camp_model: "Model", camp_procedure: "Procedure", camp_runs: "Runs",
-      camp_start: "▶ RUN CAMPAIGN", camp_cancel: "✕ cancel campaign",
-      camp_hint: "Flies the same procedure on the same model N times, each with " +
-                 "its own run directory and its own evidence, and reports the " +
-                 "spread rather than a verdict.",
-      camp_running: "Campaign {id}: run {index} of {total}",
-      camp_idle: "No campaign is running.",
-      camp_none: "No campaign has been recorded yet.",
-      camp_failed: "The campaign could not be started: {error}",
-      camp_started: "Campaign {id} started: {runs} run(s) of {procedure}.",
-      camp_open: "open",
-      camp_col_id: "Campaign", camp_col_model: "Model",
-      camp_col_procedure: "Procedure", camp_col_runs: "Runs",
-      camp_result: "{passed} passed, {failed} failed, {flaky} flaky of {total}",
-      camp_rate: "clean pass rate {rate}%",
-      camp_sample: "{n} run(s) is {n} run(s). No confidence interval or " +
-                   "reliability figure is computed from a sample this size.",
-      camp_metric: "Metric", camp_n: "n", camp_mean: "Mean", camp_sd: "Std dev",
-      camp_min: "Min", camp_max: "Max",
-      camp_sd_none: "— (fewer than 3 measured values: not enough runs to say, " +
-                    "which is not the same as no variation)",
-      camp_drift: "The iterations were not identical, so any spread below " +
-                  "measures the difference as much as it measures the aircraft.",
-
-      // ----------------------------------------------- v1.6: experiments
-      // An experiment is several campaigns in sequence, so every string here
-      // names the ARM. Losing track of which side of a comparison the aircraft
-      // is on is the one confusion this panel exists to prevent.
-      exp_title: "Experiments",
-      exp_hint: "A controlled comparison declared in a file: one model, one or " +
-                "more arms — a procedure flown N times — a stated question, " +
-                "acceptance criteria about the group, and what the answer does " +
-                "not cover. Each arm is flown as an ordinary campaign.",
-      exp_start: "▶ RUN EXPERIMENT", exp_cancel: "✕ cancel experiment",
-      exp_open: "open",
-      exp_idle: "No experiment is running.",
-      exp_running: "Experiment {id}: {done} of {total} run(s) flown.",
-      exp_none: "No experiment is declared in argazui/experiments/.",
-      exp_no_runs: "No experiment has been flown yet.",
-      exp_failed: "The experiment could not be started: {error}",
-      exp_arms: "{n} arm(s), {runs} run(s)",
-      exp_col_id: "Experiment", exp_col_model: "Model", exp_col_policy: "Compares",
-      exp_col_arms: "Arms", exp_col_runs: "Runs", exp_col_flown: "Flown",
-      exp_policy_arms: "arm against arm",
-      exp_policy_baseline: "against its own earlier run",
-      exp_policy_repeats: "nothing — distributions only",
-      exp_never_flown: "declared, never flown",
-      exp_v_passed: "every declared criterion held",
-      exp_v_failed: "a declared criterion did not hold",
-      exp_v_incomplete: "incomplete — something declared was never flown or " +
-                        "never measured",
-      exp_v_not_judged: "nothing was asserted — this experiment declares no " +
-                        "acceptance criteria",
-      exp_v_not_run: "no run carries this experiment id",
-      exp_question: "Question",
-      exp_criteria: "Acceptance criteria",
-      exp_criterion_passed: "held", exp_criterion_failed: "DID NOT HOLD",
-      exp_criterion_unjudged: "not judged",
-      exp_delta: "Δ of means", exp_overlap: "Ranges overlap",
-      exp_yes: "yes", exp_no: "no",
-      exp_basis: "Basis", exp_reference: "Reference", exp_current: "Current",
-      exp_no_stats: "No p-value, confidence interval or effect size is computed " +
-                    "from a sample this size. What is reported is n on both " +
-                    "sides, the two means, their difference, and whether the " +
-                    "observed ranges overlap at all — which is not a " +
-                    "significance test.",
-      exp_limits: "Limitations and non-claims",
-      exp_limits_none: "This experiment declared no limitations of its own, so " +
-                       "only the standing ones apply.",
-      exp_standing: "standing",
-      exp_verification: "Everything here is verification: an implementation met " +
-                        "criteria somebody declared. None of it is validation — " +
-                        "nothing shows the criteria, the model or the question " +
-                        "are representative of anything outside a simulator.",
-
-      // Failure states. A blank readout with no explanation is not acceptable
-      // in a panel someone flies from.
-      panel_failed: "{panel} could not be loaded: {error}. The rest of the page " +
-                    "still works; see the browser console for the full error.",
-      panel_models: "The model list", panel_commands: "Quick Commands",
-      panel_scripts: "The mission script list", panel_runs: "Flight Runs",
-      link_ws_down: "MAVLink: interface offline",
-      link_ws_connecting: "The browser is still connecting to the ArgazUI server. " +
-                          "Nothing on this page is live yet.",
-      link_ws_closed: "The WebSocket to the ArgazUI server is closed (code {code}). " +
-                      "Reconnecting every 2 s. If this persists the server has " +
-                      "stopped — check the terminal it was started from.",
-      link_idle: "MAVLink: not started",
-      link_idle_detail: "No vehicle has been started, so there is no MAVLink link " +
-                        "to make. Pick a model and press START.",
-      link_waiting: "MAVLink: no heartbeat yet",
-      link_waiting_detail: "The vehicle was started but has never sent a heartbeat " +
-                           "on port {port}. Gazebo/SITL may still be booting; watch " +
-                           "the SIMULATION terminal for errors.",
-      link_stale: "MAVLink: silent {age}s",
-      link_stale_detail: "The last heartbeat on port {port} arrived {age} s ago. " +
-                         "The vehicle has stopped talking — check the SIMULATION " +
-                         "terminal.",
-      ws_open: "connected", ws_connecting: "connecting…",
-      ws_closed: "disconnected (code {code}) — retrying",
-      ws_title: "The WebSocket carrying both terminals and the status bar.",
-      why_disabled_no_vehicle: "No vehicle is running. Pick a model and press START.",
-      why_disabled_no_link: "The vehicle is running but ArgazUI has no MAVLink " +
-                            "connection to it yet.",
-      proc_lookup_failed: "The procedure list could not be read from the server " +
-                          "({error}), so this button cannot know what it would run.",
-      hint_buttons_disabled: "Buttons are disabled: {reason}",
-      build_mismatch_title: "⚠ This page and the server it is talking to are " +
-                            "different builds of ArgazUI.",
-      build_mismatch_body: "The server has been running since {since} and reports " +
-                           "build {server}. This page was served by it but was built " +
-                           "from {page}. The interface files are read from disk, so a " +
-                           "server started before your last change keeps answering " +
-                           "with its old API — anything on this page may be wrong " +
-                           "or missing. Restart the server:",
-      build_mismatch_old: "Page build: {page}. The server does not answer " +
-                          "/api/version ({error}), an endpoint that has existed " +
-                          "since ArgazUI 1.1 — so the server is older than the " +
-                          "interface files it just served you from disk, and parts " +
-                          "of this page are calling an API it does not have. " +
-                          "Restart the server:",
-      http_404_hint: "this endpoint does not exist on the server, which may be older " +
-                     "than the interface it served you",
-      build_fix_replace: "Run this — it stops that server and starts a current one. " +
-                         "Copy the whole line; it needs no editing:",
-      build_fix_kill: "This server is too old to tell us where it lives, so stop it " +
-                      "by the port it holds — copy the whole line, it needs no " +
-                      "editing — then start ArgazUI again the way you normally do:",
-      drift_code_title: "⚠ The server is running code that no longer exists on disk.",
-      drift_code_body: "Python is imported once, at startup. Whatever you changed " +
-                       "since then is NOT running, and the API this page is calling " +
-                       "is the old one.",
-      drift_ui_title: "⚠ The interface files have changed since this server started.",
-      drift_ui_body: "You are looking at the new interface files, but they are being " +
-                     "driven by the Python this server loaded at startup, so the page " +
-                     "may be calling an API it does not have.",
-      drift_detail: "Running since {since}; changed since then: {layers}. " +
-                    "Restart the server:",
-      layer_code: "server code", layer_ui: "interface files",
-      layer_procedures: "procedures", layer_config: "configuration",
-      build_unstamped: "(the server did not stamp this page)",
-      build_unstamped_reason: "the server served this page without a build stamp, " +
-                              "which only servers older than ArgazUI 1.1 do",
-    },
-    tr: {
-      tagline: "ArduPilot SITL + Gazebo kontrol paneli",
-      nav_help: "NASIL KULLANILIR", nav_about: "İLETİŞİM", nav_docs: "DOKÜMANTASYON",
-      nav_help_title: "Nasıl Kullanılır", nav_about_title: "İletişim & Proje",
-      nav_docs_title: "Mühendislik dokümantasyonu",
-
-      docs_search: "Sayfa ve başlık ara…",
-      docs_search_hint: "{pages} sayfa. Arama, sayfa başlıklarıyla birlikte " +
-                        "içlerindeki her başlıkta eşleşir.",
-      docs_search_results: "\"{query}\" için {pages} sayfa, {headings} başlık " +
-                           "eşleşti.",
-      docs_search_none: "\"{query}\" ile eşleşen bir şey yok.",
-      docs_loading: "yükleniyor…",
-      docs_failed: "Bu sayfa yüklenemedi: {error}",
-      docs_missing: "erişilemiyor",
-      docs_source: "Kaynak: {source} — bu sayfa, depodaki o dosyanın kendisidir. " +
-                   "Değiştirmek için dosyayı düzenle.",
-      docs_source_section: "Kaynak: {source}, “{section}” bölümü — bu sayfa, o " +
-                           "dosyanın ilgili kısmıdır. Değiştirmek için dosyayı " +
-                           "düzenle.",
-      docs_source_generated: "argazui/argazui/docs.py içindeki sayfa " +
-                             "kaydından üretilir. Kendine ait hiçbir teknik " +
-                             "bilgi barındırmaz.",
-      docs_untranslated: "Bu sayfanın Türkçe kaynağı yok. Aşağıdaki metin, " +
-                         "depodaki asıl İngilizce belgedir — teknik bir " +
-                         "sayfanın eskimiş çevirisi, dürüst bir İngilizce " +
-                         "metinden kötü olurdu.",
-      docs_link_file: "dosya",
-      selected_model: "SEÇİLİ MODEL",
-      click_to_enlarge: "büyütmek için tıkla",
-      pick_for_preview: "önizleme için bir model seç",
-      no_preview: "bu model için görsel yok",
-      none_selected: "— seçilmedi —",
-      btn_start: "▶ BAŞLAT", btn_stop: "■ DURDUR",
-      btn_rescan: "⟳ modelleri yeniden tara",
-      rescan_title: "SITL_Models dokümanlarını yeniden tara",
-      quick_commands: "Hızlı Komutlar",
-      mission_script: "Görev Scripti",
-      btn_run_script: "▶ SCRIPT ÇALIŞTIR", btn_refresh: "⟳ yenile",
-      terminal: "Terminal",
-      terminal_sub: "gerçek bash oturumları — buraya elle de komut yazabilirsin",
-      tab_sim: "SİMÜLASYON", tab_shell: "KOMUT / SCRIPT",
-      cancel: "Vazgeç", confirm_yes: "Evet, uygula", confirm: "Onay",
-
-      vehicle: "Araç", mode: "Mod", alt: "Alt", spd: "Hız",
-      armed: "ARMED", disarmed: "DISARMED",
-      link_connected: "MAVLink: bağlı (sys {sysid})",
-      link_none: "MAVLink: —",
-      ready_unknown: "HAZIR: —", ready_ok: "HAZIR ✓", ready_no: "HAZIR DEĞİL",
-      ready_t_unknown: "Araç bağlanınca ARM öncesi kontrollerin durumu burada görünür.",
-      ready_t_ok: "ARM öncesi kontroller geçti — ARM verebilirsin.",
-      ready_t_no: "Otopilot henüz hazır değil (sensörler oturuyor / ev konumu " +
-                  "bekleniyor). Şimdi ARM verirsen reddedilir.",
-      t_model: "Çalışan model",
-      t_link: "ArgazUI'nin MAVLink bağlantısı (port 14550)",
-      t_mode: "Aktif uçuş modu",
-      t_armed: "Motorların kurulu olup olmadığı",
-      t_alt: "Kalkış noktasına göre irtifa",
-      t_spd: "Yer hızı",
-
-      no_models: "— model yok —",
-      needs_review: " ⚠ elle doğrula",
-      cls: "sınıf", method: "yöntem", env: "env",
-      rviz_yes: "RViz/DDS: var", rviz_no: "RViz/DDS: yok",
-      ctx_none: "(model seçilmedi)", ctx_idle: " — araç çalışmıyor",
-      hint_mode_settling: "mod oturana kadar bekleniyor — şimdi gönderilen komut uçuş modu anahtarı tarafından sessizce ezilir",
-      hint_pick: "Bir model seç. Butonlar aracın sınıfına (Copter/Plane/VTOL) göre " +
-                 "değişir.",
-      hint_buttons: "Butonlar MAVLink üzerinden gönderilir (port 14550). Sonuçlar " +
-                    "terminalde görünür. config/buttons.json ile yeni buton ekleyebilirsin.",
-      hint_scripts: "Scriptler {script} portundaki MAVLink çıkışına bağlanmalı " +
-                    "(arayüz {ui} portunu kullanıyor, çakışmasın).",
-      no_scripts: "— scripts/ klasörü boş —",
-      live_plot: "CANLI GRAFİK",
-      live_field_address: "Adres", live_field_port: "Port",
-      live_copy: "⧉", live_copy_host: "⧉",
-      live_copy_t: "portu kopyala", live_copy_host_t: "adresi kopyala",
-      live_copied: "{what} panoya kopyalandı",
-      live_copy_failed: "kopyalanamadı — değer: {what}",
-      live_idle: "araç başlayınca açılır",
-      live_open: "akıyor · {n} mesaj",
-      live_waiting: "açık, henüz veri gönderilmedi",
-      live_error: "gönderilemiyor: {error}",
-      live_hint: "PlotJuggler → Streaming → UDP Server → Start. Address " +
-                 "kutusuna {host}, Port kutusuna {port} yaz — ikisi ayrı " +
-                 "kutudur — ve Message Protocol'ü JSON yap. Her MAVLink mesajı " +
-                 "bir JSON nesnesi olarak gider, böylece her alan kendi serisi " +
-                 "olur (ATTITUDE/roll, VFR_HUD/alt …). Port yalnızca bir araç " +
-                 "çalışırken açıktır.",
-      live_warn: "⚠ PlotJuggler'ın Address kutusuna yalnızca {host} yaz — " +
-                 "\"{host}:{port}\" değil, boş da değil. İkisi de geçersiz " +
-                 "adres sayılır ve PlotJuggler veriyi sorunsuz aldığı halde " +
-                 "\"Couldn't bind to IPv4 UDP server\" uyarısını gösterir. " +
-                 "Akışı durduran şey o pencerede OK'a basmaktır: pencereyi ✕ " +
-                 "ile kapat ya da Stop deyip düz adresle yeniden bağlan.",
-      live_title: "ArgazUI canlı telemetriyi bu yerel UDP portuna gönderir; " +
-                  "PlotJuggler bu portu dinler. Dinleyen olmak zorunda değil " +
-                  "— paketler o durumda hiçbir yere gitmez.",
-      confirm_cmds: "Şu komutlar gönderilecek:",
-      confirm_stop: "Çalışan Gazebo / SITL / MAVProxy süreçleri kapatılacak.",
-      ui_connected: "arayüz bağlandı.",
-      ui_lost: "bağlantı koptu, 2 sn içinde yeniden denenecek...",
-      proc_title: "Prosedür",
-      proc_cancel: "✕ iptal",
-      proc_running: "çalışıyor...",
-      proc_passed: "GEÇTİ — tüm kabul kriterleri sağlandı",
-      proc_failed: "BAŞARISIZ",
-      proc_accept: "Kabul kriterleri",
-      proc_unevaluable: "değerlendirilmedi — bu kriter için hiçbir şey ölçülmedi",
-      proc_alternatives: "alternatifler:",
-      proc_source: "kaynak",
-      confirm_proc: "Aşağıdaki prosedür çalıştırılacak. Her adım sadece ACK'e "
-        + "değil, aracın gerçek durumuna karşı doğrulanır.",
-      proc_no_match: "bu araca uyan prosedür yok",
-      hint_sim: "Gazebo / SITL / MAVProxy burada çalışır. sim_vehicle.py ile açılan " +
-                "modellerde MAVProxy komutlarını buraya yazabilirsin.",
-      hint_shell: "Boş bash kabuğu — görev scriptleri burada çalışır, elle komut da " +
-                  "yazabilirsin.",
-      runs_title: "Uçuş Koşuları",
-      runs_none: "Henüz koşu yok. Her BAŞLAT…DURDUR buraya bir tane yazar: konsol " +
-                 "kaydı, MAVLink olayları, parametreler, dataflash log ve rapor.",
-      runs_hint: "{root} altında oturum başına bir dizin. Koşu, DURDUR'a bastığında " +
-                 "arşivlenir; rapor birkaç saniye sonra otopilotun kendi dataflash " +
-                 "logundan üretilir.",
-      runs_recording: "kaydediliyor…",
-      runs_show_more: "⌄ {hidden} eski koşuyu daha göster — toplam {total}",
-      runs_show_less: "⌃ yalnızca son {shown} koşuyu göster",
-      runs_open: "rapor",
-      runs_download: "↓ dataflash .BIN",
-      runs_copy_mavexplorer: "⧉ MAVExplorer komutunu kopyala",
-      runs_copied: "panoya kopyalandı",
-      runs_copy_failed: "kopyalanamadı — komut: {cmd}",
-      runs_rebuild: "⟳ raporu yeniden üret",
-      runs_rebuilding: "rapor yeniden üretiliyor…",
-      runs_compare: "⇄ önceki koşuyla karşılaştır",
-      runs_comparing: "karşılaştırılıyor…",
-      runs_compare_failed: "karşılaştırılamadı: {error}",
-      cmp_title: "{baseline} referansına karşı",
-      cmp_passed: "Regresyon yok — hiçbir metrik eşiğini aşacak kadar kötüleşmedi.",
-      cmp_regressed: "REGRESYON — en az bir metrik eşiğini aşacak kadar kötüleşti.",
-      cmp_incomparable: "Karşılaştırılamaz — bu iki koşu, sayılarının aynı " +
-                        "anlama gelmesini sağlayacak koşullarda üretilmemiş; " +
-                        "bu yüzden hiçbir şey karşılaştırılmadı.",
-      cmp_blocking: "{field}: {reason} (referans {baseline}, güncel {current})",
-      cmp_drift: "Yapılandırma farkları: bunların üzerinden yapılan bir " +
-                 "karşılaştırma, aracı ölçtüğü kadar değişikliği de ölçer.",
-      cmp_metric: "Metrik", cmp_baseline: "Referans", cmp_current: "Güncel",
-      cmp_delta: "Δ", cmp_relative: "Δ%", cmp_verdict: "Hüküm",
-      cmp_v_improved: "iyileşti", cmp_v_degraded: "kötüleşti",
-      cmp_v_unchanged: "değişmedi", cmp_v_incomparable: "karşılaştırılamaz",
-      cmp_note: "Metrikler ölçümdür, kabul kriteri değil. Buradaki bir " +
-                "regresyon bir kriterin düştüğü anlamına gelmez — aracın aynı " +
-                "işi referansa göre ölçülebilir biçimde daha kötü yaptığı " +
-                "anlamına gelir.",
-      runs_no_report: "Bu koşunun henüz raporu yok.",
-      runs_no_bin: "bu koşuda dataflash log yok",
-      runs_advisories: "{n} danışma",
-      runs_clean: "danışma uyarısı yok",
-      runs_adv_pending: "danışma: bekliyor",
-      runs_adv_title: "Dataflash logundan çıkan sağlık bulguları (titreşim, EKF, " +
-                      "tutum takibi). Koşunun geçti/kaldı sonucunu asla " +
-                      "değiştirmezler — o sonuç prosedürün kabul kriterlerinden gelir.",
-      st_passed: "GEÇTİ", st_failed: "BAŞARISIZ", st_error: "HATA",
-      st_no_procedure: "prosedür yok", st_incomplete: "yarım",
-      st_passed_title: "Her prosedürün her kabul kriteri sağlandı.",
-      st_failed_title: "Bir adım ya da bir kabul kriteri sağlanmadı.",
-      st_error_title: "Prosedür değerlendirilemedi — ArgazUI ya da bağlantıdaki " +
-                      "bir arıza; araç hakkında bir hüküm değil.",
-      st_no_procedure_title: "Model başlatılıp durduruldu ama prosedür " +
-                             "çalıştırılmadı; hiçbir şey iddia edilmedi.",
-      runs_files: "Bu koşudaki dosyalar: {files}",
-
-      // ------------------------------------------------- v1.5: izlenebilirlik
-      ev_title: "Kanıt listesi",
-      ev_complete: "Eksiksiz — gereken her artefakt bu koşunun dizininde.",
-      ev_incomplete: "**Eksik** — gereken {n} artefakt yok; bu koşudaki " +
-                     "iddialar burada olmayan kanıta dayanıyor.",
-      ev_counts: "Beklenen {expected} artefaktın {present} tanesi mevcut; " +
-                 "{explained} tanesi gerekçesi belirtilerek yok.",
-      ev_unexplained: "{n} isteğe bağlı artefakt, gerekçesi kaydedilmeden yok. " +
-                      "\"matplotlib olmadığı için yok\" ile \"yok\" farklı " +
-                      "olgulardır.",
-      ev_artefact: "Artefakt", ev_level: "Düzey", ev_present: "Mevcut",
-      ev_size: "Boyut", ev_producer: "Üreten",
-      ev_yes: "evet", ev_no: "hayır", ev_missing: "EKSİK",
-      ev_none: "Bu koşunun kanıt listesi yok — ArgazUI 1.5'ten öncesine ait.",
-
-      tr_title: "İzlenebilirlik",
-      tr_intent: "Amaç", tr_manual: "elle uçuruldu — bunu doğrulayan test yok",
-      tr_verdict: "Hüküm", tr_ok: "Zincirdeki her bağ çözülüyor.",
-      tr_problems: "Zincirde {n} sorun — bir tanımlayıcı ya da bir kanıt " +
-                   "başvurusu çözülmüyor.",
-      tr_derived: "{n} tanımlayıcı beyandan değil konumdan geliyor; üstlerine " +
-                  "bir satır eklenirse değişirler.",
-      tr_step: "adım", tr_criterion: "kriter", tr_fault: "arıza",
-      tr_metric: "metrik", tr_evaluated: "değerlendirildi",
-      tr_unevaluated: "değerlendirilmedi",
-      tr_measured: "ölçüldü", tr_unmeasured: "ölçülmedi",
-      tr_none: "Bu koşuda result.json yok, izlenecek bir zincir de yok.",
-
-      cov_title: "Kapsam",
-      cov_hint: "Bu projenin beyan ettikleri ve gerçekten koşulanlar. Test " +
-                "sayısı değil: o sayı biri test eklediğinde artar, kimsenin " +
-                "koşmadığı bir prosedür eklendiğinde hiç azalmaz. Asıl mesele " +
-                "kapsanmayanlar listesidir.",
-      cov_dimension: "Boyut", cov_covered: "Kapsanan", cov_declared: "Beyan edilen",
-      cov_uncovered: "Kapsanmayan", cov_show: "göster",
-      cov_failed: "Kapsam okunamadı: {error}",
-      cov_none: "Kapsam bilgisi yok.",
-      cov_all: "{n} maddenin tamamı kapsandı.",
-      cov_unattributed: "{n} değerlendirilmiş kriter sonucu, kriter " +
-                        "tanımlayıcıları var olmadan önce kaydedilmiş " +
-                        "koşulardan geliyor. Konuma göre eşleştirilmiyorlar — " +
-                        "tahminle şişirilmiş bir kapsam değeri, bu projenin " +
-                        "ortadan kaldırmak için var olduğu şeydir.",
-
-      // ------------------------------------------------- v1.4: neden geçmedi
-      fail_title: "Neden geçmedi",
-      fail_environment: "ortam", fail_vehicle_readiness: "araç hazır değil",
-      fail_procedure: "prosedür", fail_acceptance: "kabul kriteri",
-      fail_evidence: "kanıt", fail_regression: "regresyon",
-      fail_infrastructure: "altyapı",
-      fail_note: "Yalnızca “kabul kriteri” araç hakkında bir hükümdür. " +
-                 "Diğerleri simülasyonun, araçların ya da kanıtın bozulduğunu " +
-                 "söyler.",
-
-      // ------------------------------------------------ v1.4: senaryolar
-      scen_title: "Senaryolar (arıza enjeksiyonu)",
-      scen_none: "Bağlı araca uyan senaryo yok. Senaryolar argazui/procedures/ " +
-                 "altında role: scenario ile tanımlanır.",
-      scen_idle: "Hangi senaryoların uyduğunu görmek için bir araç başlat.",
-      scen_run: "▶ SENARYOYU ÇALIŞTIR",
-      scen_faults: "{n} beyan edilmiş arıza",
-      scen_warn: "Senaryo, SİMÜLE aracı bilerek bozar — GPS'i ya da bu programın " +
-                 "araca olan bağlantısını. Değiştirdiği her şey koşu bitince " +
-                 "geri alınır ve buradaki hiçbir şey donanıma ulaşamaz.",
-      scen_fault_line: "{fault}, hedef {target}, {duration} uygulanır, {step}. " +
-                       "adımdan sonra enjekte edilir",
-      proc_faults: "Enjekte edilen arızalar",
-      fault_injected: "enjekte edildi",
-      fault_cleared: "geri alındı",
-      fault_not_judged: "değerlendirilmedi",
-      link_fault_on: "BAĞLANTI ARIZASI ETKİN — telemetri bilerek atılıyor",
-
-      // ------------------------------------------------ v1.4: kampanyalar
-      camp_title: "Tekrarlanabilirlik kampanyası",
-      camp_model: "Model", camp_procedure: "Prosedür", camp_runs: "Koşu",
-      camp_start: "▶ KAMPANYAYI BAŞLAT", camp_cancel: "✕ kampanyayı iptal et",
-      camp_hint: "Aynı prosedürü aynı model üzerinde N kez uçurur; her koşu " +
-                 "kendi dizinini ve kendi kanıtını alır. Tek bir hüküm yerine " +
-                 "dağılımı raporlar.",
-      camp_running: "Kampanya {id}: {total} koşudan {index}.",
-      camp_idle: "Çalışan kampanya yok.",
-      camp_none: "Henüz kaydedilmiş kampanya yok.",
-      camp_failed: "Kampanya başlatılamadı: {error}",
-      camp_started: "Kampanya {id} başladı: {procedure} prosedürü {runs} kez.",
-      camp_open: "aç",
-      camp_col_id: "Kampanya", camp_col_model: "Model",
-      camp_col_procedure: "Prosedür", camp_col_runs: "Koşu",
-      camp_result: "{total} koşudan {passed} geçti, {failed} kaldı, " +
-                   "{flaky} kararsız",
-      camp_rate: "temiz geçiş oranı %{rate}",
-      camp_sample: "{n} koşu, {n} koşudur. Bu büyüklükte bir örneklemden güven " +
-                   "aralığı ya da güvenilirlik değeri hesaplanmaz.",
-      camp_metric: "Metrik", camp_n: "n", camp_mean: "Ortalama",
-      camp_sd: "Std sapma", camp_min: "En az", camp_max: "En çok",
-      camp_sd_none: "— (3'ten az ölçülmüş değer: söylemeye yetecek kadar koşu " +
-                    "yok; bu, değişim yok demek değildir)",
-      camp_drift: "Yinelemeler birbirinin aynısı değildi; aşağıdaki dağılım " +
-                  "aracı ölçtüğü kadar bu farkı da ölçüyor.",
-
-      // ----------------------------------------------- v1.6: deneyler
-      exp_title: "Deneyler",
-      exp_hint: "Bir dosyada beyan edilmiş kontrollü karşılaştırma: tek model, " +
-                "bir ya da daha çok kol — N kez uçurulan bir prosedür —, açıkça " +
-                "yazılmış bir soru, grup hakkında kabul kriterleri ve yanıtın " +
-                "neyi kapsamadığı. Her kol sıradan bir kampanya olarak uçurulur.",
-      exp_start: "▶ DENEYİ ÇALIŞTIR", exp_cancel: "✕ deneyi iptal et",
-      exp_open: "aç",
-      exp_idle: "Çalışan deney yok.",
-      exp_running: "Deney {id}: {total} koşudan {done} tanesi uçuruldu.",
-      exp_none: "argazui/experiments/ altında beyan edilmiş deney yok.",
-      exp_no_runs: "Henüz uçurulmuş deney yok.",
-      exp_failed: "Deney başlatılamadı: {error}",
-      exp_arms: "{n} kol, {runs} koşu",
-      exp_col_id: "Deney", exp_col_model: "Model",
-      exp_col_policy: "Karşılaştırma", exp_col_arms: "Kol",
-      exp_col_runs: "Koşu", exp_col_flown: "Uçurulan",
-      exp_policy_arms: "kolu kola karşı",
-      exp_policy_baseline: "kendi önceki koşusuna karşı",
-      exp_policy_repeats: "hiçbir şey — yalnızca dağılım",
-      exp_never_flown: "beyan edildi, hiç uçurulmadı",
-      exp_v_passed: "beyan edilen her kriter sağlandı",
-      exp_v_failed: "beyan edilen bir kriter sağlanmadı",
-      exp_v_incomplete: "eksik — beyan edilen bir şey hiç uçurulmadı ya da hiç " +
-                        "ölçülmedi",
-      exp_v_not_judged: "hiçbir iddiada bulunulmadı — bu deney kabul kriteri " +
-                        "beyan etmiyor",
-      exp_v_not_run: "bu deney kimliğini taşıyan koşu yok",
-      exp_question: "Soru",
-      exp_criteria: "Kabul kriterleri",
-      exp_criterion_passed: "sağlandı", exp_criterion_failed: "SAĞLANMADI",
-      exp_criterion_unjudged: "değerlendirilmedi",
-      exp_delta: "Ortalama farkı", exp_overlap: "Aralıklar örtüşüyor",
-      exp_yes: "evet", exp_no: "hayır",
-      exp_basis: "Dayanak", exp_reference: "Referans", exp_current: "Güncel",
-      exp_no_stats: "Bu büyüklükte bir örneklemden p değeri, güven aralığı ya da " +
-                    "etki büyüklüğü hesaplanmaz. Raporlanan şey iki taraftaki n, " +
-                    "iki ortalama, farkları ve gözlenen aralıkların örtüşüp " +
-                    "örtüşmediğidir — bu bir anlamlılık testi değildir.",
-      exp_limits: "Sınırlar ve yapılmayan iddialar",
-      exp_limits_none: "Bu deney kendine ait bir sınır beyan etmedi; yalnızca " +
-                       "her zaman geçerli olanlar uygulanır.",
-      exp_standing: "her zaman geçerli",
-      exp_verification: "Buradaki her şey doğrulamadır: bir uygulama, birinin " +
-                        "beyan ettiği kriterleri karşıladı. Hiçbiri geçerleme " +
-                        "değildir — kriterlerin, modelin ya da sorunun " +
-                        "simülatör dışındaki herhangi bir şeyi temsil ettiğini " +
-                        "gösteren hiçbir şey yok.",
-
-      panel_failed: "{panel} yüklenemedi: {error}. Sayfanın geri kalanı çalışmaya " +
-                    "devam ediyor; tam hata için tarayıcı konsoluna bak.",
-      panel_models: "Model listesi", panel_commands: "Hızlı Komutlar",
-      panel_scripts: "Görev scripti listesi", panel_runs: "Uçuş Koşuları",
-      link_ws_down: "MAVLink: arayüz bağlı değil",
-      link_ws_connecting: "Tarayıcı hâlâ ArgazUI sunucusuna bağlanıyor. Bu sayfada " +
-                          "henüz hiçbir şey canlı değil.",
-      link_ws_closed: "ArgazUI sunucusuna giden WebSocket kapalı (kod {code}). Her " +
-                      "2 sn'de yeniden deneniyor. Sürüyorsa sunucu durmuştur — " +
-                      "onu başlattığın terminale bak.",
-      link_idle: "MAVLink: başlatılmadı",
-      link_idle_detail: "Çalışan bir araç yok, dolayısıyla kurulacak bir MAVLink " +
-                        "bağlantısı da yok. Bir model seç ve BAŞLAT'a bas.",
-      link_waiting: "MAVLink: henüz heartbeat yok",
-      link_waiting_detail: "Araç başlatıldı ama {port} portundan hiç heartbeat " +
-                           "göndermedi. Gazebo/SITL hâlâ açılıyor olabilir; " +
-                           "SİMÜLASYON terminalindeki hatalara bak.",
-      link_stale: "MAVLink: {age} sn sessiz",
-      link_stale_detail: "{port} portundaki son heartbeat {age} sn önce geldi. " +
-                         "Araç konuşmayı kesti — SİMÜLASYON terminaline bak.",
-      ws_open: "bağlı", ws_connecting: "bağlanıyor…",
-      ws_closed: "koptu (kod {code}) — yeniden deneniyor",
-      ws_title: "Her iki terminali ve durum çubuğunu taşıyan WebSocket.",
-      why_disabled_no_vehicle: "Çalışan araç yok. Bir model seç ve BAŞLAT'a bas.",
-      why_disabled_no_link: "Araç çalışıyor ama ArgazUI henüz ona MAVLink ile " +
-                            "bağlanamadı.",
-      proc_lookup_failed: "Prosedür listesi sunucudan okunamadı ({error}); bu buton " +
-                          "neyi çalıştıracağını bilemiyor.",
-      hint_buttons_disabled: "Butonlar devre dışı: {reason}",
-      build_mismatch_title: "⚠ Bu sayfa ile konuştuğu sunucu, ArgazUI'nin farklı " +
-                            "derlemeleri.",
-      build_mismatch_body: "Sunucu {since} tarihinden beri çalışıyor ve {server} " +
-                           "derlemesini bildiriyor. Bu sayfayı o sunucu verdi ama " +
-                           "sayfa {page} derlemesinden geliyor. Arayüz dosyaları " +
-                           "diskten okunur; son değişikliğinden önce başlatılmış bir " +
-                           "sunucu eski API'siyle yanıt vermeye devam eder — bu " +
-                           "sayfadaki her şey yanlış ya da eksik olabilir. Sunucuyu " +
-                           "yeniden başlat:",
-      build_mismatch_old: "Sayfa derlemesi: {page}. Sunucu, ArgazUI 1.1'den beri " +
-                          "var olan /api/version'a yanıt vermiyor ({error}) — yani " +
-                          "sunucu, az önce diskten verdiği arayüz dosyalarından " +
-                          "eski ve bu sayfanın bazı bölümleri onda olmayan bir " +
-                          "API'yi çağırıyor. Sunucuyu yeniden başlat:",
-      http_404_hint: "bu uç nokta sunucuda yok — sunucu, sana verdiği arayüzden " +
-                     "eski olabilir",
-      build_fix_replace: "Şunu çalıştır — o sunucuyu durdurup güncelini başlatır. " +
-                         "Satırın tamamını kopyala; düzenlemeye gerek yok:",
-      build_fix_kill: "Bu sunucu nerede olduğunu söyleyemeyecek kadar eski; tuttuğu " +
-                      "porttan durdur — satırın tamamını kopyala, düzenlemeye gerek " +
-                      "yok — sonra ArgazUI'yi her zamanki gibi başlat:",
-      drift_code_title: "⚠ Sunucu, diskte artık bulunmayan bir kodu çalıştırıyor.",
-      drift_code_body: "Python yalnızca açılışta import edilir. O andan sonra " +
-                       "değiştirdiğin şey ÇALIŞMIYOR ve bu sayfanın çağırdığı API " +
-                       "eski olanı.",
-      drift_ui_title: "⚠ Sunucu başladığından beri arayüz dosyaları değişti.",
-      drift_ui_body: "Yeni arayüz dosyalarına bakıyorsun ama onları sunucunun " +
-                     "açılışta yüklediği Python sürüyor; sayfa, sunucuda olmayan " +
-                     "bir API'yi çağırıyor olabilir.",
-      drift_detail: "{since} tarihinden beri çalışıyor; o zamandan beri değişenler: " +
-                    "{layers}. Sunucuyu yeniden başlat:",
-      layer_code: "sunucu kodu", layer_ui: "arayüz dosyaları",
-      layer_procedures: "prosedürler", layer_config: "yapılandırma",
-      build_unstamped: "(sunucu bu sayfaya damga basmadı)",
-      build_unstamped_reason: "sunucu bu sayfayı derleme damgası olmadan verdi; " +
-                              "bunu yalnızca ArgazUI 1.1'den eski sunucular yapar",
-    },
-  };
+  const I18N = window.ARGAZ_I18N;
 
   let LANG = localStorage.getItem("argazui.lang");
   if (!I18N[LANG]) LANG = "en";               // default: English
@@ -837,19 +52,26 @@
     TABS.sim.hint = t("hint_sim");
     TABS.shell.hint = t("hint_shell");
     $("tabhint").textContent = TABS[activeTab].hint;
+    // The terminals' connection chip writes its own text, so a language switch
+    // has to reach it: it has had a Turkish string all along and kept showing
+    // the English one until the socket next changed state.
+    renderLinkChip();
 
     selectModel(selected ? selected.id : null);
     renderModelLists();
     renderScripts();
     renderRuns();
-    // These two write their own text rather than carrying data-i18n, because
-    // both say different things depending on what is running. A language
+    // These write their own text rather than carrying data-i18n, because each
+    // says something different depending on what is running. A language
     // switch has to reach them or they keep the previous language's sentence.
     renderScenarios();
     renderCampaigns();
     renderExperiments();
     renderCoverage();
+    renderProcedureCatalogue();
+    renderFaults();
     if (lastStatus) { $("buttons").dataset.key = ""; applyStatus(lastStatus); }
+    else renderVehicleState();
 
     const search = $("docs-search");
     if (search) search.placeholder = t("docs_search");
@@ -863,6 +85,13 @@
           body: JSON.stringify({ lang: LANG }),
         });
       } catch (e) { /* offline is fine */ }
+      // The fault catalogue is translated on the server from its own language
+      // setting, so it can only be re-read after the POST above has landed.
+      try {
+        await loadFaults();
+      } catch (e) {
+        console.error("ArgazUI: the fault catalogue could not be reloaded", e);
+      }
     }
 
     // The portal's titles, summaries and page bodies are chosen by the server
@@ -1188,6 +417,57 @@
              detail: t("link_stale_detail", { age: Math.round(age), port: s.ui_port }) };
   }
 
+  // One instrument in the top bar: a fixed label, a value that changes, and a
+  // state colour on the edge. The label is markup and stays put — a reading
+  // that rewrites its own label cannot be found by eye at a glance.
+  function readout(id, value, state, title) {
+    const box = $(id);
+    if (!box) return;
+    const slot = box.querySelector(".ro-value");
+    if (slot) slot.textContent = value;
+    box.className = "readout" + (box.classList.contains("wide") ? " wide" : "")
+      + (box.classList.contains("num") ? " num" : "") + (state ? " " + state : "");
+    if (title) box.title = title;
+  }
+
+  // A table's column headings, replaced in place. Every list in the
+  // application carries them, in both languages: an unlabelled column is a
+  // column somebody has to guess at.
+  function setHead(table, labels) {
+    if (!table) return;
+    const old = table.querySelector("thead");
+    if (old) old.remove();
+    const head = ArgazUI.el("thead");
+    const row = ArgazUI.el("tr");
+    for (const label of labels) row.append(ArgazUI.el("th", { text: label }));
+    head.append(row);
+    table.insertBefore(head, table.querySelector("tbody"));
+  }
+
+  // The one-line answer to "what is this aircraft doing", derived only from
+  // fields the status endpoint already sends. Ordered by what would stop an
+  // operator first: an injected fault, then armed motors, then readiness.
+  function renderVehicleState() {
+    const box = $("veh-state");
+    if (!box) return;
+    const s = lastStatus;
+    const v = (s && s.vehicle) || {};
+    let state = "none";
+    let text = t("vst_none");
+    if (s && s.link_fault)               { state = "fault";    text = t("vst_link_fault"); }
+    else if (active && linked && v.armed){ state = "armed";    text = t("vst_armed"); }
+    else if (active && linked && s && s.procedure_running)
+                                         { state = "running";  text = t("vst_procedure"); }
+    else if (active && linked && v.prearm_known && v.prearm_ok)
+                                         { state = "ready";    text = t("vst_ready"); }
+    else if (active && linked && v.prearm_known)
+                                         { state = "waiting";  text = t("vst_not_ready"); }
+    else if (active && linked)           { state = "running";  text = t("vst_connected"); }
+    else if (active)                     { state = "starting"; text = t("vst_starting"); }
+    else if (selected)                   { state = "selected"; text = t("vst_selected"); }
+    ArgazUI.setState(box, state, text);
+  }
+
   function renderLinkChip() {
     const chip = $("ws-state");
     if (!chip) return;
@@ -1218,48 +498,35 @@
       if (!active) { setTimeout(loadRuns, 6000); setTimeout(loadRuns, 20000); }
     }
 
-    const model = $("pill-model");
-    model.textContent = `${t("vehicle")}: ` + (s.active_model_name || "—");
-    model.className = "pill wide " + (active ? "on" : "off");
+    readout("pill-model", s.active_model_name || "—", active ? "on" : "off",
+            t("t_model"));
 
     // A bare dash is not acceptable in an industrial panel: whenever the link
-    // is not up, the chip states which of the three possible reasons applies.
-    const link = $("pill-link");
+    // is not up, the reading states which of the three possible reasons applies.
     if (linked) {
-      link.textContent = t("link_connected", { sysid: v.sysid });
-      link.className = "pill on";
-      link.title = t("t_link");
+      readout("pill-link", t("link_connected", { sysid: v.sysid }), "on", t("t_link"));
     } else {
       const reason = linkReason(s);
-      link.textContent = reason.short;
-      link.className = "pill " + reason.cls;
-      link.title = reason.detail;
+      readout("pill-link", reason.short, reason.cls, reason.detail);
     }
 
     // Pre-arm state, so you can see in advance why ARM would be rejected.
-    const ready = $("pill-ready");
     if (!linked || !v.prearm_known) {
-      ready.textContent = t("ready_unknown");
-      ready.className = "pill off";
-      ready.title = t("ready_t_unknown");
+      readout("pill-ready", t("ready_unknown"), "off", t("ready_t_unknown"));
     } else if (v.prearm_ok) {
-      ready.textContent = t("ready_ok");
-      ready.className = "pill on";
-      ready.title = t("ready_t_ok");
+      readout("pill-ready", t("ready_ok"), "on", t("ready_t_ok"));
     } else {
-      ready.textContent = t("ready_no");
-      ready.className = "pill warn";
-      ready.title = t("ready_t_no");
+      readout("pill-ready", t("ready_no"), "warn", t("ready_t_no"));
     }
 
-    $("pill-mode").textContent = `${t("mode")}: ` + (v.mode || "—");
-    const armed = $("pill-armed");
-    armed.textContent = v.armed ? t("armed") : t("disarmed");
-    armed.className = "pill " + (v.armed ? "armed" : "off");
-    $("pill-alt").textContent = `${t("alt")}: ${v.alt} m`;
-    $("pill-spd").textContent = `${t("spd")}: ${v.groundspeed} m/s`;
+    readout("pill-mode", v.mode || "—", v.mode ? "" : "off", t("t_mode"));
+    readout("pill-armed", v.armed ? t("armed") : t("disarmed"),
+            v.armed ? "armed" : "off", t("t_armed"));
+    readout("pill-alt", `${v.alt} m`, "", t("t_alt"));
+    readout("pill-spd", `${v.groundspeed} m/s`, "", t("t_spd"));
 
     $("btn-stop").disabled = !active;
+    renderVehicleState();
 
     const cls = s.vehicle_class || (selected && selected.vehicle_class);
     // THE MODE-SETTLE GATE.
@@ -1387,26 +654,35 @@
         ul.append(li);
       });
       if (!ul.children.length) {
-        ul.innerHTML = `<li class="mmeta" style="color:var(--muted)">${esc(t("no_models"))}</li>`;
+        ul.innerHTML = `<li class="empty">${esc(t("no_models"))}</li>`;
       }
     }
   }
 
   function selectModel(id) {
     selected = MODELS.find((m) => m.id === id) || null;
-    document.querySelectorAll(".col li label").forEach((l) =>
+    document.querySelectorAll(".reg-list li label").forEach((l) =>
       l.classList.toggle("sel", l.dataset.id === id));
     $("selected-name").textContent = selected ? selected.name : t("none_selected");
 
-    const bits = [];
+    // Label and value, not one run-on line: how a model is launched is four
+    // separate facts and an operator reads them one at a time.
+    const meta = $("selected-meta");
+    meta.innerHTML = "";
     if (selected) {
-      bits.push(`${t("cls")}: ${selected.vehicle_class}`);
-      bits.push(`${t("method")}: ${selected.method}`);
-      bits.push(`${t("env")}: ${selected.env}`);
-      bits.push(selected.has_ros2 ? t("rviz_yes") : t("rviz_no"));
+      const rows = [
+        [t("cls"), selected.vehicle_class],
+        [t("method"), selected.method],
+        [t("env"), selected.env],
+        ["ROS2 / RViz", selected.has_ros2 ? t("exp_yes") : t("exp_no")],
+      ];
+      for (const [key, value] of rows) {
+        meta.append(ArgazUI.el("dt", { text: key }),
+                    ArgazUI.el("dd", { text: String(value || "—") }));
+      }
     }
-    $("selected-meta").textContent = bits.join(" · ");
     $("btn-start").disabled = !selected;
+    renderVehicleState();
 
     const fig = $("preview"), none = $("preview-none"), img = $("preview-img");
     if (selected && selected.image) {
@@ -1483,6 +759,9 @@
           ? t("proc_lookup_failed", { error: procsError })
           : t("proc_no_match");
       } else if (isProc) {
+        // Marked, because pressing it runs a declared sequence that is
+        // verified step by step — not one MAVLink message.
+        g.classList.add("proc");
         btn.title = [desc, `${t("proc_source")}: ${proc.id}.yaml`, proc.description]
           .filter(Boolean).join("\n\n");
       }
@@ -1568,6 +847,7 @@
     $("buttons").dataset.key = "";     // force a re-render with the new inputs
     renderScenarios();
     renderCampaigns();
+    renderProcedureCatalogue();
     if (lastStatus) applyStatus(lastStatus);
   }
 
@@ -1586,6 +866,11 @@
 
   async function runProcedure(procedureId, role, values) {
     resetProcedurePanel();
+    // The step-by-step verification renders beside the quick commands and the
+    // terminal, because that is where a person watching a flight is. A run
+    // started from the Procedures or Scenarios page therefore brings the
+    // operator back to the workstation — nothing starts out of sight.
+    ArgazNav.show("operations", { anchor: "panel-commands" });
     await fetch("/api/procedure", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1599,6 +884,10 @@
     $("proc-expect").innerHTML = "";
     $("proc-hint").textContent = "";
     $("proc-panel").hidden = false;
+    // The commands panel scrolls, and the procedure appears at the bottom of
+    // it. Verification that starts below the fold is verification nobody
+    // watches, so it is brought into view when it starts.
+    $("proc-panel").scrollIntoView({ block: "nearest" });
   }
 
   // One row per injected fault, showing the four things a scenario must keep
@@ -1717,6 +1006,190 @@ function renderFault(fault, state) {
 
   $("btn-proc-cancel").onclick = () => fetch("/api/procedure/cancel", { method: "POST" });
 
+  // -------------------------------------------------- the procedure catalogue
+  // The Procedures page answers two different questions with one table, and
+  // keeps them apart:
+  //
+  //   what this project DECLARES   — every file in argazui/procedures/, which
+  //                                  the coverage document already enumerates
+  //                                  and which is knowable with nothing running
+  //   what THIS vehicle can run    — only knowable once an aircraft is talking,
+  //                                  because it comes from probed capabilities
+  //
+  // A page that showed only the second would be empty before START and would
+  // hide the procedures nobody has ever exercised; a page that showed only the
+  // first could not say which of them applies to what is in the air.
+  let procSelected = null;
+
+  /** Every applicable procedure the server offered, scenarios included. */
+  function applicableProcedures() {
+    const out = new Map();
+    for (const role of Object.keys((PROCS && PROCS.roles) || {})) {
+      const entry = PROCS.roles[role] || {};
+      for (const option of entry.options || []) {
+        out.set(option.id, { proc: option, role,
+                             selected: entry.selected === option.id });
+      }
+    }
+    for (const scen of (PROCS && PROCS.scenarios) || []) {
+      if (!out.has(scen.id)) out.set(scen.id, { proc: scen, role: "scenario" });
+    }
+    return out;
+  }
+
+  /** The declared set, from the coverage document. `[]` if it never loaded. */
+  function declaredProcedures() {
+    const doc = COVERAGE && COVERAGE.coverage;
+    const dimension = ((doc && doc.dimensions) || [])
+      .find((d) => d.dimension === "procedures");
+    return (dimension && dimension.items) || [];
+  }
+
+  function renderProcedureCatalogue() {
+    const table = $("proc-table");
+    if (!table) return;
+    const body = table.querySelector("tbody");
+    body.innerHTML = "";
+
+    const available = applicableProcedures();
+    const declared = declaredProcedures();
+    const rows = declared.length
+      ? declared.map((item) => ({ id: item.id, what: item.what || "",
+                                  covered: !!item.covered }))
+      : Array.from(available.keys()).map((id) => ({ id, what: "", covered: false }));
+
+    $("proc-list-hint").textContent = linked ? "" : t("proc_needs_vehicle");
+    setHead(table, [t("proc_col_id"), t("proc_col_role"),
+                    t("proc_col_available"), t("proc_col_covered")]);
+
+    if (!rows.length) {
+      body.append(ArgazUI.emptyRow(4, t("proc_empty")));
+      renderProcedureDetail();
+      return;
+    }
+
+    rows.sort((a, b) => a.id.localeCompare(b.id));
+    for (const row of rows) {
+      const hit = available.get(row.id);
+      // The coverage document spells a procedure as "Label [role]"; the role
+      // is read back out of it so the column is filled even with no vehicle.
+      const bracket = /\[([^\]]+)\]\s*$/.exec(row.what);
+      const role = (hit && hit.role) || (bracket && bracket[1]) || "—";
+      const label = row.what.replace(/\s*\[[^\]]+\]\s*$/, "")
+        || (hit && hit.proc.name) || row.id;
+
+      const tr = ArgazUI.el("tr", { class: "rowlink" });
+      if (procSelected === row.id) tr.classList.add("selected");
+      tr.onclick = () => { procSelected = row.id; renderProcedureCatalogue(); };
+
+      tr.append(ArgazUI.el("td", { html:
+        `<b>${esc(label)}</b><small>${esc(row.id)}</small>` }));
+      tr.append(ArgazUI.el("td", { class: "mono", text: role }));
+
+      const state = ArgazUI.el("td");
+      if (hit && hit.selected) state.append(ArgazUI.badge(t("proc_selected"), "info"));
+      else if (hit) state.append(ArgazUI.badge(t("proc_applies"), "ok"));
+      else state.append(ArgazUI.badge(linked ? t("proc_not_offered") : t("proc_unknown"), ""));
+      tr.append(state);
+
+      tr.append(ArgazUI.el("td", { html: row.covered
+        ? `<span class="badge ok">${esc(t("proc_run_before"))}</span>`
+        : `<span class="badge">${esc(t("proc_never_run"))}</span>` }));
+      body.append(tr);
+    }
+    renderProcedureDetail();
+  }
+
+  // The contract, read from the same YAML the regression suite executes:
+  // inputs, ordered steps, acceptance criteria and declared faults. Nothing
+  // is restated here — a procedure with no detail says why it has none.
+  function renderProcedureDetail() {
+    const box = $("proc-detail");
+    if (!box) return;
+    box.innerHTML = "";
+    if (!procSelected) {
+      box.append(ArgazUI.el("p", { class: "proc-detail-empty", text: t("proc_pick") }));
+      return;
+    }
+    const hit = applicableProcedures().get(procSelected);
+    if (!hit) {
+      box.append(ArgazUI.el("p", { class: "proc-id", text: procSelected }));
+      box.append(ArgazUI.el("p", { class: "proc-detail-empty",
+                                   text: t("proc_detail_needs_vehicle") }));
+      return;
+    }
+    const proc = hit.proc;
+    const doc = ArgazUI.el("div", { class: "proc-doc" });
+    doc.append(ArgazUI.el("div", { class: "proc-name", text: proc.name }));
+    doc.append(ArgazUI.el("div", { class: "proc-id",
+      text: `${proc.id}.yaml · ${t("proc_col_role")}: ${hit.role}` }));
+    if (proc.description) {
+      doc.append(ArgazUI.el("p", { class: "proc-desc", text: proc.description }));
+    }
+
+    const section = (title, node) => {
+      doc.append(ArgazUI.el("div", { class: "sec-head", text: title }), node);
+    };
+
+    if ((proc.inputs || []).length) {
+      const list = ArgazUI.el("dl", { class: "kv" });
+      for (const input of proc.inputs) {
+        list.append(ArgazUI.el("dt", { text: (LANG === "tr" && input.label_tr) || input.label }),
+                    ArgazUI.el("dd", { text: String(input.default) }));
+      }
+      section(t("proc_inputs"), list);
+    }
+
+    const steps = ArgazUI.el("ol");
+    for (const step of proc.steps || []) {
+      steps.append(ArgazUI.el("li", { html:
+        `${esc(step.name)} <code>${esc(step.kind || "")}</code>` }));
+    }
+    section(t("proc_detail_steps"), steps);
+
+    const criteria = ArgazUI.el("ul");
+    for (const item of proc.expect || []) {
+      criteria.append(ArgazUI.el("li", { class: "crit", text: item }));
+    }
+    if (!(proc.expect || []).length) {
+      criteria.append(ArgazUI.el("li", { text: t("proc_no_criteria") }));
+    }
+    section(t("proc_accept"), criteria);
+
+    if ((proc.failures || []).length) {
+      const faults = ArgazUI.el("ul");
+      for (const fault of proc.failures) {
+        faults.append(ArgazUI.el("li", { text: t("scen_fault_line", {
+          fault: fault.fault, target: fault.target,
+          duration: fault.duration_text, step: fault.inject_after_step }) }));
+      }
+      section(t("proc_faults"), faults);
+    }
+
+    if ((proc.overrides || []).length) {
+      const overrides = ArgazUI.el("ul");
+      for (const item of proc.overrides) {
+        overrides.append(ArgazUI.el("li", { html:
+          `<code>${esc(item.param)} = ${esc(item.value)}</code> — ${esc(item.reason)}` }));
+      }
+      section(t("proc_overrides"), overrides);
+    }
+
+    // Runnable only when there is an aircraft to run it on. The button is
+    // disabled rather than hidden, and says which precondition is missing.
+    const run = ArgazUI.el("button", { class: "btn primary", text: t("proc_run") });
+    run.disabled = !linked;
+    if (!linked) run.title = t("why_disabled_no_link");
+    run.onclick = () => runProcedure(proc.id, null, defaultsOf(proc));
+    doc.append(ArgazUI.el("div", { class: "ctlrow" }, run));
+    box.append(doc);
+  }
+
+  $("btn-proc-refresh").onclick = () => {
+    loadProcedures();
+    loadCoverage().catch((e) => console.error("ArgazUI: coverage refresh failed", e));
+  };
+
   // ------------------------------------------------------ scenarios (v1.4)
   // Off-nominal flows. They are listed and started by name and are never bound
   // to a quick-command button: injecting a fault must be something a person
@@ -1760,6 +1233,47 @@ function renderFault(fault, state) {
     return values;
   }
 
+  // The fault catalogue: every mechanism this build can inject, what it does
+  // to the simulated aircraft and what is supposed to be observed as a result.
+  // Read from /api/faults, which serves faults.py — the module that performs
+  // the injection — so the page cannot name a fault the code does not have.
+  let FAULTS = { faults: [] };
+
+  async function loadFaults() {
+    FAULTS = await getJSON("/api/faults", (b) => Array.isArray(b && b.faults));
+    renderFaults();
+  }
+
+  function renderFaults() {
+    const table = $("fault-table");
+    if (!table) return;
+    const body = table.querySelector("tbody");
+    body.innerHTML = "";
+    setHead(table, [t("fault_col_kind"), t("fault_col_observe"),
+                    t("fault_col_mechanism"), t("fault_col_source")]);
+    if (!(FAULTS.faults || []).length) {
+      body.append(ArgazUI.emptyRow(4, t("fault_none")));
+      return;
+    }
+    for (const entry of FAULTS.faults) {
+      const tr = document.createElement("tr");
+      // A source that is a URL is followed rather than read out; one that is a
+      // file reference is shown as the path it is.
+      const source = String(entry.source || "");
+      const cited = /^https?:\/\//.test(source)
+        ? `<a href="${esc(source)}" target="_blank" rel="noopener noreferrer">${esc(source)}</a>`
+        : esc(source);
+      tr.innerHTML = `<td><b>${esc(entry.label)}</b>`
+        + `<small>${esc(entry.kind)}</small>`
+        + `<small class="prose">${esc(entry.what || "")}</small></td>`
+        + `<td>${esc(entry.observe || "")}</td>`
+        + `<td class="mono">${esc(entry.mechanism || "")}`
+        + `<small>${esc((entry.targets || []).join(", "))}</small></td>`
+        + `<td class="mono">${cited}</td>`;
+      body.append(tr);
+    }
+  }
+
   // ------------------------------------------------------ campaigns (v1.4)
   let CAMPAIGNS = { campaigns: [], active: { running: false } };
 
@@ -1785,17 +1299,23 @@ function renderFault(fault, state) {
   function renderCampaigns() {
     const select = $("camp-procedure");
     const chosen = select.value;
+    const options = campaignProcedureOptions();
     select.innerHTML = "";
-    for (const proc of campaignProcedureOptions()) {
+    for (const proc of options) {
       const option = document.createElement("option");
       option.value = proc.id;
       option.textContent = `${proc.name} (${proc.id})`;
       select.append(option);
     }
+    // An empty dropdown is not a state anybody can read. Which procedures can
+    // be flown is a property of the connected vehicle, so say that.
+    if (!options.length) {
+      select.append(ArgazUI.el("option", { value: "", text: t("camp_no_procedure") }));
+    }
     if (chosen) select.value = chosen;
 
     const running = CAMPAIGNS.active && CAMPAIGNS.active.running;
-    $("btn-camp-start").disabled = !!running || !active || !select.options.length;
+    $("btn-camp-start").disabled = !!running || !active || !options.length;
     $("btn-camp-cancel").hidden = !running;
     if (running) {
       const a = CAMPAIGNS.active;
@@ -1807,10 +1327,10 @@ function renderFault(fault, state) {
 
     const body = $("camp-table").querySelector("tbody");
     body.innerHTML = "";
+    setHead($("camp-table"), [t("camp_col_id"), t("camp_col_model"),
+                              t("camp_col_procedure"), t("camp_col_runs"), ""]);
     if (!(CAMPAIGNS.campaigns || []).length) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="5" class="runs-empty">${esc(t("camp_none"))}</td>`;
-      body.append(tr);
+      body.append(ArgazUI.emptyRow(5, t("camp_none")));
       return;
     }
     for (const entry of CAMPAIGNS.campaigns) {
@@ -1836,7 +1356,8 @@ function renderFault(fault, state) {
   async function showCampaign(id) {
     const box = $("camp-detail");
     box.hidden = false;
-    box.textContent = t("runs_comparing");
+    box.innerHTML = "";
+    box.append(ArgazUI.el("p", { class: "loading", text: t("runs_comparing") }));
     let body;
     try {
       body = await getJSON(`/api/campaigns/${encodeURIComponent(id)}`,
@@ -1972,17 +1493,17 @@ function renderFault(fault, state) {
 
     const body = $("exp-table").querySelector("tbody");
     body.innerHTML = "";
+    setHead($("exp-table"), [t("exp_col_id"), t("exp_col_model"),
+                             t("exp_col_policy"), t("exp_col_arms"), ""]);
     if (!(EXPERIMENTS.experiments || []).length) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="5" class="runs-empty">${esc(t("exp_none"))}</td>`;
-      body.append(tr);
+      body.append(ArgazUI.emptyRow(5, t("exp_none")));
       return;
     }
     for (const item of EXPERIMENTS.experiments) {
       const flown = experimentRunsOf(item.id);
       const tr = document.createElement("tr");
       tr.innerHTML = `<td class="runs-when"><b>${esc(item.id)}</b>`
-        + `<br><small>${esc(item.question || "")}</small></td>`
+        + `<small class="prose">${esc(item.question || "")}</small></td>`
         + `<td>${esc(item.model_id || "—")}</td>`
         + `<td class="runs-proc">${esc(t("exp_policy_" + item.compare.policy))}</td>`
         + `<td>${esc(t("exp_arms", { n: item.arms.length,
@@ -2014,7 +1535,8 @@ function renderFault(fault, state) {
   async function showExperiment(id) {
     const box = $("exp-detail");
     box.hidden = false;
-    box.textContent = t("runs_comparing");
+    box.innerHTML = "";
+    box.append(ArgazUI.el("p", { class: "loading", text: t("runs_comparing") }));
     let body;
     try {
       body = await getJSON(`/api/experiments/${encodeURIComponent(id)}`,
@@ -2268,16 +1790,19 @@ function renderFault(fault, state) {
     COVERAGE = await getJSON("/api/coverage",
                              (b) => b && b.coverage && b.coverage.dimensions);
     renderCoverage();
+    // The Procedures page reads the declared set out of this document, so it
+    // is the one other place a coverage load has to reach.
+    renderProcedureCatalogue();
   }
 
   function renderCoverage() {
     const body = $("cov-table").querySelector("tbody");
     body.innerHTML = "";
     $("cov-detail").hidden = true;
+    setHead($("cov-table"), [t("cov_dimension"), t("cov_covered"),
+                              t("cov_fraction"), ""]);
     if (!COVERAGE) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="4" class="runs-empty">${esc(t("cov_none"))}</td>`;
-      body.append(tr);
+      body.append(ArgazUI.emptyRow(4, t("cov_none")));
       return;
     }
     const doc = COVERAGE.coverage;
@@ -2285,9 +1810,15 @@ function renderFault(fault, state) {
       const tr = document.createElement("tr");
       const fraction = dimension.fraction === null ? "—"
         : `${Math.round(dimension.fraction * 100)}%`;
+      // The bar is a proportion of a declared set, not a score, and the two
+      // absolute numbers stay beside it for exactly that reason.
+      const filled = dimension.fraction === null ? 0
+        : Math.round(dimension.fraction * 100);
       tr.innerHTML = `<td class="runs-when"><b>${esc(dimension.label)}</b></td>`
-        + `<td>${dimension.covered} / ${dimension.declared}</td>`
-        + `<td>${esc(fraction)}</td>`;
+        + `<td class="num">${dimension.covered} / ${dimension.declared}</td>`
+        + `<td class="num">${esc(fraction)}`
+        + `<span class="covbar${filled === 100 ? " full" : filled ? "" : " none"}">`
+        + `<i style="width:${filled}%"></i></span></td>`;
       const actions = document.createElement("td");
       actions.className = "runs-actions";
       if (dimension.uncovered.length) {
@@ -2375,11 +1906,16 @@ function renderFault(fault, state) {
     $("runs-root").textContent = RUNS.root || "";
     $("runs-hint").textContent = t("runs_hint", { root: RUNS.root || "runs/" });
 
+    setHead($("runs-table"), [t("runs_col_when"), t("camp_col_model"),
+                              t("camp_col_procedure"), t("runs_col_verdict"), ""]);
+
     const all = RUNS.runs || [];
     const more = $("btn-runs-more");
     if (!all.length) {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="5" class="runs-empty">${esc(t("runs_none"))}</td>`;
+      // `runs-empty` is how the panel's own tests tell "no runs" apart from a
+      // run row; it stays on this element.
+      tr.innerHTML = `<td colspan="5" class="empty runs-empty">${esc(t("runs_none"))}</td>`;
       body.append(tr);
       if (more) more.hidden = true;
       return;
@@ -2491,6 +2027,10 @@ function renderFault(fault, state) {
   }
 
   async function showRun(runId) {
+    // The sheet is a record out of the run browser, so the browser is what it
+    // opens over: a deep link that left the operations screen underneath would
+    // put a report on top of a running aircraft.
+    ArgazNav.show("runs", { hash: false });
     revealRun(runId);
     openRun = null;
     $("run-title").textContent = runId;
@@ -2642,6 +2182,7 @@ function renderFault(fault, state) {
   $("btn-start").onclick = async () => {
     if (!selected) return;
     switchTab("sim");
+    ArgazNav.show("operations", { anchor: "panel-vehicles" });
     await fetch("/api/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2664,6 +2205,10 @@ function renderFault(fault, state) {
     const name = $("script-select").value;
     if (!name) return;
     switchTab("shell");     // script output goes to the COMMAND tab
+    // …and the COMMAND tab is on the operations screen, so that is where the
+    // operator is taken. A script running on a page nobody is looking at is
+    // how output gets missed.
+    ArgazNav.show("operations", { anchor: "panel-terminal" });
     await fetch("/api/script", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2928,7 +2473,10 @@ function renderFault(fault, state) {
   }
 
   async function openDocs(pageId, anchor) {
-    $("sheet-docs").hidden = false;
+    // The portal is a module of the application, not an overlay on top of it:
+    // reading a document and operating an aircraft are different activities,
+    // and the shell says which one you are in.
+    ArgazNav.show("docs", { hash: false });
     docsPage = pageId;
     // A deep link can arrive before anything has fetched the tree.
     if (!DOCS) {
@@ -2937,7 +2485,7 @@ function renderFault(fault, state) {
       }
     }
     renderDocsTree();
-    $("docs-content").innerHTML = `<p class="hint">${esc(t("docs_loading"))}</p>`;
+    $("docs-content").innerHTML = `<p class="loading">${esc(t("docs_loading"))}</p>`;
     $("docs-notice").hidden = true;
     $("docs-source").textContent = "";
     // The hash is written so a page can be linked to and reopened; `#docs=`
@@ -2980,7 +2528,7 @@ function renderFault(fault, state) {
   $("btn-docs").onclick = async () => {
     if (!DOCS) {
       try { await loadDocs(); } catch (e) {
-        $("sheet-docs").hidden = false;
+        ArgazNav.show("docs", { hash: false });
         $("docs-content").innerHTML =
           `<p class="panel-error">${esc(t("docs_failed", { error: e.message }))}</p>`;
         return;
@@ -3097,9 +2645,24 @@ function renderFault(fault, state) {
   // one chain with `connect()` at the end, so a single failing fetch silently
   // took out both terminals, the whole status bar and every button.
   (async () => {
+    // The shell first: which module is on screen decides nothing about the
+    // data, but every render below writes into one of them.
+    ArgazNav.init({
+      onChange: (view) => {
+        // A terminal cannot measure itself while its section is hidden, so it
+        // is refitted the moment the operations screen is shown again.
+        if (view !== "operations") return;
+        setTimeout(() => {
+          TABS[activeTab].fit.fit();
+          sendResize(activeTab);
+        }, 0);
+      },
+    });
+
     switchTab("sim");
     connect();
     renderLinkChip();
+    renderVehicleState();
     // Before anything else is interpreted: is the page even talking to the
     // server it came from?
     try {
@@ -3116,6 +2679,7 @@ function renderFault(fault, state) {
       initPanel("err-camp", t("camp_title"), loadCampaigns),
       initPanel("err-exp", t("exp_title"), loadExperiments),
       initPanel("err-cov", t("cov_title"), loadCoverage),
+      initPanel("err-faults", t("fault_catalogue"), loadFaults),
     ]);
     if (!panels.every(Boolean)) {
       console.warn("ArgazUI: some panels failed to load; the rest of the page is live");

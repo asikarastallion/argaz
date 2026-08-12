@@ -19,7 +19,7 @@ import urllib.error
 
 import pytest
 
-from harness import assert_no_console_errors, open_page
+from harness import assert_no_console_errors, open_page, open_section
 
 pytestmark = [pytest.mark.e2e, pytest.mark.tier1]
 
@@ -33,7 +33,7 @@ def test_the_panel_lists_what_is_declared_before_anything_has_been_flown(
     in a listing that only shows results — so the panel shows both, and says
     "declared, never flown" out loud rather than leaving an empty cell.
     """
-    page = open_page(browser_page, server)
+    page = open_section(open_page(browser_page, server), "experiments")
     panel = page.locator("#exp-panel")
     assert panel.is_visible()
 
@@ -52,7 +52,7 @@ def test_the_panel_lists_what_is_declared_before_anything_has_been_flown(
 
 def test_the_panel_switches_language(browser_page, server):
     """Turkish is a release artefact, and a key nothing renders is not wired."""
-    page = open_page(browser_page, server)
+    page = open_section(open_page(browser_page, server), "experiments")
     page.click('[data-set-lang="tr"]')
     page.wait_for_timeout(600)
 
