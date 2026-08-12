@@ -206,6 +206,12 @@ identity field rather than `dirty`.
 
 ### A declared override is part of the aircraft
 
+**The rule: the third-party checkout stays as upstream published it, and
+project-specific vehicle configuration belongs in Argaz's declared override
+layer.** A value Argaz needs and upstream does not set is Argaz's to declare,
+not upstream's file to edit. An edit made in the checkout changes what flies
+without changing any hash, and it exists only on the machine that made it.
+
 `sitl_param_overrides` in `models.json` is written into a second
 `--add-param-file` at every launch, applied after the model's own file so it
 wins. It exists for parameters that can only take effect at boot and that the

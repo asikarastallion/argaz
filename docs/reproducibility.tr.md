@@ -210,6 +210,13 @@ aynısıdır.
 
 ### Beyan edilmiş bir override, hava aracının parçasıdır
 
+**Kural: üçüncü taraf checkout'u, upstream'in yayımladığı hâliyle kalır; projeye
+özgü hava aracı yapılandırması ise Argaz'ın beyan edilmiş override katmanına
+aittir.** Argaz'ın ihtiyaç duyduğu ama upstream'in atamadığı bir değeri beyan
+etmek Argaz'ın işidir; upstream'in dosyasını düzenlemek değil. Checkout içinde
+yapılan bir düzenleme, hiçbir hash'i değiştirmeden uçanı değiştirir ve yalnızca
+onu yapan makinede vardır.
+
 `models.json` içindeki `sitl_param_overrides`, her başlatmada ikinci bir
 `--add-param-file` olarak yazılır ve modelin kendi dosyasından sonra
 uygulandığı için üstün gelir. Yalnızca açılışta etkili olabilen ve üstkaynak
