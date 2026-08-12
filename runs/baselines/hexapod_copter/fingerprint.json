@@ -1,0 +1,105 @@
+{
+  "schema": 1,
+  "captured_utc": "2026-08-12T07:40:48Z",
+  "argaz": {
+    "version": "1.7.0",
+    "commit": "b72913a2cc9b65bb51fb116bdb8bbfc779977729",
+    "short_commit": "b72913a2cc9b",
+    "describe": "v1.3.0-24-gb72913a-dirty",
+    "dirty": true,
+    "dirty_digest": "sha256:fbf907d7b69f1b50f3d5529040187800",
+    "root": "/home/asikarastallion/Documents/argaz"
+  },
+  "ardupilot": {
+    "commit": "0b38722bd5a46099dbe7d50074624680f58ce584",
+    "short_commit": "0b38722bd5a4",
+    "describe": "ArduPilot-4.6.0-beta1-7768-g0b38722bd5",
+    "dirty": false,
+    "dirty_digest": "clean",
+    "root": "/home/asikarastallion/Documents/argaz/ardupilot",
+    "firmware": "ArduCopter V4.8.0-dev",
+    "firmware_commit": "0b38722b",
+    "firmware_matches_checkout": true,
+    "text": "ArduCopter V4.8.0-dev @ 0b38722bd5a4 (ArduPilot-4.6.0-beta1-7768-g0b38722bd5)"
+  },
+  "sitl_models": {
+    "commit": "25bc38ed8c6c0345840159a8cbc0b02781d52f3c",
+    "short_commit": "25bc38ed8c6c",
+    "describe": "25bc38e",
+    "dirty": false,
+    "dirty_digest": "clean",
+    "root": "/home/asikarastallion/Documents/argaz/SITL_Models",
+    "pin": {
+      "repository": "https://github.com/ArduPilot/SITL_Models.git",
+      "revision": "25bc38ed8c6c0345840159a8cbc0b02781d52f3c",
+      "revision_kind": "commit",
+      "resolved_commit": "25bc38ed8c6c0345840159a8cbc0b02781d52f3c",
+      "identity": "sha256:811fa669b5cf854c1db9da9771fbdfff",
+      "state": "pinned",
+      "ok": true,
+      "reproducible": true,
+      "reason": ""
+    }
+  },
+  "gazebo": {
+    "version": "Gazebo Sim, version 8.14.0"
+  },
+  "ros": {
+    "distro": "jazzy"
+  },
+  "runtime": {
+    "python": "3.12.3",
+    "python_executable": "/home/asikarastallion/venv-ardupilot/bin/python3",
+    "pymavlink": "2.4.49",
+    "platform": "Linux 7.0.0-28-generic (x86_64)"
+  },
+  "model": {
+    "id": "hexapod_copter",
+    "name": "Hexapod Copter",
+    "vehicle_class": "Copter",
+    "method": "gz_plus_sitl_paramfile",
+    "vehicle": "ArduCopter",
+    "frame": "hexa",
+    "world": "hexapod_copter_runway.sdf",
+    "config_hash": "sha256:24366d86a483c04d9593244998e102457fc533676908808412900981596afb9d",
+    "param_files": [
+      "/home/asikarastallion/Documents/argaz/SITL_Models/Gazebo/config/hexapod_copter.param"
+    ]
+  },
+  "procedures": [
+    {
+      "id": "copter_takeoff",
+      "schema": 4,
+      "file": "copter_takeoff.yaml",
+      "hash": "sha256:2582de03e3c492c43ece1ef2e416b40fec2c7523a666838e017cba12ca30cbde"
+    },
+    {
+      "id": "copter_land",
+      "schema": 4,
+      "file": "copter_land.yaml",
+      "hash": "sha256:26647e7c22885bf4f5325b464f7345eaa89b7e49bae5055a026c8ecf1a223d7e"
+    }
+  ],
+  "procedure_hash": "sha256:12240ff9a2ac05efa810e780a5d593e2377a0f257941bb63d1fd4d87fb62ff19",
+  "scenario": {
+    "faults": [],
+    "covered_by": "procedure_hash"
+  },
+  "config": {
+    "config_file": "/home/asikarastallion/Documents/argaz/argaz.toml",
+    "argaz_root": "/home/asikarastallion/Documents/argaz",
+    "ardupilot_root": "/home/asikarastallion/Documents/argaz/ardupilot",
+    "sitl_models_root": "/home/asikarastallion/Documents/argaz/SITL_Models",
+    "ardu_ws_root": "/home/asikarastallion/Documents/argaz/ardu_ws",
+    "runs_root": "/home/asikarastallion/Documents/argaz/runs",
+    "env_script": "/home/asikarastallion/Documents/argaz/env.sh",
+    "port": "8770",
+    "mavlink_port": "14550",
+    "script_mavlink_port": "14551",
+    "plotjuggler_port": "14552",
+    "regression": "default_tolerance, floor, tolerance",
+    "model_environment_revision": "25bc38ed8c6c0345840159a8cbc0b02781d52f3c",
+    "model_environment_repository": "https://github.com/ArduPilot/SITL_Models.git"
+  },
+  "unknown": []
+}

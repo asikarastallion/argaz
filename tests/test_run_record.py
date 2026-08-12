@@ -25,7 +25,7 @@ import pytest
 
 from argazui import fingerprint as fp
 from argazui import procedures as procs
-from argazui.runs import RunRecorder, _recorded_procedures
+from argazui.runs import MODEL_RECORD_KEYS, RunRecorder, _recorded_procedures
 
 pytestmark = pytest.mark.tier1
 
@@ -91,17 +91,45 @@ def test_a_regenerated_fingerprint_matches_the_one_the_flight_wrote(tmp_path):
 
 
 def test_only_the_archived_model_fields_reach_the_hash(tmp_path):
-    """A field the run does not store cannot be part of what identifies it."""
+    """A field the run does not store cannot be part of what identifies it.
+
+    Read from `MODEL_RECORD_KEYS` rather than restated, so adding a field to
+    the archive cannot leave this test asserting the old set — which is exactly
+    what would hide the reverse defect below.
+    """
     procedure = procs.load_all()["copter_takeoff"]
     recorder = _record(tmp_path, procedure)
     flown = fp.read(recorder.dir)
 
     changed = {**MODEL, "image": "/static/models/something-else.png"}
-    assert (fp.capture(model={k: changed[k] for k in
-                              ("id", "name", "vehicle_class", "method", "vehicle",
-                               "frame", "param_file", "world", "env", "has_ros2")},
+    assert (fp.capture(model={k: changed.get(k) for k in MODEL_RECORD_KEYS},
                        procedures=[])["model"]["config_hash"]
             == flown["model"]["config_hash"])
+
+
+def test_a_declared_parameter_override_changes_the_configuration_identity():
+    """...and a field that changes the AIRCRAFT must be stored.
+
+    `sitl_param_overrides` is written into a second `--add-param-file` at every
+    launch: `swan_k1_hwing` gets `EK3_ENABLE=1` that way and
+    `alti_transition_quad` gets the `Q_ENABLE=1` upstream's own file omits. It
+    was applied and not archived, so two runs flown with different overrides —
+    a quadplane and the fixed wing the same file describes without them —
+    carried the same `model.config_hash` and compared as one configuration.
+    """
+    assert "sitl_param_overrides" in MODEL_RECORD_KEYS
+
+    def config_hash(overrides):
+        model = {k: MODEL.get(k) for k in MODEL_RECORD_KEYS}
+        model["sitl_param_overrides"] = overrides
+        return fp.capture(model=model, procedures=[])["model"]["config_hash"]
+
+    on, off, absent = (config_hash({"Q_ENABLE": 1}),
+                       config_hash({"Q_ENABLE": 0}),
+                       config_hash(None))
+    assert on != off, "a changed override did not change the configuration identity"
+    assert on != absent, "declaring an override did not change it either"
+    assert config_hash({"Q_ENABLE": 1}) == on, "the hash is not stable"
 
 
 def test_a_retried_procedure_is_hashed_once(tmp_path):

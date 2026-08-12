@@ -1,0 +1,188 @@
+# Procedures executed during this run, in order and verbatim.
+# This is the same YAML the TAKEOFF/LAND buttons and the
+# regression suite execute — see argazui/procedures/SCHEMA.md.
+
+# ---------------------------------------------------------------
+# executed 2026-08-12T07:39:58Z — copter_takeoff (takeoff)
+# inputs: {"alt": 20.0}
+# outcome: PASSED
+# source file: copter_takeoff.yaml
+# ---------------------------------------------------------------
+# Copter takeoff — GUIDED + MAV_CMD_NAV_TAKEOFF.
+#
+# Sources:
+#   https://ardupilot.org/dev/docs/copter-commands-in-guided-mode.html
+#     lists MAV_CMD_NAV_TAKEOFF among the commands Copter accepts in GUIDED
+#     inside a COMMAND_LONG.
+#   ArduCopter/mode_guided.cpp, ModeGuided::do_user_takeoff_start()
+#     the altitude arrives in param7 and is relative to the current position.
+#
+# This is the v1.0 behaviour, which was correct for Copter. It is moved here
+# unchanged so that the button and the regression test share one definition —
+# the point of the move is the single-source rule, not a behaviour change.
+#
+# Schema 2 (v1.3) added the temporal criteria at the bottom of this file. The
+# steps are untouched: what changed is what the flight has to prove, not what
+# it does.
+schema: 4
+id: copter_takeoff
+name:
+  en: Copter takeoff (GUIDED)
+  tr: Copter kalkisi (GUIDED)
+description:
+  en: >-
+    Switches to GUIDED, arms, and sends MAV_CMD_NAV_TAKEOFF. The multirotor
+    climbs straight up to the requested altitude and holds it.
+  tr: >-
+    GUIDED moduna gecer, arm eder ve MAV_CMD_NAV_TAKEOFF gonderir. Cok rotorlu
+    arac istenen irtifaya dik tirmanir ve orada tutunur.
+sources:
+  - https://ardupilot.org/dev/docs/copter-commands-in-guided-mode.html
+  - https://ardupilot.org/copter/docs/ac2_guidedmode.html
+
+applies_to:
+  role: takeoff
+  autopilot: ArduCopter
+  default: true
+  priority: 10
+
+inputs:
+  - name: alt
+    label: {en: "altitude (m)", tr: "irtifa (m)"}
+    type: number
+    default: 10
+    min: 1
+    max: 200
+
+timeout: 240
+
+steps:
+  - name: {en: Switch to GUIDED, tr: GUIDED moduna gec}
+    set_mode: GUIDED
+    timeout: 10
+
+  - name: {en: Arm the motors, tr: Motorlari kur}
+    arm: {recover: true}
+    timeout: 70
+
+  - name: {en: Send the takeoff command, tr: Kalkis komutunu gonder}
+    send_command:
+      command: MAV_CMD_NAV_TAKEOFF
+      type: long
+      params: {p7: "{alt}"}
+    timeout: 15
+
+  - name: {en: Confirm the vehicle is actually climbing, tr: Aracin gercekten tirmandigini dogrula}
+    wait_for: {alt_above: 1.0, climb_rate_above: 0.3}
+    timeout: 30
+
+  - name: {en: Wait for the target altitude, tr: Hedef irtifayi bekle}
+    wait_for: {alt_above: "{alt*0.9}"}
+    timeout: 120
+
+expect:
+  - id: alt-reached
+    condition: {alt_above: "{alt*0.9}"}
+    within: 20s
+    message:
+      en: reached at least 90% of the requested altitude within 20 s
+      tr: istenen irtifanin en az %90'ina 20 sn icinde ulasti
+
+  # A takeoff that reaches altitude and then sinks back has still failed, and
+  # an instantaneous check at the end of the climb cannot tell the two apart.
+  # Five seconds of vehicle time is long enough for a collapse to show and
+  # short enough not to lengthen the flight noticeably.
+  - id: alt-held
+    condition: {alt_above: "{alt*0.9}", armed: true, mode: GUIDED}
+    for: 5s
+    message:
+      en: held the altitude, the arm state and GUIDED for 5 s
+      tr: irtifayi, arm durumunu ve GUIDED modunu 5 sn korudu
+
+  # 180°/s is not a tuning target; it is the line past which a multirotor that
+  # is supposed to be holding station is no longer doing anything anyone asked
+  # for. The envelope criterion below judges the whole climb in accumulated
+  # seconds; this one says the aircraft was not seen there even once while it
+  # sat at altitude.
+  - id: no-rate-excursion
+    condition: {angular_rate_above: 180}
+    never: 5s
+    message:
+      en: never turned faster than 180°/s while holding altitude
+      tr: irtifayi korurken hicbir an 180°/sn ustunde donmedi
+
+  # A GUIDED takeoff is a station-keeping vertical climb: the autopilot holds
+  # position, so there is no reason for the airframe to lean. 20° is generous
+  # for that — it is roughly the lean a multirotor uses to correct a metre of
+  # drift — and anything sustained beyond it means the aircraft is going
+  # somewhere nobody asked it to. 60°/s likewise: a copter correcting itself
+  # turns at a few tens of degrees per second, and only a loss of control
+  # keeps it above 60 for longer than a moment.
+  - id: attitude-envelope
+    condition:
+      attitude_stable: {roll: [-20, 20], pitch: [-20, 20], max_rate: 60,
+                        tolerance: 2}
+    message:
+      en: stayed level throughout the climb
+      tr: tirmanis boyunca seviyede kaldi
+
+---
+# ---------------------------------------------------------------
+# executed 2026-08-12T07:40:29Z — copter_land (land)
+# inputs: {}
+# outcome: PASSED
+# source file: copter_land.yaml
+# ---------------------------------------------------------------
+# Copter landing — LAND mode, verified through to disarm.
+#
+# Sources:
+#   https://ardupilot.org/copter/docs/land-mode.html
+#     "Upon reaching the ground the copter will automatically shut-down the
+#      motors and disarm the copter if the pilot's throttle is at minimum."
+#     Descent uses LAND_SPD_HIGH_MS down to LAND_ALT_LOW_M, then LAND_SPD_MS.
+schema: 4
+id: copter_land
+name:
+  en: Copter landing (LAND)
+  tr: Copter inisi (LAND)
+description:
+  en: >-
+    Switches to LAND and waits for the autopilot to touch down and disarm by
+    itself. Success is the disarm, not the mode change.
+  tr: >-
+    LAND moduna gecer ve otopilotun kendiliginden yere inip disarm etmesini
+    bekler. Basari olcutu mod degisimi degil, disarm olmasidir.
+sources:
+  - https://ardupilot.org/copter/docs/land-mode.html
+
+applies_to:
+  role: land
+  autopilot: ArduCopter
+  default: true
+  priority: 10
+
+timeout: 300
+
+steps:
+  - name: {en: Release any RC overrides, tr: Kumanda override'larini birak}
+    rc_release: true
+
+  - name: {en: Switch to LAND, tr: LAND moduna gec}
+    set_mode: LAND
+    timeout: 10
+
+  - name: {en: Confirm the vehicle is descending, tr: Aracin alcaldigini dogrula}
+    wait_for: {climb_rate_below: -0.2}
+    timeout: 30
+
+  - name: {en: Wait for touchdown and automatic disarm, tr: Yere inisi ve otomatik disarm'i bekle}
+    wait_for: {armed: false}
+    timeout: 240
+
+expect:
+  - id: disarmed
+    condition: {armed: false}
+    message: {en: disarmed after landing, tr: inisten sonra disarm oldu}
+  - id: on-ground
+    condition: {alt_below: 3.0}
+    message: {en: on the ground, tr: yerde}

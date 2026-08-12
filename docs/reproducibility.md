@@ -204,6 +204,36 @@ Inside the existing fingerprint, not in a second store:
 in the working-tree digest — the same reasoning that made `dirty_digest` an
 identity field rather than `dirty`.
 
+### A declared override is part of the aircraft
+
+`sitl_param_overrides` in `models.json` is written into a second
+`--add-param-file` at every launch, applied after the model's own file so it
+wins. It exists for parameters that can only take effect at boot and that the
+upstream file gets wrong or leaves out — `swan_k1_hwing` needs `EK3_ENABLE=1`
+because its file asks for `AHRS_EKF_TYPE=3` and leaves EK3 off.
+
+`alti_transition_quad` is the second case. Upstream's
+`Gazebo/config/alti_transition_quad.param` carries 33 `Q_*` parameters and
+omits `Q_ENABLE`, the master switch that turns the QuadPlane subsystem on —
+every other quadplane in that checkout sets it explicitly
+(`skycat_tvbs`, `skywalker_x8_quad`, `swan_k1_hwing` all `Q_ENABLE 1`;
+`wsc_aircraft` sets `Q_ENABLE 0` because it is a plane). Without it ArduPlane
+ignores all 33 and the aircraft flies as a fixed wing under a VTOL's name.
+
+For a while this repository carried it as an **uncommitted edit to the
+third-party checkout**, which is the worst of the available places: it changed
+what flew, it was invisible to `model.config_hash`, and it made the model
+environment permanently `modified`. It is now declared in `models.json`, which
+is versioned, reviewable and hashed.
+
+Which is why `sitl_param_overrides` is in `MODEL_RECORD_KEYS`. It was applied
+and not archived, so it was not in `model.config_hash` either: two runs flown
+with different overrides — a quadplane and the fixed wing the same file
+describes without them — compared as one configuration. Archiving it fixes both
+halves at once, because the hash is taken over exactly what is archived. A
+field the run does not store must not identify it, and a field that changes the
+aircraft must be stored.
+
 ## Process and port isolation
 
 Two runs that shared a port did not share an experiment. A crashed server used

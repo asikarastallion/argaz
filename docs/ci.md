@@ -141,6 +141,15 @@ newest earlier run of the same model, which is a convenience for the interface;
 in a pipeline it would make what a comparison was measured against depend on
 whatever happened to be on disk that day.
 
+**Seven models have a committed baseline**, flown together on a machine where
+`doctor --release` passed. They reach the job the ordinary way: `runs/baselines/`
+is in the checkout, `actions/checkout` brings it, and the step already mounts
+`$PWD/runs` — so the gate sees the current runs the container just wrote and the
+committed baselines in one root. A baseline directory is not mistaken for a
+current run; the gate skips anything whose parent is `baselines/`.
+
+The four models without one report `NOT_APPLICABLE`, which fails nothing.
+
 ## The model environment is verified before anything flies
 
 `tier2.yml` runs `python3 -m argazui doctor --release` before it launches a

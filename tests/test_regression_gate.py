@@ -309,3 +309,83 @@ def test_a_committed_baseline_is_not_itself_treated_as_a_run(workspace):
                [_metric("time_to_target_alt", 10.0)])
     document = regression.gate(runs, inner)
     assert document["outcome"] == regression.GATE_SKIPPED
+
+
+# ================================================ the committed baselines
+# These assert on `runs/baselines/` as it exists in the repository, so a commit
+# that corrupts a baseline, drops a contract file, or seeds one from a
+# non-reproducible environment fails here rather than in a nightly three weeks
+# later. They skip rather than fail where the directory is absent: the tier-1
+# image does not mount `runs/`, and a missing baselines root is a legitimate
+# state for a fresh checkout — `NOT_APPLICABLE` is what the gate says about it.
+BASELINES = Path(__file__).resolve().parent.parent / "runs" / "baselines"
+
+
+def _committed_baselines() -> list[Path]:
+    if not BASELINES.is_dir():
+        return []
+    return sorted(d for d in BASELINES.iterdir()
+                  if d.is_dir() and (d / "result.json").is_file())
+
+
+@pytest.mark.skipif(not BASELINES.is_dir(), reason="no baselines root here")
+def test_every_committed_baseline_is_readable_and_carries_metrics():
+    """A baseline `load_run` cannot read is a gate that reports ERROR forever."""
+    found = _committed_baselines()
+    if not found:
+        pytest.skip("no baseline is committed yet; the gate reports "
+                    "NOT_APPLICABLE, which is a legitimate state")
+    for directory in found:
+        run = regression.load_run(directory)
+        assert run["model_id"] == directory.name, (
+            f"{directory.name} holds a run for model {run['model_id']!r}")
+        assert [m for m in run["metrics"] if m.get("value") is not None], (
+            f"{directory.name} has no metric with a value, so `compare` would "
+            f"hard-block every comparison against it")
+        assert run["procedures"], f"{directory.name} records no procedure"
+
+
+@pytest.mark.skipif(not BASELINES.is_dir(), reason="no baselines root here")
+def test_every_committed_baseline_was_flown_in_a_reproducible_environment():
+    """The rule `runs/baselines/README.md` states, enforced rather than trusted.
+
+    A baseline measured in a `modified` model environment is a reference nobody
+    can reproduce, and putting one at the centre of the release gate is the
+    defect F-09 exists to prevent. v1.7 refused to seed the directory for
+    exactly this reason; this is what stops the refusal being undone quietly.
+    """
+    for directory in _committed_baselines():
+        run = regression.load_run(directory)
+        pin = ((run["fingerprint"].get("sitl_models") or {}).get("pin")) or {}
+        assert pin, f"{directory.name} carries no model-environment pin"
+        assert pin.get("state") == "pinned", (
+            f"{directory.name} was flown with the model environment "
+            f"{pin.get('state')!r}: {pin.get('reason')}")
+        assert pin.get("reproducible") is True, directory.name
+
+
+@pytest.mark.skipif(not BASELINES.is_dir(), reason="no baselines root here")
+def test_every_committed_baseline_carries_the_contract_files():
+    """And only those. The dataflash logs and plots are deliberately excluded —
+    megabytes `compare` never reads. See runs/baselines/README.md."""
+    contract = {"result.json", "fingerprint.json", "versions.txt",
+                "scenario.yaml"}
+    for directory in _committed_baselines():
+        present = {f.name for f in directory.iterdir() if f.is_file()}
+        assert contract <= present, (
+            f"{directory.name} is missing {sorted(contract - present)}")
+        assert not [n for n in present - contract if n.endswith(".BIN")], (
+            f"{directory.name} committed a dataflash log")
+
+
+@pytest.mark.skipif(not BASELINES.is_dir(), reason="no baselines root here")
+def test_a_committed_baseline_names_a_model_in_the_registry():
+    """A baseline for a model that no longer exists can never be reached."""
+    import json as _json
+
+    from argazui import paths
+    registry = _json.loads(paths.MODELS_JSON.read_text(encoding="utf-8"))
+    known = {m["id"] for m in registry.get("models") or []}
+    for directory in _committed_baselines():
+        assert directory.name in known, (
+            f"{directory.name} is not a model in config/models.json")

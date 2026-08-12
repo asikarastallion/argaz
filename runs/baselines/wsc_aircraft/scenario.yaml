@@ -1,0 +1,264 @@
+# Procedures executed during this run, in order and verbatim.
+# This is the same YAML the TAKEOFF/LAND buttons and the
+# regression suite execute — see argazui/procedures/SCHEMA.md.
+
+# ---------------------------------------------------------------
+# executed 2026-08-12T07:52:54Z — plane_takeoff (takeoff)
+# inputs: {"alt": 60.0}
+# outcome: PASSED
+# source file: plane_takeoff.yaml
+# ---------------------------------------------------------------
+# Fixed-wing takeoff — TAKEOFF mode.
+#
+# THIS PROCEDURE EXISTS BECAUSE THE v1.0 BUTTON WAS WRONG.
+# v1.0 sent GUIDED + arm + MAV_CMD_NAV_TAKEOFF to every vehicle class. On
+# ArduPlane that command is compiled only under HAL_QUADPLANE_ENABLED and its
+# handler returns MAV_RESULT_FAILED unless quadplane.available()
+# (ArduPlane/GCS_MAVLink_Plane.cpp, handle_command_MAV_CMD_NAV_TAKEOFF). On a
+# real fixed wing it can never produce a takeoff, whatever the ACK says.
+#
+# Sources:
+#   https://ardupilot.org/plane/docs/takeoff-mode.html
+#     "will use maximum throttle as set by the TKOFF_THR_MAX parameter,
+#      climbing with TKOFF_LVL_PITCH maximum and takeoff roll limits up to the
+#      TKOFF_ALT altitude", then "loiter at TKOFF_ALT altitude until the mode
+#      is changed".
+#   ardupilot/Tools/autotest/arduplane.py, takeoff_in_TAKEOFF()
+#     ArduPilot's own CI sequence, and the reason the mode change comes BEFORE
+#     the arm here: change_mode("TAKEOFF") -> set TKOFF_ALT ->
+#     wait_ready_to_arm() -> arm_vehicle() -> wait_altitude().
+#     Arming last means the throttle cannot spool up until everything else is
+#     in place.
+#   ardupilot/ArduPlane/mode_takeoff.cpp
+#     the takeoff only locks in once groundspeed exceeds GPS_GND_CRS_MIN_SPD,
+#     which is why the acceptance criteria check climb rate and not just an ACK.
+schema: 4
+id: plane_takeoff
+name:
+  en: Plane takeoff (TAKEOFF mode)
+  tr: Plane kalkisi (TAKEOFF modu)
+description:
+  en: >-
+    Runway/hand takeoff for a fixed wing. Validates the TKOFF_* parameters,
+    enters TAKEOFF mode, then arms; the aircraft climbs to TKOFF_ALT and
+    loiters there.
+  tr: >-
+    Sabit kanat icin pist/el kalkisi. TKOFF_* parametrelerini dogrular, TAKEOFF
+    moduna gecer, sonra arm eder; ucak TKOFF_ALT irtifasina tirmanip orada
+    bekler.
+sources:
+  - https://ardupilot.org/plane/docs/takeoff-mode.html
+  - https://ardupilot.org/plane/docs/mode_autoland.html
+
+applies_to:
+  role: takeoff
+  autopilot: ArduPlane
+  quadplane: false
+  default: true
+  priority: 10
+
+inputs:
+  - name: alt
+    label: {en: "altitude (m)", tr: "irtifa (m)"}
+    type: number
+    default: 50
+    min: 10
+    max: 500
+
+timeout: 300
+
+# Run-scoped configuration changes. Applied before the first step, restored
+# when the procedure ends however it ends, and listed at the top of the run's
+# flight report. See SCHEMA.md — a procedure may not change a parameter that is
+# not declared here.
+overrides:
+  - param: TKOFF_ALT
+    value: "{alt}"
+    reason:
+      en: >-
+        TAKEOFF mode has no altitude argument: it climbs to whatever TKOFF_ALT
+        says and then loiters there
+        (ardupilot/ArduPlane/mode_takeoff.cpp, ModeTakeoff::update). The
+        altitude asked for on the button is therefore only meaningful as this
+        parameter. The aircraft's own value is put back afterwards, so the
+        model's .param file and its stored settings are unchanged.
+      tr: >-
+        TAKEOFF modunun irtifa argumani yoktur: TKOFF_ALT ne diyorsa oraya
+        tirmanir ve orada bekler
+        (ardupilot/ArduPlane/mode_takeoff.cpp, ModeTakeoff::update). Butonda
+        istenen irtifa ancak bu parametre olarak anlam kazanir. Aracin kendi
+        degeri sonradan geri konur; modelin .param dosyasi ve kayitli ayarlari
+        degismez.
+
+steps:
+  # ---------------------------------------------------------------- checks
+  # TKOFF_DIST is the distance to the point the aircraft loiters at once it is
+  # up. At zero the aircraft has no waypoint to fly towards and the takeoff
+  # cannot be set up sensibly, so refuse with an explanation instead of arming
+  # and watching nothing happen.
+  - name: {en: Check TKOFF_DIST, tr: TKOFF_DIST'i kontrol et}
+    get_param:
+      name: TKOFF_DIST
+      store_as: tkoff_dist
+      min: 1
+      fail_message:
+        en: >-
+          TKOFF_DIST is {value}. TAKEOFF mode needs a distance to the loiter
+          point it climbs towards; at zero there is nothing to fly to. Set
+          TKOFF_DIST to roughly 100-400 m for this airframe.
+        tr: >-
+          TKOFF_DIST {value}. TAKEOFF modunun tirmanirken yoneldigi bekleme
+          noktasina bir mesafe gerekir; sifirken gidecek yer yoktur.
+          TKOFF_DIST'i bu ucak icin yaklasik 100-400 m yap.
+
+  # A non-zero TKOFF_THR_MINACC means the autopilot waits for a forward
+  # acceleration event (hand launch or catapult) before it will open the
+  # throttle — see Plane::auto_takeoff_check(). ArgazUI cannot throw the
+  # aircraft, so on a runway model this would hang forever with no error.
+  - name: {en: Check launch detection, tr: Firlatma algilamasini kontrol et}
+    get_param:
+      name: TKOFF_THR_MINACC
+      store_as: tkoff_minacc
+      max: 0
+      fail_message:
+        en: >-
+          TKOFF_THR_MINACC is {value}, so the autopilot waits for a hand-launch
+          or catapult acceleration before opening the throttle. A simulated
+          runway takeoff cannot supply that. Set TKOFF_THR_MINACC to 0 for this
+          model, or launch it from an AUTO mission instead.
+        tr: >-
+          TKOFF_THR_MINACC {value}, yani otopilot gaz vermeden once elle
+          firlatma/mancinik ivmesi bekliyor. Simulasyondaki pist kalkisi bunu
+          uretemez. Bu model icin TKOFF_THR_MINACC'i 0 yap ya da AUTO gorevle
+          kalkis yap.
+
+  # ---------------------------------------------------------------- setup
+  # TKOFF_ALT is set by the declared override above, before this point.
+  - name: {en: Switch to TAKEOFF mode, tr: TAKEOFF moduna gec}
+    set_mode: TAKEOFF
+    timeout: 10
+
+  - name: {en: Wait until pre-arm checks pass, tr: ARM oncesi kontrollerin gecmesini bekle}
+    wait_for: {prearm_ok: true}
+    timeout: 60
+    on_fail: continue     # the arm step reports the autopilot's own reason
+
+  - name: {en: Arm — the takeoff run starts here, tr: Arm — kalkis kosusu burada basliyor}
+    arm: {recover: true}
+    timeout: 70
+
+  # ---------------------------------------------------------------- proof
+  - name: {en: Confirm the takeoff roll started, tr: Kalkis kosusunun basladigini dogrula}
+    wait_for: {groundspeed_above: 5}
+    timeout: 45
+
+  - name: {en: Confirm the aircraft left the ground, tr: Ucagin yerden kesildigini dogrula}
+    wait_for: {alt_above: 5, climb_rate_above: 0.5}
+    timeout: 60
+
+  - name: {en: Wait for the target altitude, tr: Hedef irtifayi bekle}
+    wait_for: {alt_above: "{alt*0.85}"}
+    timeout: 150
+
+expect:
+  - id: alt-reached
+    condition: {alt_above: "{alt*0.85}"}
+    timeout: 30
+    message:
+      en: climbed to at least 85% of TKOFF_ALT
+      tr: TKOFF_ALT'in en az %85'ine tirmandi
+  - id: still-armed
+    condition: {armed: true}
+    message: {en: still armed, tr: hala armli}
+  - id: mode-held
+    condition: {mode: TAKEOFF}
+    message:
+      en: still in TAKEOFF mode, loitering at altitude
+      tr: hala TAKEOFF modunda, irtifada bekliyor
+
+  # A fixed wing is not a hovering aircraft, so its band is wider and shaped
+  # differently. Pitch: TKOFF_LVL_PITCH climbs the aircraft out nose-high and
+  # ArduPilot's own default is 15°, so the band allows up to 45 and refuses a
+  # sustained nose-down, which during a takeoff means the climb has been lost.
+  # Roll: TAKEOFF ends in a loiter, and a loiter is a coordinated turn — 45° is
+  # beyond LIM_ROLL_CD's 45° default only if the aircraft has stopped obeying
+  # it. Rate: 90°/s is far above anything a plane does deliberately at these
+  # speeds; a wing does not roll that fast without departing.
+  - id: attitude-envelope
+    condition:
+      attitude_stable: {roll: [-45, 45], pitch: [-15, 45], max_rate: 90,
+                        tolerance: 3}
+    message:
+      en: flew the climb-out and loiter within a fixed wing's normal envelope
+      tr: tirmanis ve bekleyisi sabit kanadin normal zarfi icinde ucurdu
+
+---
+# ---------------------------------------------------------------
+# executed 2026-08-12T07:54:35Z — plane_land (land)
+# inputs: {}
+# outcome: PASSED
+# source file: plane_land.yaml
+# ---------------------------------------------------------------
+# Fixed-wing landing — AUTOLAND mode, verified through to disarm.
+#
+# Sources:
+#   https://ardupilot.org/plane/docs/mode_autoland.html
+#     The takeoff direction must have been captured first: the aircraft must
+#     have flown in "TAKEOFF, FBWA, MANUAL, TRAINING, ACRO, STABILIZE modes,
+#     and during a NAV_TAKEOFF in AUTO" until "a GPS ground speed of 5m/s". If
+#     it took off some other way "the mode cannot be entered since the takeoff
+#     direction has not been captured". Also: "QuadPlanes cannot use this
+#     mode."  AUTOLAND_WP_ALT (55 m) and AUTOLAND_WP_DIST (400 m) place the
+#     final approach waypoint.
+#   ardupilot/ArduPlane/mode_autoland.cpp, ModeAutoLand::_enter()
+#     rejects entry with "Must already be flying!", "autoland not available"
+#     (quadplane) or "Takeoff initial direction not set".
+#
+# This pairs with plane_takeoff.yaml: TAKEOFF mode captures the direction that
+# AUTOLAND needs, so the two procedures are designed to be used together.
+schema: 4
+id: plane_land
+name:
+  en: Plane landing (AUTOLAND)
+  tr: Plane inisi (AUTOLAND)
+description:
+  en: >-
+    Flies the automatic fixed-wing approach back to the takeoff point and lands.
+    Requires a takeoff that captured the takeoff direction.
+  tr: >-
+    Kalkis noktasina otomatik sabit kanat yaklasmasi yapip iner. Kalkis
+    yonunun yakalandigi bir kalkis gerektirir.
+sources:
+  - https://ardupilot.org/plane/docs/mode_autoland.html
+
+applies_to:
+  role: land
+  autopilot: ArduPlane
+  quadplane: false
+  default: true
+  priority: 10
+
+timeout: 600
+
+steps:
+  - name: {en: Release any RC overrides, tr: Kumanda override'larini birak}
+    rc_release: true
+
+  # AUTOLAND refuses entry when the aircraft is not flying or the takeoff
+  # direction was never captured; the autopilot's own STATUSTEXT explains which
+  # of the two it was, and the mode step reports it verbatim.
+  - name: {en: Switch to AUTOLAND, tr: AUTOLAND moduna gec}
+    set_mode: AUTOLAND
+    timeout: 15
+
+  - name: {en: Fly the approach and land, tr: Yaklasmayi ucup in}
+    wait_for: {armed: false}
+    timeout: 540
+
+expect:
+  - id: disarmed
+    condition: {armed: false}
+    message: {en: disarmed after landing, tr: inisten sonra disarm oldu}
+  - id: on-ground
+    condition: {alt_below: 10.0}
+    message: {en: on the ground, tr: yerde}

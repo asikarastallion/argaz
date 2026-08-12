@@ -140,6 +140,16 @@ modelin en yeni önceki koşusunu seçer; bu arayüz için bir kolaylıktır —
 hatta ise karşılaştırmanın neye karşı yapıldığını o gün diskte ne varsa ona
 bağımlı kılardı.
 
+**Yedi modelin işlenmiş bir referansı var**; hepsi, `doctor --release`
+denetimini geçen bir makinede birlikte uçuruldu. İşe olağan yoldan ulaşırlar:
+`runs/baselines/` checkout içindedir, `actions/checkout` onu getirir ve adım
+zaten `$PWD/runs` dizinini bağlar — böylece kapı, konteynerin az önce yazdığı
+güncel koşuları ve işlenmiş referansları tek bir kökte görür. Bir referans
+dizini güncel koşu sanılmaz; kapı, üst dizini `baselines/` olan her şeyi atlar.
+
+Referansı olmayan dört model `NOT_APPLICABLE` bildirir ve bu hiçbir şeyi
+başarısız kılmaz.
+
 ## Model ortamı, hiçbir şey uçmadan önce doğrulanır
 
 `tier2.yml`, tek bir model başlatmadan önce

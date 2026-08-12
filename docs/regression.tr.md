@@ -166,3 +166,47 @@ açabileceği bir artefakttır — ayrı bir CI raporlama biçimi yoktur.
 Bir referans, `runs/baselines/` altına işlenmiş sıradan bir koşu dizinidir;
 neyin saklandığı ve nedeni için bkz.
 [README dosyası](../runs/baselines/README.md).
+
+### İşlenmiş referanslar
+
+Yedi modelin bir referansı var; hepsi, `doctor --release` denetimini geçen bir
+makinede tek bir katman-2 koşusunda uçuruldu — `SITL_Models` `25bc38ed8c6c`
+revizyonuna sabitlenmiş ve çalışma ağacı temiz, ArduPilot `0b38722bd5a4`,
+Gazebo Sim 8.14.0:
+
+`alti_transition_quad`, `bicopter`, `hexapod_copter`, `mini_talon_vtail`,
+`skywalker_x8`, `skywalker_x8_quad`, `wsc_aircraft`.
+
+Dört modelin referansı yok ve kapı her biri için `NOT_APPLICABLE` bildiriyor:
+`zephyr` ve `skycat_tvbs` belgelenmiş gerekçeleriyle başarısız oluyor ve yarım
+kalmış bir uçuşun sayıları, bir hava aracının nasıl uçması *gerektiğine* dair
+bir ifade değildir; `swan_k1_hwing` arm öncesi denetimleri hiç geçmediği için
+hiç metrik üretmez — `compare` bunu zaten sert biçimde engeller; `iris` ise
+burada hiç uçmadı.
+
+`NOT_APPLICABLE` ne geçmedir ne de başarısızlık. Karşılaştırılacak bir şey
+olmadığını söyler. Bir modelin *hükmü* [status.md](status.md) tarafından
+izlenir; referanslar ise *metriklerini* izler.
+
+Sözleşme ve bir referansın nasıl değiştirileceği için bkz.
+[runs/baselines/README.md](../runs/baselines/README.md).
+
+### Referansların henüz desteklemediği şey
+
+Bu referanslara karşı yapılan bağımsız ikinci bir katman-2 uçuşu — aynı makine,
+aynı sabitlenmiş ortam, dakikalar sonra — `PASS 3, FAIL 4` döndürdü.
+Karşılaştırmalar geçerliydi (parmak izi sapması yok); yani hareket,
+simülasyonun kendi koşudan koşuya değişkenliğidir.
+
+Üç metrik, birbirinin aynı iki koşu arasında %10'luk varsayılan toleransı aşar:
+`peak_angular_rate` (%113'e kadar), `tracking_error_roll_max` (%50) ve
+`tracking_error_pitch_max` (%15). Bunların her biri tek bir örnekle belirlenen
+bir **maksimumdur**; kararlı olan beş metrik ise bu gürültüyü ortalayan RMS
+değerleri, biriken toplamlar ve sürelerdir.
+
+Yani kapı dürüsttür ama henüz kullanılabilir bir *engelleyici* sürüm kapısı
+değildir. Eşikler bilerek uydurulmadı: iki koşu bir dağılım değildir ve
+`campaign.py` de aynı gerekçeyle üçten az örnekten bir yayılım bildirmeyi
+reddeder. Model başına bir tekrarlanabilirlik kampanyası, o üç metrik için
+`[regression.tolerance]` değerlerini belirlemeyi haklı çıkaracak ölçümdür.
+Sayılar için bkz. `docs/V1.7_ENGINEERING_VERIFICATION.md` §16.5.

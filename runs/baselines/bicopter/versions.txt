@@ -1,0 +1,12 @@
+ardupilot = ArduCopter V4.8.0-dev @ 0b38722bd5a4 (ArduPilot-4.6.0-beta1-7768-g0b38722bd5)
+ardupilot_sha = 0b38722bd5a46099dbe7d50074624680f58ce584
+ardupilot_describe = ArduPilot-4.6.0-beta1-7768-g0b38722bd5
+ardupilot_firmware = ArduCopter V4.8.0-dev
+ardupilot_root = /home/asikarastallion/Documents/argaz/ardupilot
+argazui = 1.7.0
+gz_sim = Gazebo Sim, version 8.14.0
+ros_distro = jazzy
+python = 3.12.3
+python_executable = /home/asikarastallion/venv-ardupilot/bin/python3
+pymavlink = 2.4.49
+host = Linux 7.0.0-28-generic (x86_64)

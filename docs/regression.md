@@ -164,3 +164,46 @@ an artefact anybody can open — there is no separate CI reporting format.
 
 A baseline is an ordinary run directory committed under `runs/baselines/`; see
 [its README](../runs/baselines/README.md) for what is kept and why.
+
+### The committed baselines
+
+Seven models have one, all flown in a single tier-2 suite run on a machine
+where `doctor --release` passed — `SITL_Models` pinned at
+`25bc38ed8c6c` with a clean working tree, ArduPilot `0b38722bd5a4`,
+Gazebo Sim 8.14.0:
+
+`alti_transition_quad`, `bicopter`, `hexapod_copter`, `mini_talon_vtail`,
+`skywalker_x8`, `skywalker_x8_quad`, `wsc_aircraft`.
+
+Four models have none, and the gate reports `NOT_APPLICABLE` for each:
+`zephyr` and `skycat_tvbs` fail for their documented reasons and a partial
+flight's numbers are not a statement about how an aircraft should fly;
+`swan_k1_hwing` never passes pre-arm so it produces no metrics at all, which
+`compare` hard-blocks anyway; `iris` has never flown here.
+
+`NOT_APPLICABLE` is not a pass and not a failure. It says there is nothing to
+compare against. A model's *verdict* is tracked by
+[status.md](status.md); baselines track its *metrics*.
+
+See [runs/baselines/README.md](../runs/baselines/README.md) for the contract and
+for how to replace one.
+
+### What the baselines do not yet support
+
+An independent second tier-2 flight against these baselines — same machine,
+same pinned environment, minutes later — returned `PASS 3, FAIL 4`. The
+comparisons were valid (no fingerprint drift), so the movement is run-to-run
+variance of the simulation itself.
+
+Three metrics move past the 10 % default tolerance between identical runs:
+`peak_angular_rate` (up to 113 %), `tracking_error_roll_max` (50 %) and
+`tracking_error_pitch_max` (15 %). Every one of them is a **maximum**, decided
+by a single sample; the five stable metrics are RMS values, accumulated totals
+and times, which average that noise away.
+
+So the gate is honest but not yet a usable *blocking* release gate. The
+thresholds have deliberately not been tuned to fit: two runs are not a
+distribution, and `campaign.py` refuses to report a spread from fewer than
+three samples for the same reason. A repeatability campaign per model is the
+measurement that would justify setting `[regression.tolerance]` for those
+three. See `docs/V1.7_ENGINEERING_VERIFICATION.md` §16.5 for the numbers.

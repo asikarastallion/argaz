@@ -1,0 +1,680 @@
+{
+  "schema": 6,
+  "run_id": "20260812T073904Z_hexapod_copter",
+  "argazui_version": "1.7.0",
+  "started_utc": "2026-08-12T07:39:04Z",
+  "finished_utc": "2026-08-12T07:40:46Z",
+  "seconds": 101.6,
+  "status": "passed",
+  "campaign": null,
+  "experiment": null,
+  "test_id": "tests/test_tier2_models.py::test_model_takes_off_changes_mode_and_lands[hexapod_copter]",
+  "advisory_count": 2,
+  "metrics": [
+    {
+      "key": "time_to_target_alt",
+      "value": 12.87,
+      "unit": "s",
+      "better": "lower",
+      "source": "POS.RelHomeAlt against the altitude the procedure asked for, measured from arming on the log's own clock",
+      "scope": "procedure",
+      "clock": "vehicle",
+      "window": "armed",
+      "procedure": "copter_takeoff",
+      "detail": "20 m above home, measured from arming at 0.0 s",
+      "identity": "time_to_target_alt@copter_takeoff",
+      "metric_id": "time_to_target_alt@copter_takeoff"
+    },
+    {
+      "key": "tracking_error_roll_max",
+      "value": 0.03,
+      "unit": "deg",
+      "better": "lower",
+      "source": "ATT.DesRoll - ATT.Roll",
+      "scope": "run",
+      "clock": "vehicle",
+      "window": "log",
+      "procedure": "",
+      "detail": "",
+      "identity": "tracking_error_roll_max",
+      "metric_id": "tracking_error_roll_max"
+    },
+    {
+      "key": "tracking_error_roll_rms",
+      "value": 0.01,
+      "unit": "deg",
+      "better": "lower",
+      "source": "ATT.DesRoll - ATT.Roll, root mean square",
+      "scope": "run",
+      "clock": "vehicle",
+      "window": "log",
+      "procedure": "",
+      "detail": "",
+      "identity": "tracking_error_roll_rms",
+      "metric_id": "tracking_error_roll_rms"
+    },
+    {
+      "key": "tracking_error_pitch_max",
+      "value": 0.22,
+      "unit": "deg",
+      "better": "lower",
+      "source": "ATT.DesPitch - ATT.Pitch",
+      "scope": "run",
+      "clock": "vehicle",
+      "window": "log",
+      "procedure": "",
+      "detail": "",
+      "identity": "tracking_error_pitch_max",
+      "metric_id": "tracking_error_pitch_max"
+    },
+    {
+      "key": "tracking_error_pitch_rms",
+      "value": 0.02,
+      "unit": "deg",
+      "better": "lower",
+      "source": "ATT.DesPitch - ATT.Pitch, root mean square",
+      "scope": "run",
+      "clock": "vehicle",
+      "window": "log",
+      "procedure": "",
+      "detail": "",
+      "identity": "tracking_error_pitch_rms",
+      "metric_id": "tracking_error_pitch_rms"
+    },
+    {
+      "key": "peak_angular_rate",
+      "value": 4.46,
+      "unit": "deg/s",
+      "better": "lower",
+      "source": "IMU.GyrX/GyrY/GyrZ, largest magnitude on any axis",
+      "scope": "run",
+      "clock": "vehicle",
+      "window": "log",
+      "procedure": "",
+      "detail": "",
+      "identity": "peak_angular_rate",
+      "metric_id": "peak_angular_rate"
+    },
+    {
+      "key": "time_outside_attitude_envelope",
+      "value": 0.0,
+      "unit": "s",
+      "better": "lower",
+      "source": "ATT.Roll/ATT.Pitch against the envelope the procedure declared, over the log's armed interval(s)",
+      "scope": "run",
+      "clock": "vehicle",
+      "window": "armed",
+      "procedure": "",
+      "detail": "envelope declared by copter_takeoff: roll [-20,20]°, pitch [-20,20]°, over 1 armed interval(s). The `attitude_stable` criterion of the same name is scoped to its own procedure, so the two windows are close but not identical.",
+      "identity": "time_outside_attitude_envelope",
+      "metric_id": "time_outside_attitude_envelope"
+    },
+    {
+      "key": "mode_transition_latency_max",
+      "value": 0.1,
+      "unit": "s",
+      "better": "lower",
+      "source": "the duration of each set_mode step on the vehicle's own clock, ending when the heartbeat confirms the new mode by number",
+      "scope": "procedure",
+      "clock": "wall",
+      "window": "procedure",
+      "procedure": "copter_takeoff",
+      "detail": "slowest of 1 change(s): Switch to GUIDED — measured on the HOST clock, because the vehicle's own clock was not running during the step; not comparable across a change of SITL speedup",
+      "identity": "mode_transition_latency_max@copter_takeoff",
+      "metric_id": "mode_transition_latency_max@copter_takeoff"
+    },
+    {
+      "key": "mode_transition_latency_max",
+      "value": 0.1,
+      "unit": "s",
+      "better": "lower",
+      "source": "the duration of each set_mode step on the vehicle's own clock, ending when the heartbeat confirms the new mode by number",
+      "scope": "procedure",
+      "clock": "wall",
+      "window": "procedure",
+      "procedure": "copter_land",
+      "detail": "slowest of 1 change(s): Switch to LAND — measured on the HOST clock, because the vehicle's own clock was not running during the step; not comparable across a change of SITL speedup",
+      "identity": "mode_transition_latency_max@copter_land",
+      "metric_id": "mode_transition_latency_max@copter_land"
+    }
+  ],
+  "fingerprint": {
+    "schema": 1,
+    "captured_utc": "2026-08-12T07:40:48Z",
+    "argaz": {
+      "version": "1.7.0",
+      "commit": "b72913a2cc9b65bb51fb116bdb8bbfc779977729",
+      "short_commit": "b72913a2cc9b",
+      "describe": "v1.3.0-24-gb72913a-dirty",
+      "dirty": true,
+      "dirty_digest": "sha256:fbf907d7b69f1b50f3d5529040187800",
+      "root": "/home/asikarastallion/Documents/argaz"
+    },
+    "ardupilot": {
+      "commit": "0b38722bd5a46099dbe7d50074624680f58ce584",
+      "short_commit": "0b38722bd5a4",
+      "describe": "ArduPilot-4.6.0-beta1-7768-g0b38722bd5",
+      "dirty": false,
+      "dirty_digest": "clean",
+      "root": "/home/asikarastallion/Documents/argaz/ardupilot",
+      "firmware": "ArduCopter V4.8.0-dev",
+      "firmware_commit": "0b38722b",
+      "firmware_matches_checkout": true,
+      "text": "ArduCopter V4.8.0-dev @ 0b38722bd5a4 (ArduPilot-4.6.0-beta1-7768-g0b38722bd5)"
+    },
+    "sitl_models": {
+      "commit": "25bc38ed8c6c0345840159a8cbc0b02781d52f3c",
+      "short_commit": "25bc38ed8c6c",
+      "describe": "25bc38e",
+      "dirty": false,
+      "dirty_digest": "clean",
+      "root": "/home/asikarastallion/Documents/argaz/SITL_Models",
+      "pin": {
+        "repository": "https://github.com/ArduPilot/SITL_Models.git",
+        "revision": "25bc38ed8c6c0345840159a8cbc0b02781d52f3c",
+        "revision_kind": "commit",
+        "resolved_commit": "25bc38ed8c6c0345840159a8cbc0b02781d52f3c",
+        "identity": "sha256:811fa669b5cf854c1db9da9771fbdfff",
+        "state": "pinned",
+        "ok": true,
+        "reproducible": true,
+        "reason": ""
+      }
+    },
+    "gazebo": {
+      "version": "Gazebo Sim, version 8.14.0"
+    },
+    "ros": {
+      "distro": "jazzy"
+    },
+    "runtime": {
+      "python": "3.12.3",
+      "python_executable": "/home/asikarastallion/venv-ardupilot/bin/python3",
+      "pymavlink": "2.4.49",
+      "platform": "Linux 7.0.0-28-generic (x86_64)"
+    },
+    "model": {
+      "id": "hexapod_copter",
+      "name": "Hexapod Copter",
+      "vehicle_class": "Copter",
+      "method": "gz_plus_sitl_paramfile",
+      "vehicle": "ArduCopter",
+      "frame": "hexa",
+      "world": "hexapod_copter_runway.sdf",
+      "config_hash": "sha256:24366d86a483c04d9593244998e102457fc533676908808412900981596afb9d",
+      "param_files": [
+        "/home/asikarastallion/Documents/argaz/SITL_Models/Gazebo/config/hexapod_copter.param"
+      ]
+    },
+    "procedures": [
+      {
+        "id": "copter_takeoff",
+        "schema": 4,
+        "file": "copter_takeoff.yaml",
+        "hash": "sha256:2582de03e3c492c43ece1ef2e416b40fec2c7523a666838e017cba12ca30cbde"
+      },
+      {
+        "id": "copter_land",
+        "schema": 4,
+        "file": "copter_land.yaml",
+        "hash": "sha256:26647e7c22885bf4f5325b464f7345eaa89b7e49bae5055a026c8ecf1a223d7e"
+      }
+    ],
+    "procedure_hash": "sha256:12240ff9a2ac05efa810e780a5d593e2377a0f257941bb63d1fd4d87fb62ff19",
+    "scenario": {
+      "faults": [],
+      "covered_by": "procedure_hash"
+    },
+    "config": {
+      "config_file": "/home/asikarastallion/Documents/argaz/argaz.toml",
+      "argaz_root": "/home/asikarastallion/Documents/argaz",
+      "ardupilot_root": "/home/asikarastallion/Documents/argaz/ardupilot",
+      "sitl_models_root": "/home/asikarastallion/Documents/argaz/SITL_Models",
+      "ardu_ws_root": "/home/asikarastallion/Documents/argaz/ardu_ws",
+      "runs_root": "/home/asikarastallion/Documents/argaz/runs",
+      "env_script": "/home/asikarastallion/Documents/argaz/env.sh",
+      "port": "8770",
+      "mavlink_port": "14550",
+      "script_mavlink_port": "14551",
+      "plotjuggler_port": "14552",
+      "regression": "default_tolerance, floor, tolerance",
+      "model_environment_revision": "25bc38ed8c6c0345840159a8cbc0b02781d52f3c",
+      "model_environment_repository": "https://github.com/ArduPilot/SITL_Models.git"
+    },
+    "unknown": []
+  },
+  "flaky": [],
+  "ok": true,
+  "model": {
+    "id": "hexapod_copter",
+    "name": "Hexapod Copter",
+    "vehicle_class": "Copter",
+    "method": "gz_plus_sitl_paramfile",
+    "vehicle": "ArduCopter",
+    "frame": "hexa",
+    "param_file": "$SITL_MODELS/Gazebo/config/hexapod_copter.param",
+    "world": "hexapod_copter_runway.sdf",
+    "env": "quadplane_env.sh",
+    "has_ros2": false,
+    "sitl_param_overrides": null
+  },
+  "build": {
+    "firmware": "ArduCopter V4.8.0-dev",
+    "firmware_hash": "0b38722b",
+    "sha": "0b38722bd5a46099dbe7d50074624680f58ce584",
+    "describe": "ArduPilot-4.6.0-beta1-7768-g0b38722bd5",
+    "root": "/home/asikarastallion/Documents/argaz/ardupilot",
+    "short_sha": "0b38722bd5a4",
+    "firmware_matches_checkout": true,
+    "text": "ArduCopter V4.8.0-dev @ 0b38722bd5a4 (ArduPilot-4.6.0-beta1-7768-g0b38722bd5)"
+  },
+  "work_dir": "/home/asikarastallion/Documents/argaz/argazui/run/hexapod_copter",
+  "initial_state": {
+    "launch_commands": [
+      "source /home/asikarastallion/Documents/argaz/quadplane_env.sh",
+      "gz sim -v4 -r -s hexapod_copter_runway.sdf &",
+      "for i in $(seq 1 30); do gz topic -l 2>/dev/null | grep -q \"^/world/\" && { echo \"[argaz] gazebo is serving a world\"; break; }; sleep 2; done; gz topic -l 2>/dev/null | grep -q \"^/world/\" || echo \"[argaz] gazebo did not report a world within 60s — starting the vehicle anyway; see the lifecycle record\"",
+      "mkdir -p /home/asikarastallion/Documents/argaz/argazui/run/hexapod_copter/scripts",
+      "cp -f /home/asikarastallion/Documents/argaz/SITL_Models/Gazebo/scripts/hexapod_copter.lua /home/asikarastallion/Documents/argaz/argazui/run/hexapod_copter/scripts/",
+      "cd /home/asikarastallion/Documents/argaz/argazui/run/hexapod_copter",
+      "sim_vehicle.py -v ArduCopter -f hexa --model JSON --add-param-file=$SITL_MODELS/Gazebo/config/hexapod_copter.param -w --out 127.0.0.1:14551"
+    ],
+    "eeprom_wiped": true
+  },
+  "lifecycle": {
+    "schema": 1,
+    "label": "hexapod_copter",
+    "phase": "completed",
+    "clock": "wall",
+    "history": [
+      {
+        "phase": "created",
+        "since_start_s": 0.0,
+        "detail": ""
+      },
+      {
+        "phase": "environment_starting",
+        "since_start_s": 0.0,
+        "detail": "7 launch line(s)"
+      },
+      {
+        "phase": "environment_ready",
+        "since_start_s": 2.11,
+        "detail": "Gazebo is serving world(s): runway"
+      },
+      {
+        "phase": "vehicle_starting",
+        "since_start_s": 2.11,
+        "detail": "waiting for MAVLink"
+      },
+      {
+        "phase": "vehicle_starting",
+        "since_start_s": 9.61,
+        "detail": "the vehicle is talking but has not yet reported its pre-arm health"
+      },
+      {
+        "phase": "vehicle_ready",
+        "since_start_s": 22.62,
+        "detail": "pre-arm checks pass"
+      },
+      {
+        "phase": "completed",
+        "since_start_s": 101.58,
+        "detail": "simulation stopped"
+      }
+    ],
+    "timings_s": {
+      "environment_ready": 2.11,
+      "vehicle_ready": 22.62,
+      "total": 101.58
+    },
+    "failure": null
+  },
+  "isolation": {
+    "schema": 1,
+    "label": "hexapod_copter",
+    "session_id": 1603202,
+    "ports": {
+      "mavlink": 14550,
+      "script_mavlink": 14551
+    },
+    "conflicts_at_start": [],
+    "released": true,
+    "survivors": []
+  },
+  "overrides": [],
+  "procedures": [
+    {
+      "procedure": "copter_takeoff",
+      "name": "Copter takeoff (GUIDED)",
+      "role": "takeoff",
+      "file": "copter_takeoff.yaml",
+      "sources": [
+        "https://ardupilot.org/dev/docs/copter-commands-in-guided-mode.html",
+        "https://ardupilot.org/copter/docs/ac2_guidedmode.html"
+      ],
+      "started_utc": "2026-08-12T07:39:58Z",
+      "attempt": 1,
+      "values": {
+        "alt": 20.0
+      },
+      "result": {
+        "ok": true,
+        "outcome": "passed",
+        "procedure": "copter_takeoff",
+        "name": "Copter takeoff (GUIDED)",
+        "role": "takeoff",
+        "values": {
+          "alt": 20.0
+        },
+        "steps": [
+          {
+            "index": 0,
+            "kind": "set_mode",
+            "label": "Switch to GUIDED",
+            "status": "passed",
+            "text": "mode -> GUIDED",
+            "seconds": 0.1,
+            "vehicle_seconds": null,
+            "step_id": "copter_takeoff#s1"
+          },
+          {
+            "index": 1,
+            "kind": "arm",
+            "label": "Arm the motors",
+            "status": "passed",
+            "text": "ARM: accepted",
+            "seconds": 0.7,
+            "vehicle_seconds": 0.5,
+            "step_id": "copter_takeoff#s2"
+          },
+          {
+            "index": 2,
+            "kind": "send_command",
+            "label": "Send the takeoff command",
+            "status": "passed",
+            "text": "MAV_CMD_NAV_TAKEOFF: accepted",
+            "seconds": 0.1,
+            "vehicle_seconds": 0.25,
+            "step_id": "copter_takeoff#s3"
+          },
+          {
+            "index": 3,
+            "kind": "wait_for",
+            "label": "Confirm the vehicle is actually climbing",
+            "status": "passed",
+            "text": "alt=1.8m, climb=+2.3m/s",
+            "seconds": 4.2,
+            "vehicle_seconds": 3.998,
+            "step_id": "copter_takeoff#s4"
+          },
+          {
+            "index": 4,
+            "kind": "wait_for",
+            "label": "Wait for the target altitude",
+            "status": "passed",
+            "text": "alt=18.1m",
+            "seconds": 6.6,
+            "vehicle_seconds": 6.502,
+            "step_id": "copter_takeoff#s5"
+          }
+        ],
+        "expect": [
+          {
+            "label": "reached at least 90% of the requested altitude within 20 s",
+            "condition": {
+              "alt_above": 18.0
+            },
+            "passed": true,
+            "evaluated": true,
+            "text": "became true after 0ms of the 20s allowed — alt=18.1m",
+            "kind": "within",
+            "duration": 20.0,
+            "observed": 0.0,
+            "clock": "vehicle",
+            "criterion_id": "copter_takeoff#alt-reached",
+            "declared_id": true
+          },
+          {
+            "label": "held the altitude, the arm state and GUIDED for 5 s",
+            "condition": {
+              "alt_above": 18.0,
+              "armed": true,
+              "mode": "GUIDED"
+            },
+            "passed": true,
+            "evaluated": true,
+            "text": "held continuously for 5s (required 5s, 12 checks) — alt=20.0m, armed=True, mode=GUIDED",
+            "kind": "for",
+            "duration": 5.0,
+            "observed": 5.0,
+            "clock": "vehicle",
+            "criterion_id": "copter_takeoff#alt-held",
+            "declared_id": true
+          },
+          {
+            "label": "never turned faster than 180°/s while holding altitude",
+            "condition": {
+              "angular_rate_above": 180.0
+            },
+            "passed": true,
+            "evaluated": true,
+            "text": "not observed once in 5s of watching (12 checks) — last seen: rate=0°/s (limit 180)",
+            "kind": "never",
+            "duration": 5.0,
+            "observed": 5.0,
+            "clock": "vehicle",
+            "criterion_id": "copter_takeoff#no-rate-excursion",
+            "declared_id": true
+          },
+          {
+            "label": "stayed level throughout the climb",
+            "condition": {
+              "attitude_stable": {
+                "roll": [
+                  -20.0,
+                  20.0
+                ],
+                "pitch": [
+                  -20.0,
+                  20.0
+                ],
+                "max_rate": 60.0,
+                "tolerance": 2.0
+              }
+            },
+            "passed": true,
+            "evaluated": true,
+            "text": "roll outside [-20,20]° for 0.0s; pitch outside [-20,20]° for 0.0s; turn rate above 60°/s for 0.0s (peak 1°/s) — allowed 2s each, measured over 21s",
+            "kind": "eventually",
+            "duration": null,
+            "observed": 0.0,
+            "clock": "vehicle",
+            "criterion_id": "copter_takeoff#attitude-envelope",
+            "declared_id": true
+          }
+        ],
+        "faults": [],
+        "stability": {
+          "samples": 85,
+          "seconds": 21.0,
+          "roll_min": -0.1,
+          "roll_max": 0.1,
+          "pitch_min": -0.2,
+          "pitch_max": 0.1,
+          "rate_peak": 1.4,
+          "rate_p95": 0.5,
+          "rate_median": 0.2
+        },
+        "abort": null,
+        "speedup": 0.998,
+        "params_changed": {},
+        "seconds": 21.5,
+        "text": "PROCEDURE PASSED: Copter takeoff (GUIDED) — every acceptance criterion was met",
+        "failure": null
+      }
+    },
+    {
+      "procedure": "copter_land",
+      "name": "Copter landing (LAND)",
+      "role": "land",
+      "file": "copter_land.yaml",
+      "sources": [
+        "https://ardupilot.org/copter/docs/land-mode.html"
+      ],
+      "started_utc": "2026-08-12T07:40:29Z",
+      "attempt": 1,
+      "values": {},
+      "result": {
+        "ok": true,
+        "outcome": "passed",
+        "procedure": "copter_land",
+        "name": "Copter landing (LAND)",
+        "role": "land",
+        "values": {},
+        "steps": [
+          {
+            "index": 0,
+            "kind": "rc_release",
+            "label": "Release any RC overrides",
+            "status": "passed",
+            "text": "no stick override was active",
+            "seconds": 0.1,
+            "vehicle_seconds": null,
+            "step_id": "copter_land#s1"
+          },
+          {
+            "index": 1,
+            "kind": "set_mode",
+            "label": "Switch to LAND",
+            "status": "passed",
+            "text": "mode -> LAND",
+            "seconds": 0.1,
+            "vehicle_seconds": null,
+            "step_id": "copter_land#s2"
+          },
+          {
+            "index": 2,
+            "kind": "wait_for",
+            "label": "Confirm the vehicle is descending",
+            "status": "passed",
+            "text": "climb=-0.3m/s",
+            "seconds": 0.5,
+            "vehicle_seconds": 0.5,
+            "step_id": "copter_land#s3"
+          },
+          {
+            "index": 3,
+            "kind": "wait_for",
+            "label": "Wait for touchdown and automatic disarm",
+            "status": "passed",
+            "text": "armed=False",
+            "seconds": 31.0,
+            "vehicle_seconds": 31.0,
+            "step_id": "copter_land#s4"
+          }
+        ],
+        "expect": [
+          {
+            "label": "disarmed after landing",
+            "condition": {
+              "armed": false
+            },
+            "passed": true,
+            "evaluated": true,
+            "text": "armed=False",
+            "kind": "eventually",
+            "duration": null,
+            "observed": 0.0,
+            "clock": "vehicle",
+            "criterion_id": "copter_land#disarmed",
+            "declared_id": true
+          },
+          {
+            "label": "on the ground",
+            "condition": {
+              "alt_below": 3.0
+            },
+            "passed": true,
+            "evaluated": true,
+            "text": "alt=0.0m",
+            "kind": "eventually",
+            "duration": null,
+            "observed": 0.0,
+            "clock": "vehicle",
+            "criterion_id": "copter_land#on-ground",
+            "declared_id": true
+          }
+        ],
+        "faults": [],
+        "stability": {
+          "samples": 126,
+          "seconds": 31.3,
+          "roll_min": -0.1,
+          "roll_max": 0.1,
+          "pitch_min": -0.0,
+          "pitch_max": 0.0,
+          "rate_peak": 0.7,
+          "rate_p95": 0.5,
+          "rate_median": 0.2
+        },
+        "abort": null,
+        "speedup": 0.998,
+        "params_changed": {},
+        "seconds": 31.7,
+        "text": "PROCEDURE PASSED: Copter landing (LAND) — every acceptance criterion was met",
+        "failure": null
+      }
+    }
+  ],
+  "artefacts": {
+    "console_log": "console.log",
+    "mavlink_events": "mavlink_events.jsonl",
+    "scenario": "scenario.yaml",
+    "versions": "versions.txt",
+    "dataflash": "00000010.BIN",
+    "fingerprint": "fingerprint.json",
+    "dataflash_check": {
+      "file": "00000010.BIN",
+      "size_bytes": 2682880,
+      "records": 54792,
+      "last_record": "IMU",
+      "last_time_s": 79.44,
+      "complete": true,
+      "error": null
+    },
+    "dataflash_absent_reason": null
+  },
+  "failure": null,
+  "evidence": {
+    "schema": 1,
+    "file": "evidence.json",
+    "complete": true,
+    "counts": {
+      "expected": 14,
+      "present": 12,
+      "missing_required": 0,
+      "absent_explained": 2,
+      "absent_unexplained": 0
+    },
+    "missing_required": [],
+    "absent_unexplained": []
+  },
+  "advisories": [
+    {
+      "code": "vibration",
+      "what": "Vibration",
+      "detail": "peak 35.0 m/s/s",
+      "threshold": "30 m/s/s",
+      "source": "ardupilot.org — Measuring Vibration"
+    },
+    {
+      "code": "accel_clipping",
+      "what": "Accelerometer clipping",
+      "detail": "1 event(s)",
+      "threshold": "0",
+      "source": "ardupilot.org — Measuring Vibration"
+    }
+  ],
+  "metrics_schema": 2
+}

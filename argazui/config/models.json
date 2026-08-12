@@ -71,9 +71,12 @@
       "has_ros2": false,
       "ros2": null,
       "source": "SITL_Models/Gazebo/docs/AltiTransition.md",
-      "classification_reason": "Q_ENABLE=1 in alti_transition_quad.param",
+      "classification_reason": "Q_ENABLE=1, declared by Argaz in sitl_param_overrides because upstream's alti_transition_quad.param carries 33 Q_* parameters and omits the master switch that turns them on",
       "needs_review": false,
-      "image": "/static/models/alti_transition_quad.png"
+      "image": "/static/models/alti_transition_quad.png",
+      "sitl_param_overrides": {
+        "Q_ENABLE": 1
+      }
     },
     {
       "id": "bicopter",

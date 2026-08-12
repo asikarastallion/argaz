@@ -88,7 +88,24 @@ STATUSES = (STATUS_PASSED, STATUS_FAILED, STATUS_ERROR, STATUS_NO_PROCEDURE)
 # is what is hashed. Every field that changes the aircraft is here: which
 # binary, which frame, which parameter files, which world.
 MODEL_RECORD_KEYS = ("id", "name", "vehicle_class", "method", "vehicle", "frame",
-                     "param_file", "world", "env", "has_ros2")
+                     "param_file", "world", "env", "has_ros2",
+                     # A DECLARED OVERRIDE IS PART OF THE AIRCRAFT (v1.7)
+                     # -------------------------------------------------
+                     # `sitl_param_overrides` is written into a second
+                     # `--add-param-file` at every launch, so it changes what
+                     # flew as surely as the model's own parameter file does —
+                     # `swan_k1_hwing` gets `EK3_ENABLE=1` this way, and
+                     # `alti_transition_quad` gets the `Q_ENABLE=1` that
+                     # upstream's file omits.
+                     #
+                     # It was applied and not archived, so it was also not in
+                     # `model.config_hash`: two runs flown with different
+                     # overrides compared as the same configuration. Adding it
+                     # here fixes both halves at once, because the hash is taken
+                     # over exactly what is archived — a field the run does not
+                     # store must not identify it, and a field that changes the
+                     # aircraft must be stored.
+                     "sitl_param_overrides")
 
 # Opens and closes the per-execution header in `scenario.yaml`. A constant
 # rather than a literal in two places: `_recorded_procedures` reads the body

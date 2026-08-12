@@ -208,6 +208,37 @@ Karşılaştırma `commit` yerine `identity` kullanır; çünkü kimlik, çalı�
 özetini de içerir — `dirty` yerine `dirty_digest`'i kimlik alanı yapan gerekçe
 aynısıdır.
 
+### Beyan edilmiş bir override, hava aracının parçasıdır
+
+`models.json` içindeki `sitl_param_overrides`, her başlatmada ikinci bir
+`--add-param-file` olarak yazılır ve modelin kendi dosyasından sonra
+uygulandığı için üstün gelir. Yalnızca açılışta etkili olabilen ve üstkaynak
+dosyanın yanlış verdiği ya da hiç vermediği parametreler için vardır —
+`swan_k1_hwing`, dosyası `AHRS_EKF_TYPE=3` isteyip EK3'ü kapalı bıraktığı için
+`EK3_ENABLE=1` gerektirir.
+
+`alti_transition_quad` ikinci durumdur. Üstkaynaktaki
+`Gazebo/config/alti_transition_quad.param` 33 adet `Q_*` parametresi taşır ve
+QuadPlane alt sistemini açan ana anahtar olan `Q_ENABLE`'ı atlar — o
+checkout'taki diğer her quadplane onu açıkça verir (`skycat_tvbs`,
+`skywalker_x8_quad`, `swan_k1_hwing` hepsi `Q_ENABLE 1`; `wsc_aircraft` ise
+uçak olduğu için `Q_ENABLE 0`). O olmadan ArduPlane 33 parametrenin hepsini
+yok sayar ve araç, bir VTOL adı altında sabit kanat olarak uçar.
+
+Bir süre bu depo onu **üçüncü taraf checkout'a işlenmemiş bir değişiklik**
+olarak taşıdı; bu, mümkün olan en kötü yerdir: uçanı değiştiriyordu,
+`model.config_hash` için görünmezdi ve model ortamını kalıcı olarak `modified`
+yapıyordu. Artık sürümlenen, gözden geçirilebilen ve özetlenen `models.json`
+içinde beyan ediliyor.
+
+`sitl_param_overrides`'ın `MODEL_RECORD_KEYS` içinde olmasının nedeni budur.
+Uygulanıyor ama arşivlenmiyordu; dolayısıyla `model.config_hash` içinde de
+değildi: farklı override'larla uçurulan iki koşu — bir quadplane ve aynı
+dosyanın override'sız tarif ettiği sabit kanat — tek bir yapılandırma olarak
+karşılaştırılıyordu. Arşivlemek iki yarımı birden düzeltir, çünkü özet tam
+olarak arşivlenen şey üzerinden alınır. Koşunun saklamadığı bir alan onu
+tanımlamamalı, hava aracını değiştiren bir alan ise saklanmalıdır.
+
 ## Süreç ve port yalıtımı
 
 Bir portu paylaşan iki koşu bir deneyi paylaşmıyordu. Çöken bir sunucu

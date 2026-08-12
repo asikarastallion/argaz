@@ -1,0 +1,733 @@
+{
+  "schema": 6,
+  "run_id": "20260812T075216Z_wsc_aircraft",
+  "argazui_version": "1.7.0",
+  "started_utc": "2026-08-12T07:52:16Z",
+  "finished_utc": "2026-08-12T07:54:52Z",
+  "seconds": 155.7,
+  "status": "passed",
+  "campaign": null,
+  "experiment": null,
+  "test_id": "tests/test_tier2_models.py::test_model_takes_off_changes_mode_and_lands[wsc_aircraft]",
+  "advisory_count": 4,
+  "metrics": [
+    {
+      "key": "time_to_target_alt",
+      "value": 17.04,
+      "unit": "s",
+      "better": "lower",
+      "source": "POS.RelHomeAlt against the altitude the procedure asked for, measured from arming on the log's own clock",
+      "scope": "procedure",
+      "clock": "vehicle",
+      "window": "armed",
+      "procedure": "plane_takeoff",
+      "detail": "60 m above home, measured from arming at 3.2 s",
+      "identity": "time_to_target_alt@plane_takeoff",
+      "metric_id": "time_to_target_alt@plane_takeoff"
+    },
+    {
+      "key": "tracking_error_roll_max",
+      "value": 47.66,
+      "unit": "deg",
+      "better": "lower",
+      "source": "ATT.DesRoll - ATT.Roll",
+      "scope": "run",
+      "clock": "vehicle",
+      "window": "log",
+      "procedure": "",
+      "detail": "",
+      "identity": "tracking_error_roll_max",
+      "metric_id": "tracking_error_roll_max"
+    },
+    {
+      "key": "tracking_error_roll_rms",
+      "value": 5.92,
+      "unit": "deg",
+      "better": "lower",
+      "source": "ATT.DesRoll - ATT.Roll, root mean square",
+      "scope": "run",
+      "clock": "vehicle",
+      "window": "log",
+      "procedure": "",
+      "detail": "",
+      "identity": "tracking_error_roll_rms",
+      "metric_id": "tracking_error_roll_rms"
+    },
+    {
+      "key": "tracking_error_pitch_max",
+      "value": 21.1,
+      "unit": "deg",
+      "better": "lower",
+      "source": "ATT.DesPitch - ATT.Pitch",
+      "scope": "run",
+      "clock": "vehicle",
+      "window": "log",
+      "procedure": "",
+      "detail": "",
+      "identity": "tracking_error_pitch_max",
+      "metric_id": "tracking_error_pitch_max"
+    },
+    {
+      "key": "tracking_error_pitch_rms",
+      "value": 7.54,
+      "unit": "deg",
+      "better": "lower",
+      "source": "ATT.DesPitch - ATT.Pitch, root mean square",
+      "scope": "run",
+      "clock": "vehicle",
+      "window": "log",
+      "procedure": "",
+      "detail": "",
+      "identity": "tracking_error_pitch_rms",
+      "metric_id": "tracking_error_pitch_rms"
+    },
+    {
+      "key": "peak_angular_rate",
+      "value": 47.78,
+      "unit": "deg/s",
+      "better": "lower",
+      "source": "IMU.GyrX/GyrY/GyrZ, largest magnitude on any axis",
+      "scope": "run",
+      "clock": "vehicle",
+      "window": "log",
+      "procedure": "",
+      "detail": "",
+      "identity": "peak_angular_rate",
+      "metric_id": "peak_angular_rate"
+    },
+    {
+      "key": "time_outside_attitude_envelope",
+      "value": 0.0,
+      "unit": "s",
+      "better": "lower",
+      "source": "ATT.Roll/ATT.Pitch against the envelope the procedure declared, over the log's armed interval(s)",
+      "scope": "run",
+      "clock": "vehicle",
+      "window": "armed",
+      "procedure": "",
+      "detail": "envelope declared by plane_takeoff: roll [-45,45]°, pitch [-15,45]°, over 1 armed interval(s). The `attitude_stable` criterion of the same name is scoped to its own procedure, so the two windows are close but not identical.",
+      "identity": "time_outside_attitude_envelope",
+      "metric_id": "time_outside_attitude_envelope"
+    },
+    {
+      "key": "mode_transition_latency_max",
+      "value": 0.26,
+      "unit": "s",
+      "better": "lower",
+      "source": "the duration of each set_mode step on the vehicle's own clock, ending when the heartbeat confirms the new mode by number",
+      "scope": "procedure",
+      "clock": "vehicle",
+      "window": "procedure",
+      "procedure": "plane_takeoff",
+      "detail": "slowest of 1 change(s): Switch to TAKEOFF mode",
+      "identity": "mode_transition_latency_max@plane_takeoff",
+      "metric_id": "mode_transition_latency_max@plane_takeoff"
+    },
+    {
+      "key": "mode_transition_latency_max",
+      "value": 0.24,
+      "unit": "s",
+      "better": "lower",
+      "source": "the duration of each set_mode step on the vehicle's own clock, ending when the heartbeat confirms the new mode by number",
+      "scope": "procedure",
+      "clock": "vehicle",
+      "window": "procedure",
+      "procedure": "plane_land",
+      "detail": "slowest of 1 change(s): Switch to AUTOLAND",
+      "identity": "mode_transition_latency_max@plane_land",
+      "metric_id": "mode_transition_latency_max@plane_land"
+    }
+  ],
+  "fingerprint": {
+    "schema": 1,
+    "captured_utc": "2026-08-12T07:55:03Z",
+    "argaz": {
+      "version": "1.7.0",
+      "commit": "b72913a2cc9b65bb51fb116bdb8bbfc779977729",
+      "short_commit": "b72913a2cc9b",
+      "describe": "v1.3.0-24-gb72913a-dirty",
+      "dirty": true,
+      "dirty_digest": "sha256:fbf907d7b69f1b50f3d5529040187800",
+      "root": "/home/asikarastallion/Documents/argaz"
+    },
+    "ardupilot": {
+      "commit": "0b38722bd5a46099dbe7d50074624680f58ce584",
+      "short_commit": "0b38722bd5a4",
+      "describe": "ArduPilot-4.6.0-beta1-7768-g0b38722bd5",
+      "dirty": false,
+      "dirty_digest": "clean",
+      "root": "/home/asikarastallion/Documents/argaz/ardupilot",
+      "firmware": "ArduPlane V4.8.0-dev",
+      "firmware_commit": "0b38722b",
+      "firmware_matches_checkout": true,
+      "text": "ArduPlane V4.8.0-dev @ 0b38722bd5a4 (ArduPilot-4.6.0-beta1-7768-g0b38722bd5)"
+    },
+    "sitl_models": {
+      "commit": "25bc38ed8c6c0345840159a8cbc0b02781d52f3c",
+      "short_commit": "25bc38ed8c6c",
+      "describe": "25bc38e",
+      "dirty": false,
+      "dirty_digest": "clean",
+      "root": "/home/asikarastallion/Documents/argaz/SITL_Models",
+      "pin": {
+        "repository": "https://github.com/ArduPilot/SITL_Models.git",
+        "revision": "25bc38ed8c6c0345840159a8cbc0b02781d52f3c",
+        "revision_kind": "commit",
+        "resolved_commit": "25bc38ed8c6c0345840159a8cbc0b02781d52f3c",
+        "identity": "sha256:811fa669b5cf854c1db9da9771fbdfff",
+        "state": "pinned",
+        "ok": true,
+        "reproducible": true,
+        "reason": ""
+      }
+    },
+    "gazebo": {
+      "version": "Gazebo Sim, version 8.14.0"
+    },
+    "ros": {
+      "distro": "jazzy"
+    },
+    "runtime": {
+      "python": "3.12.3",
+      "python_executable": "/home/asikarastallion/venv-ardupilot/bin/python3",
+      "pymavlink": "2.4.49",
+      "platform": "Linux 7.0.0-28-generic (x86_64)"
+    },
+    "model": {
+      "id": "wsc_aircraft",
+      "name": "Weight-Shift Aircraft",
+      "vehicle_class": "Plane",
+      "method": "gz_plus_sitl_paramfile",
+      "vehicle": "ArduPlane",
+      "frame": null,
+      "world": "wsc_aircraft_runway.sdf",
+      "config_hash": "sha256:d1234af245c5bba04b87f3076b3adcee2bf310817cdb8157cec16aac1ff402d4",
+      "param_files": [
+        "/home/asikarastallion/Documents/argaz/SITL_Models/Gazebo/config/wsc_aircraft.param"
+      ]
+    },
+    "procedures": [
+      {
+        "id": "plane_takeoff",
+        "schema": 4,
+        "file": "plane_takeoff.yaml",
+        "hash": "sha256:5850293c2848c4b71ee2e0417475a78b9ffcbdaa2c1602507788ab96a0ada2b2"
+      },
+      {
+        "id": "plane_land",
+        "schema": 4,
+        "file": "plane_land.yaml",
+        "hash": "sha256:89171b1f3657cd74c9e65c9756b35412b040bae0fd17b7f174e864da6a1512bd"
+      }
+    ],
+    "procedure_hash": "sha256:3cbbe45667850834f2a2cd84e2a2b3506594b1210547511e1931dcfde3599a81",
+    "scenario": {
+      "faults": [],
+      "covered_by": "procedure_hash"
+    },
+    "config": {
+      "config_file": "/home/asikarastallion/Documents/argaz/argaz.toml",
+      "argaz_root": "/home/asikarastallion/Documents/argaz",
+      "ardupilot_root": "/home/asikarastallion/Documents/argaz/ardupilot",
+      "sitl_models_root": "/home/asikarastallion/Documents/argaz/SITL_Models",
+      "ardu_ws_root": "/home/asikarastallion/Documents/argaz/ardu_ws",
+      "runs_root": "/home/asikarastallion/Documents/argaz/runs",
+      "env_script": "/home/asikarastallion/Documents/argaz/env.sh",
+      "port": "8770",
+      "mavlink_port": "14550",
+      "script_mavlink_port": "14551",
+      "plotjuggler_port": "14552",
+      "regression": "default_tolerance, floor, tolerance",
+      "model_environment_revision": "25bc38ed8c6c0345840159a8cbc0b02781d52f3c",
+      "model_environment_repository": "https://github.com/ArduPilot/SITL_Models.git"
+    },
+    "unknown": []
+  },
+  "flaky": [],
+  "ok": true,
+  "model": {
+    "id": "wsc_aircraft",
+    "name": "Weight-Shift Aircraft",
+    "vehicle_class": "Plane",
+    "method": "gz_plus_sitl_paramfile",
+    "vehicle": "ArduPlane",
+    "frame": null,
+    "param_file": "$SITL_MODELS/Gazebo/config/wsc_aircraft.param",
+    "world": "wsc_aircraft_runway.sdf",
+    "env": "quadplane_env.sh",
+    "has_ros2": false,
+    "sitl_param_overrides": null
+  },
+  "build": {
+    "firmware": "ArduPlane V4.8.0-dev",
+    "firmware_hash": "0b38722b",
+    "sha": "0b38722bd5a46099dbe7d50074624680f58ce584",
+    "describe": "ArduPilot-4.6.0-beta1-7768-g0b38722bd5",
+    "root": "/home/asikarastallion/Documents/argaz/ardupilot",
+    "short_sha": "0b38722bd5a4",
+    "firmware_matches_checkout": true,
+    "text": "ArduPlane V4.8.0-dev @ 0b38722bd5a4 (ArduPilot-4.6.0-beta1-7768-g0b38722bd5)"
+  },
+  "work_dir": "/home/asikarastallion/Documents/argaz/argazui/run/wsc_aircraft",
+  "initial_state": {
+    "launch_commands": [
+      "source /home/asikarastallion/Documents/argaz/quadplane_env.sh",
+      "gz sim -v4 -r -s wsc_aircraft_runway.sdf &",
+      "for i in $(seq 1 30); do gz topic -l 2>/dev/null | grep -q \"^/world/\" && { echo \"[argaz] gazebo is serving a world\"; break; }; sleep 2; done; gz topic -l 2>/dev/null | grep -q \"^/world/\" || echo \"[argaz] gazebo did not report a world within 60s — starting the vehicle anyway; see the lifecycle record\"",
+      "mkdir -p /home/asikarastallion/Documents/argaz/argazui/run/wsc_aircraft",
+      "cd /home/asikarastallion/Documents/argaz/argazui/run/wsc_aircraft",
+      "sim_vehicle.py -v ArduPlane --model JSON --add-param-file=$SITL_MODELS/Gazebo/config/wsc_aircraft.param -w --out 127.0.0.1:14551"
+    ],
+    "eeprom_wiped": true
+  },
+  "lifecycle": {
+    "schema": 1,
+    "label": "wsc_aircraft",
+    "phase": "completed",
+    "clock": "wall",
+    "history": [
+      {
+        "phase": "created",
+        "since_start_s": 0.0,
+        "detail": ""
+      },
+      {
+        "phase": "environment_starting",
+        "since_start_s": 0.0,
+        "detail": "6 launch line(s)"
+      },
+      {
+        "phase": "environment_ready",
+        "since_start_s": 2.13,
+        "detail": "Gazebo is serving world(s): wsc_aircraft_runway"
+      },
+      {
+        "phase": "vehicle_starting",
+        "since_start_s": 2.13,
+        "detail": "waiting for MAVLink"
+      },
+      {
+        "phase": "vehicle_starting",
+        "since_start_s": 10.13,
+        "detail": "the vehicle is talking but has not yet reported its pre-arm health"
+      },
+      {
+        "phase": "vehicle_ready",
+        "since_start_s": 25.14,
+        "detail": "pre-arm checks pass"
+      },
+      {
+        "phase": "completed",
+        "since_start_s": 155.71,
+        "detail": "simulation stopped"
+      }
+    ],
+    "timings_s": {
+      "environment_ready": 2.13,
+      "vehicle_ready": 25.14,
+      "total": 155.71
+    },
+    "failure": null
+  },
+  "isolation": {
+    "schema": 1,
+    "label": "wsc_aircraft",
+    "session_id": 1662312,
+    "ports": {
+      "mavlink": 14550,
+      "script_mavlink": 14551
+    },
+    "conflicts_at_start": [],
+    "released": true,
+    "survivors": []
+  },
+  "overrides": [
+    {
+      "param": "TKOFF_ALT",
+      "procedure": "plane_takeoff",
+      "set_to": 60.0,
+      "restore_to": 50.0,
+      "restore": true,
+      "reason": "TAKEOFF mode has no altitude argument: it climbs to whatever TKOFF_ALT says and then loiters there (ardupilot/ArduPlane/mode_takeoff.cpp, ModeTakeoff::update). The altitude asked for on the button is therefore only meaningful as this parameter. The aircraft's own value is put back afterwards, so the model's .param file and its stored settings are unchanged.",
+      "applied": true,
+      "restored": true
+    }
+  ],
+  "procedures": [
+    {
+      "procedure": "plane_takeoff",
+      "name": "Plane takeoff (TAKEOFF mode)",
+      "role": "takeoff",
+      "file": "plane_takeoff.yaml",
+      "sources": [
+        "https://ardupilot.org/plane/docs/takeoff-mode.html",
+        "https://ardupilot.org/plane/docs/mode_autoland.html"
+      ],
+      "started_utc": "2026-08-12T07:52:54Z",
+      "attempt": 1,
+      "values": {
+        "alt": 60.0
+      },
+      "result": {
+        "ok": true,
+        "outcome": "passed",
+        "procedure": "plane_takeoff",
+        "name": "Plane takeoff (TAKEOFF mode)",
+        "role": "takeoff",
+        "values": {
+          "alt": 60.0,
+          "tkoff_dist": 200.0,
+          "tkoff_minacc": 0.0
+        },
+        "steps": [
+          {
+            "index": 0,
+            "kind": "get_param",
+            "label": "Check TKOFF_DIST",
+            "status": "passed",
+            "text": "TKOFF_DIST = 200",
+            "seconds": 0.1,
+            "vehicle_seconds": null,
+            "step_id": "plane_takeoff#s1"
+          },
+          {
+            "index": 1,
+            "kind": "get_param",
+            "label": "Check launch detection",
+            "status": "passed",
+            "text": "TKOFF_THR_MINACC = 0",
+            "seconds": 0.1,
+            "vehicle_seconds": null,
+            "step_id": "plane_takeoff#s2"
+          },
+          {
+            "index": 2,
+            "kind": "set_mode",
+            "label": "Switch to TAKEOFF mode",
+            "status": "passed",
+            "text": "mode -> TAKEOFF",
+            "seconds": 0.1,
+            "vehicle_seconds": 0.26,
+            "step_id": "plane_takeoff#s3"
+          },
+          {
+            "index": 3,
+            "kind": "wait_for",
+            "label": "Wait until pre-arm checks pass",
+            "status": "passed",
+            "text": "prearm_ok=True",
+            "seconds": 0.0,
+            "vehicle_seconds": null,
+            "step_id": "plane_takeoff#s4"
+          },
+          {
+            "index": 4,
+            "kind": "arm",
+            "label": "Arm — the takeoff run starts here",
+            "status": "passed",
+            "text": "ARM: accepted (RC2 moved to neutral (TRIM=1552))",
+            "seconds": 3.4,
+            "vehicle_seconds": 4.74,
+            "step_id": "plane_takeoff#s5"
+          },
+          {
+            "index": 5,
+            "kind": "wait_for",
+            "label": "Confirm the takeoff roll started",
+            "status": "passed",
+            "text": "gs=8.7m/s",
+            "seconds": 1.2,
+            "vehicle_seconds": 1.499,
+            "step_id": "plane_takeoff#s6"
+          },
+          {
+            "index": 6,
+            "kind": "wait_for",
+            "label": "Confirm the aircraft left the ground",
+            "status": "passed",
+            "text": "alt=6.2m, climb=+5.3m/s",
+            "seconds": 2.7,
+            "vehicle_seconds": 4.0,
+            "step_id": "plane_takeoff#s7"
+          },
+          {
+            "index": 7,
+            "kind": "wait_for",
+            "label": "Wait for the target altitude",
+            "status": "passed",
+            "text": "alt=51.8m",
+            "seconds": 5.3,
+            "vehicle_seconds": 9.0,
+            "step_id": "plane_takeoff#s8"
+          }
+        ],
+        "expect": [
+          {
+            "label": "climbed to at least 85% of TKOFF_ALT",
+            "condition": {
+              "alt_above": 51.0
+            },
+            "passed": true,
+            "evaluated": true,
+            "text": "alt=51.8m",
+            "kind": "eventually",
+            "duration": null,
+            "observed": 0.0,
+            "clock": "vehicle",
+            "criterion_id": "plane_takeoff#alt-reached",
+            "declared_id": true
+          },
+          {
+            "label": "still armed",
+            "condition": {
+              "armed": true
+            },
+            "passed": true,
+            "evaluated": true,
+            "text": "armed=True",
+            "kind": "eventually",
+            "duration": null,
+            "observed": 0.0,
+            "clock": "vehicle",
+            "criterion_id": "plane_takeoff#still-armed",
+            "declared_id": true
+          },
+          {
+            "label": "still in TAKEOFF mode, loitering at altitude",
+            "condition": {
+              "mode": "TAKEOFF"
+            },
+            "passed": true,
+            "evaluated": true,
+            "text": "mode=TAKEOFF",
+            "kind": "eventually",
+            "duration": null,
+            "observed": 0.0,
+            "clock": "vehicle",
+            "criterion_id": "plane_takeoff#mode-held",
+            "declared_id": true
+          },
+          {
+            "label": "flew the climb-out and loiter within a fixed wing's normal envelope",
+            "condition": {
+              "attitude_stable": {
+                "roll": [
+                  -45.0,
+                  45.0
+                ],
+                "pitch": [
+                  -15.0,
+                  45.0
+                ],
+                "max_rate": 90.0,
+                "tolerance": 3.0
+              }
+            },
+            "passed": true,
+            "evaluated": true,
+            "text": "roll outside [-45,45]° for 0.0s; pitch outside [-15,45]° for 0.0s; turn rate above 90°/s for 0.0s (peak 12°/s) — allowed 3s each, measured over 19s",
+            "kind": "eventually",
+            "duration": null,
+            "observed": 0.0,
+            "clock": "vehicle",
+            "criterion_id": "plane_takeoff#attitude-envelope",
+            "declared_id": true
+          }
+        ],
+        "faults": [],
+        "stability": {
+          "samples": 79,
+          "seconds": 19.5,
+          "roll_min": -13.4,
+          "roll_max": 0.0,
+          "pitch_min": -0.1,
+          "pitch_max": 23.3,
+          "rate_peak": 11.5,
+          "rate_p95": 10.3,
+          "rate_median": 2.7
+        },
+        "abort": null,
+        "speedup": 1.649,
+        "params_changed": {
+          "TKOFF_ALT": {
+            "set_to": 60.0,
+            "restore_to": 50.0,
+            "restore": true,
+            "reason": "TAKEOFF mode has no altitude argument: it climbs to whatever TKOFF_ALT says and then loiters there (ardupilot/ArduPlane/mode_takeoff.cpp, ModeTakeoff::update). The altitude asked for on the button is therefore only meaningful as this parameter. The aircraft's own value is put back afterwards, so the model's .param file and its stored settings are unchanged.",
+            "applied": true,
+            "restored": true
+          }
+        },
+        "seconds": 13.1,
+        "text": "PROCEDURE PASSED: Plane takeoff (TAKEOFF mode) — every acceptance criterion was met",
+        "failure": null
+      }
+    },
+    {
+      "procedure": "plane_land",
+      "name": "Plane landing (AUTOLAND)",
+      "role": "land",
+      "file": "plane_land.yaml",
+      "sources": [
+        "https://ardupilot.org/plane/docs/mode_autoland.html"
+      ],
+      "started_utc": "2026-08-12T07:54:35Z",
+      "attempt": 1,
+      "values": {},
+      "result": {
+        "ok": true,
+        "outcome": "passed",
+        "procedure": "plane_land",
+        "name": "Plane landing (AUTOLAND)",
+        "role": "land",
+        "values": {},
+        "steps": [
+          {
+            "index": 0,
+            "kind": "rc_release",
+            "label": "Release any RC overrides",
+            "status": "passed",
+            "text": "stick overrides released",
+            "seconds": 0.1,
+            "vehicle_seconds": null,
+            "step_id": "plane_land#s1"
+          },
+          {
+            "index": 1,
+            "kind": "set_mode",
+            "label": "Switch to AUTOLAND",
+            "status": "passed",
+            "text": "mode -> AUTOLAND",
+            "seconds": 0.1,
+            "vehicle_seconds": 0.24,
+            "step_id": "plane_land#s2"
+          },
+          {
+            "index": 2,
+            "kind": "wait_for",
+            "label": "Fly the approach and land",
+            "status": "passed",
+            "text": "armed=False",
+            "seconds": 100.6,
+            "vehicle_seconds": 186.0,
+            "step_id": "plane_land#s3"
+          }
+        ],
+        "expect": [
+          {
+            "label": "disarmed after landing",
+            "condition": {
+              "armed": false
+            },
+            "passed": true,
+            "evaluated": true,
+            "text": "armed=False",
+            "kind": "eventually",
+            "duration": null,
+            "observed": 0.0,
+            "clock": "vehicle",
+            "criterion_id": "plane_land#disarmed",
+            "declared_id": true
+          },
+          {
+            "label": "on the ground",
+            "condition": {
+              "alt_below": 10.0
+            },
+            "passed": true,
+            "evaluated": true,
+            "text": "alt=0.0m",
+            "kind": "eventually",
+            "duration": null,
+            "observed": 0.0,
+            "clock": "vehicle",
+            "criterion_id": "plane_land#on-ground",
+            "declared_id": true
+          }
+        ],
+        "faults": [],
+        "stability": {
+          "samples": 745,
+          "seconds": 186.0,
+          "roll_min": -15.5,
+          "roll_max": 6.8,
+          "pitch_min": -9.4,
+          "pitch_max": 15.0,
+          "rate_peak": 27.5,
+          "rate_p95": 10.3,
+          "rate_median": 2.4
+        },
+        "abort": null,
+        "speedup": 1.653,
+        "params_changed": {},
+        "seconds": 100.8,
+        "text": "PROCEDURE PASSED: Plane landing (AUTOLAND) — every acceptance criterion was met",
+        "failure": null
+      }
+    }
+  ],
+  "artefacts": {
+    "console_log": "console.log",
+    "mavlink_events": "mavlink_events.jsonl",
+    "scenario": "scenario.yaml",
+    "versions": "versions.txt",
+    "dataflash": "00000008.BIN",
+    "fingerprint": "fingerprint.json",
+    "dataflash_check": {
+      "file": "00000008.BIN",
+      "size_bytes": 34705408,
+      "records": 990929,
+      "last_record": "PIDP",
+      "last_time_s": 231.46,
+      "complete": true,
+      "error": null
+    },
+    "dataflash_absent_reason": null
+  },
+  "failure": null,
+  "evidence": {
+    "schema": 1,
+    "file": "evidence.json",
+    "complete": true,
+    "counts": {
+      "expected": 14,
+      "present": 12,
+      "missing_required": 0,
+      "absent_explained": 2,
+      "absent_unexplained": 0
+    },
+    "missing_required": [],
+    "absent_unexplained": []
+  },
+  "advisories": [
+    {
+      "code": "vibration",
+      "what": "Vibration",
+      "detail": "peak 115.3 m/s/s",
+      "threshold": "30 m/s/s",
+      "source": "ardupilot.org — Measuring Vibration"
+    },
+    {
+      "code": "accel_clipping",
+      "what": "Accelerometer clipping",
+      "detail": "13 event(s)",
+      "threshold": "0",
+      "source": "ardupilot.org — Measuring Vibration"
+    },
+    {
+      "code": "attitude_roll",
+      "what": "Roll tracking error",
+      "detail": "peaked at 47.7° (RMS 5.9°)",
+      "threshold": "15°",
+      "source": "ArgazUI review trigger"
+    },
+    {
+      "code": "attitude_pitch",
+      "what": "Pitch tracking error",
+      "detail": "peaked at 21.1° (RMS 7.5°)",
+      "threshold": "15°",
+      "source": "ArgazUI review trigger"
+    }
+  ],
+  "metrics_schema": 2
+}
