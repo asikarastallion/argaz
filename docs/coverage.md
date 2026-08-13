@@ -1,12 +1,12 @@
 # Coverage
 
 <!-- GENERATED FILE — DO NOT EDIT BY HAND.
-     Generated:  2026-08-12T09:20:22Z
+     Generated:  2026-08-13T05:18:43Z
      Source:     artefacts/tier1, artefacts/tier2
      Regenerate: python3 -m argazui coverage --runs runs --out docs/coverage.md
      Any edit here is overwritten by the next CI run. -->
 
-Computed from **50** recorded run(s) and the procedure files in this checkout, at **2026-08-12T09:20:22Z**.
+Computed from **57** recorded run(s) and the procedure files in this checkout, at **2026-08-13T05:18:43Z**.
 
 **This is not a test count.** A test count goes up when somebody adds a test and never goes down when somebody adds an aircraft, a procedure or a criterion nobody runs. Every dimension below is measured over named things that could be exercised, and every one of them lists what it did not reach.
 
@@ -85,7 +85,7 @@ An **uncovered** item is the more useful entry. It is something this project dec
 
 What this installation DECLARES it can do, against what a run directory on disk shows it has actually done. `Verified` is the only column that says anything about an aircraft, and it requires a recorded flight in which a criterion judged the result — a mechanism that was invoked and left unjudged is `Exercised`, not `Verified`.
 
-Read from 50 run(s) under `artefacts/tier1`, `artefacts/tier2`.
+Read from 57 run(s) under `artefacts/tier1`, `artefacts/tier2`.
 
 | Mechanism | Kind | Defined | Executable | Exercised | Verified | Evidence | State |
 |---|---|:-:|:-:|:-:|:-:|---|---|
@@ -95,16 +95,16 @@ Read from 50 run(s) under `artefacts/tier1`, `artefacts/tier2`.
 | `mavlink_interrupt` | fault | yes | yes | yes | yes | `20260812T091421Z_sitl_quad_scenario` | **VERIFIED** |
 | `copter_gps_degradation` | procedure | yes | yes | yes | yes | `20260812T091020Z_sitl_quad_degradation`, `20260812T091044Z_sitl_quad_degradation` | **VERIFIED** |
 | `copter_gps_loss` | procedure | yes | yes | yes | yes | `20260812T091312Z_sitl_quad_scenario`, `20260812T091335Z_sitl_quad_scenario` | **VERIFIED** |
-| `copter_land` | procedure | yes | yes | yes | yes | `20260812T045422Z_bicopter`, `20260812T045627Z_hexapod_copter` | **VERIFIED** |
+| `copter_land` | procedure | yes | yes | yes | yes | `20260812T073659Z_bicopter`, `20260812T073904Z_hexapod_copter` | **VERIFIED** |
 | `copter_link_degradation` | procedure | yes | yes | yes | yes | `20260812T091108Z_sitl_quad_degradation` | **VERIFIED** |
 | `copter_link_loss` | procedure | yes | yes | yes | yes | `20260812T091421Z_sitl_quad_scenario` | **VERIFIED** |
-| `copter_takeoff` | procedure | yes | yes | yes | yes | `20260101T000000Z_sitl_quad`, `20260812T045422Z_bicopter` | **VERIFIED** |
-| `plane_land` | procedure | yes | yes | yes | yes | `20260812T045140Z_alti_transition_quad`, `20260812T045944Z_skywalker_x8` | **VERIFIED** |
+| `copter_takeoff` | procedure | yes | yes | yes | yes | `20260101T000000Z_sitl_quad`, `20260812T073659Z_bicopter` | **VERIFIED** |
+| `plane_land` | procedure | yes | yes | yes | yes | `20260812T074209Z_skywalker_x8`, `20260812T075216Z_wsc_aircraft` | **VERIFIED** |
 | `plane_land_rtl` | procedure | yes | yes | yes | yes | `20260812T091911Z_sitl_plane` | **VERIFIED** |
-| `plane_takeoff` | procedure | yes | yes | yes | yes | `20260812T045140Z_alti_transition_quad`, `20260812T045944Z_skywalker_x8` | **VERIFIED** |
-| `tailsitter_takeoff` | procedure | yes | yes | yes | yes | `20260812T045810Z_skycat_tvbs`, `20260812T091725Z_sitl_tailsitter` | **VERIFIED** |
-| `vtol_land` | procedure | yes | yes | yes | yes | `20260812T050247Z_skywalker_x8_quad`, `20260812T073525Z_alti_transition_quad` | **VERIFIED** |
-| `vtol_takeoff` | procedure | yes | yes | yes | yes | `20260812T050247Z_skywalker_x8_quad`, `20260812T073525Z_alti_transition_quad` | **VERIFIED** |
+| `plane_takeoff` | procedure | yes | yes | yes | yes | `20260812T074209Z_skywalker_x8`, `20260812T075216Z_wsc_aircraft` | **VERIFIED** |
+| `tailsitter_takeoff` | procedure | yes | yes | yes | yes | `20260812T091725Z_sitl_tailsitter`, `20260813T050040Z_skycat_tvbs` | **VERIFIED** |
+| `vtol_land` | procedure | yes | yes | yes | yes | `20260812T073525Z_alti_transition_quad`, `20260812T074514Z_skywalker_x8_quad` | **VERIFIED** |
+| `vtol_takeoff` | procedure | yes | yes | yes | yes | `20260812T073525Z_alti_transition_quad`, `20260812T074514Z_skywalker_x8_quad` | **VERIFIED** |
 | `tailsitter_land` | procedure | yes | yes | — | — | — | **NOT_EXERCISED** |
 | `plane_takeoff_auto` | procedure | yes | — | — | — | — | **UNSUPPORTED** |
 | `vtol_takeoff_mission` | procedure | yes | — | — | — | — | **UNSUPPORTED** |
