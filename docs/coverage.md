@@ -1,12 +1,12 @@
 # Coverage
 
 <!-- GENERATED FILE — DO NOT EDIT BY HAND.
-     Generated:  2026-08-13T10:36:52Z
+     Generated:  2026-08-14T05:15:50Z
      Source:     artefacts/tier1, artefacts/tier2
      Regenerate: python3 -m argazui coverage --runs runs --out docs/coverage.md
      Any edit here is overwritten by the next CI run. -->
 
-Computed from **57** recorded run(s) and the procedure files in this checkout, at **2026-08-13T10:36:52Z**.
+Computed from **57** recorded run(s) and the procedure files in this checkout, at **2026-08-14T05:15:50Z**.
 
 **This is not a test count.** A test count goes up when somebody adds a test and never goes down when somebody adds an aircraft, a procedure or a criterion nobody runs. Every dimension below is measured over named things that could be exercised, and every one of them lists what it did not reach.
 
@@ -102,7 +102,7 @@ Read from 57 run(s) under `artefacts/tier1`, `artefacts/tier2`.
 | `plane_land` | procedure | yes | yes | yes | yes | `20260812T074209Z_skywalker_x8`, `20260812T075216Z_wsc_aircraft` | **VERIFIED** |
 | `plane_land_rtl` | procedure | yes | yes | yes | yes | `20260813T103544Z_sitl_plane` | **VERIFIED** |
 | `plane_takeoff` | procedure | yes | yes | yes | yes | `20260812T074209Z_skywalker_x8`, `20260812T075216Z_wsc_aircraft` | **VERIFIED** |
-| `tailsitter_takeoff` | procedure | yes | yes | yes | yes | `20260813T050040Z_skycat_tvbs`, `20260813T103412Z_sitl_tailsitter` | **VERIFIED** |
+| `tailsitter_takeoff` | procedure | yes | yes | yes | yes | `20260813T103412Z_sitl_tailsitter`, `20260814T045720Z_skycat_tvbs` | **VERIFIED** |
 | `vtol_land` | procedure | yes | yes | yes | yes | `20260812T073525Z_alti_transition_quad`, `20260812T074514Z_skywalker_x8_quad` | **VERIFIED** |
 | `vtol_takeoff` | procedure | yes | yes | yes | yes | `20260812T073525Z_alti_transition_quad`, `20260812T074514Z_skywalker_x8_quad` | **VERIFIED** |
 | `tailsitter_land` | procedure | yes | yes | — | — | — | **NOT_EXERCISED** |
