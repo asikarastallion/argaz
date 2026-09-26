@@ -47,6 +47,7 @@ from typing import Optional
 
 from . import coverage
 from . import failures as failurelib
+from . import knownfailures
 from . import paths
 from . import trace
 
@@ -331,6 +332,21 @@ def _row_for(model: dict, tier2_tests: dict[str, dict], runs: list[dict]) -> Row
         row.advisories = data.get("advisory_count")
         row.failure = data.get("failure") or (
             lambda f: f.as_dict() if f else None)(failurelib.classify_run(data))
+
+        # pytest records xfail as a skip. A documented model limitation is
+        # still a measured FAILED run, not an untested model: preserve the
+        # evidence verdict while allowing the CI process itself to stay green.
+        expected_xfail = (
+            test is not None
+            and test.get("outcome") == "skipped"
+            and "documented tier-2 limitation" in (test.get("reason") or "")
+            and knownfailures.matches(model, row.failure)
+        )
+        if expected_xfail:
+            row.result = FAILED
+            row.reason = "documented expected failure"
+            row.tier = "tier 2"
+
         row.last_run = data.get("started_utc") or ""
         row.firmware = ((data.get("build") or {}).get("text") or "").strip()
         if row.result == PASSED and data.get("flaky"):
