@@ -190,10 +190,11 @@ jobs:
                echo "::error::is an INFRASTRUCTURE failure, not an aircraft one." ;;
           esac
 
-          if [ "$status" -eq 1 ] && {
-               [ "${{ github.event_name }}" = "schedule" ] ||
-               [ "${{ inputs.enforce_regression }}" = "false" ]; }; then
-            exit 0
+          if [ "$status" -eq 1 ]; then
+            if [ "${{ github.event_name }}" = "schedule" ] || \
+               [ "${{ inputs.enforce_regression }}" = "false" ]; then
+              exit 0
+            fi
           fi
           exit "$status"
 
