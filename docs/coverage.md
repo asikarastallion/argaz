@@ -1,12 +1,12 @@
 # Coverage
 
 <!-- GENERATED FILE — DO NOT EDIT BY HAND.
-     Generated:  2026-09-26T15:26:39Z
+     Generated:  2026-09-26T15:27:08Z
      Source:     artefacts/tier1, artefacts/tier2
      Regenerate: python3 -m argazui coverage --runs runs --out docs/coverage.md
      Any edit here is overwritten by the next CI run. -->
 
-Computed from **17** recorded run(s) and the procedure files in this checkout, at **2026-09-26T15:26:39Z**.
+Computed from **17** recorded run(s) and the procedure files in this checkout, at **2026-09-26T15:27:08Z**.
 
 **This is not a test count.** A test count goes up when somebody adds a test and never goes down when somebody adds an aircraft, a procedure or a criterion nobody runs. Every dimension below is measured over named things that could be exercised, and every one of them lists what it did not reach.
 
