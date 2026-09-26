@@ -34,7 +34,7 @@ import time
 
 import pytest
 
-from argazui import paths, procedures as procs, simlifecycle
+from argazui import knownfailures, paths, procedures as procs, simlifecycle
 from argazui.procrunner import ProcedureRunner, probe_capabilities
 from argazui.runs import RunRecorder
 
@@ -62,22 +62,12 @@ def _xfail_if_expected(model: dict, failure: dict | None) -> None:
 
     The run artefact remains failed and keeps its evidence. Pytest merely stops
     turning that already-known limitation into a nightly CI failure. If the
-    category, code, procedure or distinguishing detail changes, this function
-    returns and the normal assertion fails the job.
+    failure contract changes, the normal assertion still fails the job.
     """
-    expected = model.get("expected_failure")
-    if not expected or not failure:
-        return
-    for key in ("category", "code", "procedure"):
-        wanted = expected.get(key)
-        if wanted is not None and failure.get(key, "") != wanted:
-            return
-    detail = failure.get("detail", "")
-    contains = expected.get("detail_contains")
-    if contains and contains not in detail:
+    if not knownfailures.matches(model, failure):
         return
     pytest.xfail(
-        f"{model['id']}: documented tier-2 limitation "
+        f"documented tier-2 limitation: {model['id']} "
         f"{failure.get('category')}/{failure.get('code')}"
     )
 
