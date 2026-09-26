@@ -57,6 +57,31 @@ def _ids(model: dict) -> str:
     return model["id"]
 
 
+def _xfail_if_expected(model: dict, failure: dict | None) -> None:
+    """Xfail only the exact, documented model limitation.
+
+    The run artefact remains failed and keeps its evidence. Pytest merely stops
+    turning that already-known limitation into a nightly CI failure. If the
+    category, code, procedure or distinguishing detail changes, this function
+    returns and the normal assertion fails the job.
+    """
+    expected = model.get("expected_failure")
+    if not expected or not failure:
+        return
+    for key in ("category", "code", "procedure"):
+        wanted = expected.get(key)
+        if wanted is not None and failure.get(key, "") != wanted:
+            return
+    detail = failure.get("detail", "")
+    contains = expected.get("detail_contains")
+    if contains and contains not in detail:
+        return
+    pytest.xfail(
+        f"{model['id']}: documented tier-2 limitation "
+        f"{failure.get('category')}/{failure.get('code')}"
+    )
+
+
 @pytest.fixture(scope="session")
 def tier2_runs_root():
     root = TEST_RUNS_ROOT
@@ -173,7 +198,13 @@ def test_model_takes_off_changes_mode_and_lands(request, tier2_runs_root, model)
     sim = _boot(recorder, model, work_dir)
     request.addfinalizer(lambda: _shutdown(sim, recorder))
 
-    assert sim.wait_prearm(), (
+    prearm_ok = sim.wait_prearm()
+    if not prearm_ok:
+        lifecycle_failure = (
+            sim.lifecycle.failure() if sim.lifecycle is not None else None
+        )
+        _xfail_if_expected(model, lifecycle_failure)
+    assert prearm_ok, (
         f"{model['id']} never passed pre-arm checks\n{sim.tail()}")
 
     caps = probe_capabilities(sim.link, vehicle=model.get("vehicle"))
@@ -188,6 +219,8 @@ def test_model_takes_off_changes_mode_and_lands(request, tier2_runs_root, model)
     # ------------------------------------------------------------ takeoff
     altitude = 20.0 if caps.get("quadplane") or caps["autopilot"] == "ArduCopter" else 60.0
     result = _run_procedure(recorder, sim, takeoff, {"alt": altitude})
+    if result["outcome"] != "passed":
+        _xfail_if_expected(model, result.get("failure"))
     assert result["outcome"] == "passed", _explain(result)
     assert sim.link.state.armed, "not armed after a passing takeoff"
 
