@@ -79,6 +79,17 @@ These live in `tests/test_identity_and_artefacts.py`, are marked `tier1`, and
 therefore run on every push in the job that already exists. No new workflow and
 no new CI step.
 
+## Known model limitations do not hide new failures
+
+`models.json` may declare an `expected_failure` for a model. Tier 2 converts
+only an exact match — category, code, optional procedure, and distinguishing
+detail — to pytest `xfail`. The run artefact itself remains `failed`, and
+`docs/status.md` keeps the model **failed**. If the failure contract changes,
+the xfail does not match and the nightly goes red normally.
+
+This is used for the three long-standing limitations currently documented for
+`zephyr`, `skycat_tvbs`, and `swan_k1_hwing`; it is not a wildcard skip.
+
 ## The regression gate
 
 Until v1.7 this section described a snippet a reader *could* add. Nothing
@@ -107,11 +118,17 @@ baseline in `runs/baselines/<model_id>/`, and returns one verdict.
 | `SKIPPED` | there were no runs to compare | 0 | no |
 | `NOT_APPLICABLE` | this model has no committed baseline yet | 0 | no |
 
-`FAIL` and `ERROR` both fail the job and are deliberately different news. An
-unreadable run, or two runs whose fingerprints do not line up, is an
-**infrastructure** result: it keeps its `evidence` classification, and nothing
-reads it as a verdict about an aircraft. Collapsing the two is how a
-mis-specified baseline path comes to be reported as a degraded aircraft.
+`ERROR` always fails the job. `FAIL` is stricter by context: a scheduled
+nightly records it as an advisory, while a manually dispatched verification
+run enforces it by default (`enforce_regression=true`). This split is deliberate:
+the committed baselines are single runs and repeated nightlies show enough
+run-to-run metric variance to make a red nightly noisy, but a person asking for
+a release-style verification still gets a blocking gate.
+
+An unreadable run, or two runs whose fingerprints do not line up, is an
+**infrastructure/evidence** result and is never softened. Collapsing that with a
+metric regression is how a mis-specified baseline path comes to be reported as
+a degraded aircraft.
 
 `SKIPPED` is not `PASS`. A job that flew nothing has verified nothing, and
 reporting green for it would be the silent evaporation of evidence this file's
