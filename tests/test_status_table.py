@@ -39,13 +39,14 @@ def write_suite(root, tests: list[dict], environment="tier2-image") -> None:
 
 
 def write_run(root, model_id: str, *, status_value="passed", flaky=None,
-              procedures=("vtol_takeoff",), advisories=0) -> None:
+              procedures=("vtol_takeoff",), advisories=0, failure=None) -> None:
     d = root / f"20260803T000000Z_{model_id}"
     d.mkdir(parents=True, exist_ok=True)
     (d / "result.json").write_text(json.dumps({
         "schema": 2, "run_id": d.name, "status": status_value,
         "model": {"id": model_id}, "advisory_count": advisories,
-        "flaky": flaky or [], "started_utc": "2026-08-03T00:00:00Z",
+        "failure": failure, "flaky": flaky or [],
+        "started_utc": "2026-08-03T00:00:00Z",
         "build": {"text": "ArduPlane V4.8.0-dev @ abc123"},
         "procedures": [{"procedure": p} for p in procedures]}), encoding="utf-8")
 
@@ -73,6 +74,38 @@ def test_a_failure_is_never_shown_as_untested(tmp_path):
     assert row.result == status.FAILED, (
         f"a model tier 2 flew and watched fail is reported as {row.result}")
     assert row.tier == "tier 2", "the tier that found the failure is not named"
+
+
+def test_an_expected_xfail_stays_failed_in_the_status_table(tmp_path):
+    registry = {"models": [
+        {"id": "grounded", "vehicle_class": "Plane",
+         "method": "gz_plus_sitl_frame",
+         "expected_failure": {
+             "category": "procedure",
+             "code": "step-timeout",
+             "procedure": "plane_takeoff",
+             "detail_contains": "takeoff roll",
+         }},
+    ]}
+    failure = {
+        "category": "procedure",
+        "code": "step-timeout",
+        "procedure": "plane_takeoff",
+        "detail": "Confirm the takeoff roll started: takeoff roll never began",
+    }
+    write_suite(tmp_path, [{
+        "nodeid": node("grounded"),
+        "outcome": "skipped",
+        "markers": ["tier2"],
+        "reason": "documented tier-2 limitation: grounded procedure/step-timeout",
+    }])
+    write_run(tmp_path, "grounded", status_value="failed", failure=failure)
+
+    row = row_for(status.collect([tmp_path], registry=registry), "grounded")
+    assert row.result == status.FAILED
+    assert row.reason == "documented expected failure"
+    assert row.failure == failure
+    assert row.tier == "tier 2"
 
 
 def test_a_skip_is_untested_and_never_passed(tmp_path):

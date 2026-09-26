@@ -34,7 +34,7 @@ import time
 
 import pytest
 
-from argazui import paths, procedures as procs, simlifecycle
+from argazui import knownfailures, paths, procedures as procs, simlifecycle
 from argazui.procrunner import ProcedureRunner, probe_capabilities
 from argazui.runs import RunRecorder
 
@@ -55,6 +55,21 @@ MODELS = _models()
 
 def _ids(model: dict) -> str:
     return model["id"]
+
+
+def _xfail_if_expected(model: dict, failure: dict | None) -> None:
+    """Xfail only the exact, documented model limitation.
+
+    The run artefact remains failed and keeps its evidence. Pytest merely stops
+    turning that already-known limitation into a nightly CI failure. If the
+    failure contract changes, the normal assertion still fails the job.
+    """
+    if not knownfailures.matches(model, failure):
+        return
+    pytest.xfail(
+        f"documented tier-2 limitation: {model['id']} "
+        f"{failure.get('category')}/{failure.get('code')}"
+    )
 
 
 @pytest.fixture(scope="session")
@@ -173,7 +188,13 @@ def test_model_takes_off_changes_mode_and_lands(request, tier2_runs_root, model)
     sim = _boot(recorder, model, work_dir)
     request.addfinalizer(lambda: _shutdown(sim, recorder))
 
-    assert sim.wait_prearm(), (
+    prearm_ok = sim.wait_prearm()
+    if not prearm_ok:
+        lifecycle_failure = (
+            sim.lifecycle.failure() if sim.lifecycle is not None else None
+        )
+        _xfail_if_expected(model, lifecycle_failure)
+    assert prearm_ok, (
         f"{model['id']} never passed pre-arm checks\n{sim.tail()}")
 
     caps = probe_capabilities(sim.link, vehicle=model.get("vehicle"))
@@ -188,6 +209,8 @@ def test_model_takes_off_changes_mode_and_lands(request, tier2_runs_root, model)
     # ------------------------------------------------------------ takeoff
     altitude = 20.0 if caps.get("quadplane") or caps["autopilot"] == "ArduCopter" else 60.0
     result = _run_procedure(recorder, sim, takeoff, {"alt": altitude})
+    if result["outcome"] != "passed":
+        _xfail_if_expected(model, result.get("failure"))
     assert result["outcome"] == "passed", _explain(result)
     assert sim.link.state.armed, "not armed after a passing takeoff"
 

@@ -54,10 +54,10 @@ def criterion(identifier: str, *, passed=True, text="") -> dict:
             "criterion_id": identifier}
 
 
-def tier2_suite(*models, outcome="passed") -> dict:
+def tier2_suite(*models, outcome="passed", reason="") -> dict:
     return {"tests": [
         {"nodeid": f"tests/test_tier2_models.py::test_x[{model}]",
-         "markers": ["tier2"], "outcome": outcome}
+         "markers": ["tier2"], "outcome": outcome, "reason": reason}
         for model in models]}
 
 
@@ -162,6 +162,21 @@ def test_a_criterion_that_was_never_reached_is_not_covered(tmp_path, text):
     document = coverage.collect([tmp_path], registry=REGISTRY)
     dimension = coverage.by_dimension(document, coverage.CRITERIA)
     assert "copter_takeoff#alt-reached" in dimension["uncovered"]
+
+
+def test_a_documented_tier2_xfail_still_counts_as_model_coverage(tmp_path):
+    """xfail means the model flew and reproduced its documented limitation."""
+    write_run(
+        tmp_path, "20260810T120000Z_iris",
+        suite=tier2_suite(
+            "iris",
+            outcome="skipped",
+            reason="documented tier-2 limitation: iris procedure/step-timeout",
+        ),
+    )
+    document = coverage.collect([tmp_path], registry=REGISTRY)
+    models = coverage.by_dimension(document, coverage.MODELS)
+    assert "iris" not in models["uncovered"]
 
 
 def test_a_failed_criterion_is_still_covered(tmp_path):

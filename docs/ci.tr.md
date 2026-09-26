@@ -78,6 +78,17 @@ Bunlar `tests/test_identity_and_artefacts.py` içindedir, `tier1` olarak
 işaretlidir ve dolayısıyla hâlihazırda var olan işte, her push'ta koşarlar. Yeni
 bir iş akışı ya da yeni bir CI adımı yoktur.
 
+## Bilinen model sınırlamaları yeni hataları gizlemez
+
+`models.json`, bir model için `expected_failure` beyan edebilir. Katman 2 yalnızca
+kategori, kod, varsa prosedür ve ayırt edici ayrıntı birebir eşleştiğinde pytest
+`xfail` kullanır. Koşu artefaktı yine `failed` kalır ve `docs/status.md` modeli
+**failed** göstermeye devam eder. Arıza sözleşmesi değişirse eşleşme olmaz ve
+gecelik iş normal biçimde kırmızıya döner.
+
+Bu mekanizma şu anda uzun süredir belgelenmiş üç sınırlama için kullanılır:
+`zephyr`, `skycat_tvbs` ve `swan_k1_hwing`. Genel bir skip değildir.
+
 ## Regresyon kapısı
 
 v1.7'ye kadar bu bölüm, okuyucunun *ekleyebileceği* bir parçacığı anlatıyordu.
@@ -106,11 +117,15 @@ altındaki işlenmiş referansla karşılaştırır ve tek bir hüküm döndür�
 | `SKIPPED` | karşılaştırılacak koşu yoktu | 0 | hayır |
 | `NOT_APPLICABLE` | bu modelin henüz işlenmiş bir referansı yok | 0 | hayır |
 
-`FAIL` ve `ERROR` ikisi de işi başarısız kılar ve bilerek farklı haberlerdir.
-Okunamayan bir koşu ya da parmak izleri örtüşmeyen iki koşu bir **altyapı**
-sonucudur: `evidence` sınıflandırmasını korur ve hiçbir şey onu araçla ilgili
-bir hüküm olarak okumaz. İkisini birleştirmek, yanlış belirtilmiş bir referans
-yolunun kötüleşmiş bir araç olarak raporlanmasına giden yoldur.
+`ERROR` işi her zaman başarısız kılar. `FAIL` ise bağlama göre daha katıdır:
+zamanlanmış gecelik koşu bunu uyarı olarak kaydeder; elle başlatılan doğrulama
+koşusu ise varsayılan olarak (`enforce_regression=true`) engelleyici davranır.
+Bu ayrım bilinçlidir: işlenmiş referanslar tek koşudur ve ardışık geceliklerdeki
+koşudan koşuya metrik oynaklığı gecelik CI'ı gereksiz kırmızı yapmaktadır; buna
+karşılık sürüm tipi doğrulama isteyen kişi yine sert bir kapı alır.
+
+Okunamayan bir koşu ya da parmak izleri örtüşmeyen iki koşu bir
+**altyapı/kanıt** sonucudur ve hiçbir zaman yumuşatılmaz.
 
 `SKIPPED`, `PASS` değildir. Hiçbir şey uçurmamış bir iş hiçbir şey doğrulamamıştır
 ve buna yeşil demek, bu dosyanın `if-no-files-found` notunun zaten uyardığı

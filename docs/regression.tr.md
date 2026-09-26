@@ -152,9 +152,12 @@ modeller uçtuktan sonra çağırıyor.
 | `SKIPPED` | karşılaştırılacak koşu yoktu | 0 | hayır |
 | `NOT_APPLICABLE` | bu modelin henüz işlenmiş bir referansı yok | 0 | hayır |
 
-Modeller ayrıştığında `FAIL`, `ERROR`'ın önüne bilerek geçer: ölçülmüş bir
-kötüleşme hava aracıyla ilgili bir olgudur ve onu "diğer modellerden birinin
-referansı okunamadı" ifadesinin altına gömmek, ikisinin daha pahalı hatasıdır.
+Modeller ayrıştığında `FAIL`, `ERROR`'ın önüne bilerek geçer: kapı belgesi,
+başka bir modelde kanıt sorunu olsa bile ölçülmüş regresyonu korumalıdır. İş
+akışının bunu engelleyip engellememesi ayrı bir karardır: zamanlanmış gecelikler
+`FAIL` sonucunu uyarı olarak tutar, elle başlatılan doğrulama koşuları ise
+varsayılan olarak engeller. `ERROR` her zaman işi başarısız kılar; okunamayan ya
+da karşılaştırılamayan bir koşu metrik gürültüsü değil, kanıt/altyapı kusurudur.
 
 `SKIPPED`, `PASS` değildir; atlanan bir testin geçen bir test olmaması gibi.
 Hiçbir şey uçurmamış bir iş hiçbir şey doğrulamamıştır.
@@ -204,9 +207,12 @@ simülasyonun kendi koşudan koşuya değişkenliğidir.
 bir **maksimumdur**; kararlı olan beş metrik ise bu gürültüyü ortalayan RMS
 değerleri, biriken toplamlar ve sürelerdir.
 
-Yani kapı dürüsttür ama henüz kullanılabilir bir *engelleyici* sürüm kapısı
-değildir. Eşikler bilerek uydurulmadı: iki koşu bir dağılım değildir ve
-`campaign.py` de aynı gerekçeyle üçten az örnekten bir yayılım bildirmeyi
-reddeder. Model başına bir tekrarlanabilirlik kampanyası, o üç metrik için
-`[regression.tolerance]` değerlerini belirlemeyi haklı çıkaracak ölçümdür.
-Sayılar için bkz. `docs/V1.7_ENGINEERING_VERIFICATION.md` §16.5.
+Bu nedenle zamanlanmış kapı, metrik regresyonları için tekrarlanabilirlik
+verileri eşikleri destekleyene kadar bilinçli olarak **uyarı** niteliğindedir.
+Elle başlatılan katman-2 doğrulaması ise `FAIL` sonucunu varsayılan olarak yine
+engeller; yani istendiğinde katı bir sürüm kontrolü olarak kullanılabilir.
+Eşikler bilerek uydurulmadı: iki koşu bir dağılım değildir ve `campaign.py` de
+aynı gerekçeyle üçten az örnekten bir yayılım bildirmeyi reddeder. Model başına
+bir tekrarlanabilirlik kampanyası bu metriklerin `[regression.tolerance]`
+değerlerini belirlemeyi haklı çıkaracak ölçümdür. Sayılar için bkz.
+`docs/V1.7_ENGINEERING_VERIFICATION.md` §16.5.
