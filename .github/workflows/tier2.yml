@@ -187,13 +187,16 @@ jobs:
       # `runs/baselines/<model>/` and returns one verdict.
       #
       #     exit 0  PASS / SKIPPED / NOT_APPLICABLE — nothing got worse
-      #     exit 1  FAIL   a metric degraded; this is what may block a release
+      #     exit 1  FAIL   a metric degraded; diagnostic until repeatability
+      #                    work establishes trustworthy blocking thresholds
       #     exit 2  ERROR  the comparison could not be made
       #
-      # 1 and 2 both fail the job and are deliberately different. 2 is an
-      # unreadable run or two runs whose fingerprints do not line up — an
-      # infrastructure result that keeps its `evidence` classification, so
-      # nobody reads it as a verdict about an aircraft.
+      # The committed baseline evidence explicitly says this gate is not yet
+      # safe to block a release: the current one-flight thresholds still catch
+      # run-to-run simulator scatter. A measured degradation is therefore kept
+      # in the artefacts and step summary but does not make the nightly red.
+      # ERROR still fails the job because a gate that could not run at all is
+      # an infrastructure problem that needs attention.
       #
       # `if: always()` because a suite with failing models still produced runs
       # worth comparing, and a gate that only ran on green would never see the
