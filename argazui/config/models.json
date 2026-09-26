@@ -7,7 +7,8 @@
     "has_ros2": "true when ROS2/DDS/RViz are available for this model",
     "lua_scripts": "Lua scripts copied into the model's working directory",
     "sitl_param_overrides": "parameters applied at boot as a second param file",
-    "needs_review": "true when the classification is a guess — verify by hand"
+    "needs_review": "true when the classification is a guess — verify by hand",
+    "expected_failure": "known tier-2 limitation matched by category/code/procedure/detail; only the exact declared failure is xfailed"
   },
   "models": [
     {
@@ -54,7 +55,13 @@
       "source": "ardu_ws / ardupilot_gazebo (defined manually)",
       "classification_reason": "the gazebo-zephyr frame is a fixed-wing plane (no Q_ parameters)",
       "needs_review": false,
-      "image": "/static/models/zephyr.png"
+      "image": "/static/models/zephyr.png",
+      "expected_failure": {
+        "category": "procedure",
+        "code": "step-timeout",
+        "procedure": "plane_takeoff",
+        "detail_contains": "Confirm the takeoff roll started"
+      }
     },
     {
       "id": "alti_transition_quad",
@@ -135,7 +142,13 @@
       "source": "SITL_Models/Gazebo/docs/SkyCatTVBS.md",
       "classification_reason": "Q_ENABLE=1 in skycat_tvbs.param",
       "needs_review": false,
-      "image": "/static/models/skycat_tvbs.png"
+      "image": "/static/models/skycat_tvbs.png",
+      "expected_failure": {
+        "category": "acceptance",
+        "code": "criterion-failed",
+        "procedure": "tailsitter_takeoff",
+        "detail_contains": "held a nose-up hover instead of tumbling"
+      }
     },
     {
       "id": "skywalker_x8",
@@ -203,7 +216,12 @@
       },
       "_manually_edited": true,
       "notes": "The parameter file is a real flight-controller dump. Two SITL contradictions are corrected at boot via sitl_param_overrides. Normal ARM still fails because the airframe is a tailsitter (it stands nose-up while the compass/yaw checks assume a level vehicle) — use ARM (FORCE).",
-      "image": "/static/models/swan_k1_hwing.png"
+      "image": "/static/models/swan_k1_hwing.png",
+      "expected_failure": {
+        "category": "vehicle_readiness",
+        "code": "prearm-never-passed",
+        "detail_contains": "pre-arm checks did not pass"
+      }
     },
     {
       "id": "wsc_aircraft",
