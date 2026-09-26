@@ -220,7 +220,7 @@
       "expected_failure": {
         "category": "vehicle_readiness",
         "code": "prearm-never-passed",
-        "detail_contains": "pre-arm checks did not pass"
+        "detail_contains": "3D Accel calibration needed"
       }
     },
     {
