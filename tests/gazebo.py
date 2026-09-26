@@ -113,12 +113,19 @@ class Simulation:
             time.sleep(1.0)
         if self.lifecycle is not None:
             # `vehicle_readiness` and not `environment`: this vehicle is
-            # running and talking, and it says it is not fit to fly. That is a
-            # fact about the aircraft's configuration, and the taxonomy has a
-            # category for it that is not `acceptance`.
-            self.lifecycle.fail(simlifecycle.VEHICLE_NOT_READY,
-                                f"pre-arm checks did not pass within "
-                                f"{timeout:.0f}s")
+            # running and talking, and it says it is not fit to fly. Preserve
+            # the last concrete PreArm reason when the console provides one;
+            # a generic timeout cannot distinguish a known calibration blocker
+            # from a new readiness failure.
+            prearm_lines = [
+                line.strip() for line in self.tail(lines=80).splitlines()
+                if "PreArm:" in line
+            ]
+            last_prearm = prearm_lines[-1] if prearm_lines else ""
+            detail = f"pre-arm checks did not pass within {timeout:.0f}s"
+            if last_prearm:
+                detail += f"; last status: {last_prearm}"
+            self.lifecycle.fail(simlifecycle.VEHICLE_NOT_READY, detail)
         return False
 
     def stop(self) -> None:
