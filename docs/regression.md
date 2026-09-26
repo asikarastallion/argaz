@@ -151,9 +151,12 @@ after the models have flown.
 | `SKIPPED` | there were no runs to compare | 0 | no |
 | `NOT_APPLICABLE` | this model has no committed baseline yet | 0 | no |
 
-`FAIL` outranks `ERROR` when models disagree, deliberately: a measured
-degradation is a fact about an aircraft, and burying it under "one of the other
-models had an unreadable baseline" is the more expensive mistake of the two.
+`FAIL` outranks `ERROR` when models disagree, deliberately: the gate document
+must preserve the measured regression even when another model has an evidence
+problem. Workflow enforcement is separate from that verdict: scheduled
+nightlies keep `FAIL` as an advisory, while manual verification runs block on
+it by default. `ERROR` always fails the workflow because an unreadable or
+incomparable run is an evidence/infrastructure defect, not metric jitter.
 
 `SKIPPED` is not `PASS`, for the same reason a skipped test is not a passing
 one. A job that flew nothing has verified nothing.
@@ -201,9 +204,12 @@ Three metrics move past the 10 % default tolerance between identical runs:
 by a single sample; the five stable metrics are RMS values, accumulated totals
 and times, which average that noise away.
 
-So the gate is honest but not yet a usable *blocking* release gate. The
-thresholds have deliberately not been tuned to fit: two runs are not a
-distribution, and `campaign.py` refuses to report a spread from fewer than
-three samples for the same reason. A repeatability campaign per model is the
-measurement that would justify setting `[regression.tolerance]` for those
-three. See `docs/V1.7_ENGINEERING_VERIFICATION.md` §16.5 for the numbers.
+So the scheduled gate is deliberately **advisory** for metric regressions until
+those thresholds are backed by repeatability data. A manually dispatched tier-2
+verification still enforces `FAIL` by default and can therefore be used as a
+strict release check when that is intentional. The thresholds have deliberately
+not been tuned to fit: two runs are not a distribution, and `campaign.py`
+refuses to report a spread from fewer than three samples for the same reason. A
+repeatability campaign per model is the measurement that would justify setting
+`[regression.tolerance]` for those metrics. See
+`docs/V1.7_ENGINEERING_VERIFICATION.md` §16.5 for the numbers.
