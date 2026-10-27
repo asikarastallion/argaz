@@ -405,7 +405,7 @@ class Manager:
                                    "the simulator came up but no vehicle "
                                    "heartbeat arrived within 180 s")
 
-    def _stop_locked(self) -> dict:
+    def _stop_locked(self, wait_for_report: bool = False) -> dict:
         if self.runner:
             self.runner.cancel()
         self.caps = None            # yetenekler araca ait; arac gidince gecersiz
@@ -448,17 +448,17 @@ class Manager:
                 run.record_lifecycle(self.lifecycle)
             if self.resources is not None:
                 run.record_isolation(self.resources)
-            result = run.finish()
+            result = run.finish(wait=wait_for_report)
             hub.push_log(t("run_saved", id=run.run_id, status=result.get("status"),
                            path=str(run.dir)))
         self.lifecycle = None
         self.resources = None
         return {"ok": True, "text": t("stopped")}
 
-    def stop(self) -> dict:
+    def stop(self, wait_for_report: bool = False) -> dict:
         with self.lock:
             hub.push_log(t("stopping"))
-            return self._stop_locked()
+            return self._stop_locked(wait_for_report=wait_for_report)
 
     def run_command(self, commands: list[str], values: dict) -> dict:
         results = []
@@ -1438,7 +1438,9 @@ async def _shutdown():
     # Ctrl+C ile kapatilan bir sunucu da kosusunu tamamlamali; aksi halde
     # gercek bir ucusun artefaktlari yarim kalirdi.
     if mgr.active_model is not None or mgr.run is not None:
-        mgr.stop()
+        # Shutdown exits the process right after this hook; waiting here keeps
+        # the final run's report thread from being cut off mid-write.
+        mgr.stop(wait_for_report=True)
     mgr.mav.stop()
     mgr.sim.close()
     mgr.shell.close()
