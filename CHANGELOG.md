@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.8.0-rc.1 — recovery and local-runtime review
+
+This candidate does not claim to recover an unrecoverable interface revision.
+It records the recovery result, adds a path-independent Tier 2 launcher, ships
+a generic ArduPlane SITL-only model for local procedure verification, and keeps
+model-preview registry metadata when an upstream image download fails.
+
+The shutdown report-finalization fix from PR #3 is included: server shutdown
+waits for the final run report, while ordinary STOP remains non-blocking.
+
+The candidate is **not a final release**. The v1.8 verification record reports
+a passed BiCopter smoke flight, an honestly failed Plane evidence criterion,
+and an incomplete three-run campaign. See
+[`docs/V1.8_RC_VERIFICATION.md`](docs/V1.8_RC_VERIFICATION.md).
+
 ## Unreleased — the interface becomes an application shell
 
 ### What this change is about
