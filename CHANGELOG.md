@@ -7,6 +7,10 @@ It records the recovery result, adds a path-independent Tier 2 launcher, ships
 a generic ArduPlane SITL-only model for local procedure verification, and keeps
 model-preview registry metadata when an upstream image download fails.
 
+The Tier 2 image now carries the Chromium dependency needed by the repository's
+browser-marked Tier 1 tests. Status and coverage documents are content-derived,
+so an unchanged CI result no longer creates a timestamp-only bot commit.
+
 The shutdown report-finalization fix from PR #3 is included: server shutdown
 waits for the final run report, while ordinary STOP remains non-blocking.
 
