@@ -187,10 +187,29 @@ def test_the_readme_summary_is_generated_between_its_markers(tmp_path):
     assert "**1** passed" in text and "**1** failed" in text
     assert "docs/status.md" in text
 
-    # Idempotent: a second run with the same data must not churn the file.
+    # Idempotent: a second generation with the same evidence must not churn
+    # the file merely because the generator clock advanced.
     data2 = status.collect([tmp_path], registry=REGISTRY)
-    data2["generated_utc"] = data["generated_utc"]
     assert status.update_readme(readme, data2) is False
+
+
+def test_rendered_status_and_coverage_ignore_generator_clock(tmp_path):
+    """Daily status jobs with unchanged evidence must not create bot commits."""
+    write_suite(tmp_path, [{"nodeid": node("flyer"), "outcome": "passed",
+                            "markers": ["tier2"]}])
+    write_run(tmp_path, "flyer")
+
+    first = status.collect([tmp_path], registry=REGISTRY)
+    second = status.collect([tmp_path], registry=REGISTRY)
+    second["generated_utc"] = "2099-01-01T00:00:00Z"
+    second["coverage"]["generated_utc"] = "2099-01-01T00:00:00Z"
+
+    assert status.render(first, workflow="status.yml",
+                         run_url="https://example.invalid/first") == \
+        status.render(second, workflow="status.yml",
+                      run_url="https://example.invalid/second")
+    assert status.coverage.render(first["coverage"]) == \
+        status.coverage.render(second["coverage"])
 
 
 # --------------------------------------------------------------------- claims
