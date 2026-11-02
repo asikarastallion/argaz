@@ -141,6 +141,18 @@ def test_every_shipped_model_still_builds():
         assert commands and commands[0].startswith("source ")
 
 
+def test_the_shipped_generic_plane_is_explicitly_sitl_only():
+    """Tier 1 needs one real fixed-wing path without Gazebo assets."""
+    registry = json.loads(paths.MODELS_JSON.read_text(encoding="utf-8"))
+    plane = next(model for model in registry["models"]
+                 if model["id"] == "sitl_plane")
+    assert plane["method"] == "sitl_only"
+    assert plane["vehicle"] == "ArduPlane"
+    assert plane["frame"] == "plane"
+    assert plane["world"] is None
+    assert "--model" not in "\n".join(session.build_launch_commands(plane))
+
+
 def test_shell_word_is_idempotent_for_ordinary_values():
     for value in ("plane", "hexa", "gazebo-zephyr", "zephyr_runway.sdf",
                   "hexapod_copter.lua", "--speedup", "5"):
