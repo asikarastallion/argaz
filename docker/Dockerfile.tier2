@@ -91,6 +91,11 @@ RUN cp /opt/argaz/env.sh /opt/argaz/quadplane_env.sh && \
 RUN /opt/venv/bin/python3 -m pip install --no-cache-dir \
       -r /opt/argaz/argazui/requirements.txt \
       -r /opt/argaz/argazui/requirements-test.txt
+# Tier 2 runs the same browser-marked Tier 1 suite as the smaller image.
+# Installing the Python package alone is not sufficient: Playwright keeps its
+# Chromium binary outside site-packages, so a fresh Tier 2 image otherwise
+# reports every browser test as an infrastructure error.
+RUN /opt/venv/bin/python3 -m playwright install --with-deps chromium
 
 ENV PATH=/opt/venv/bin:/opt/argaz/ardupilot/Tools/autotest:$PATH \
     ARGAZ_ROOT=/opt/argaz \

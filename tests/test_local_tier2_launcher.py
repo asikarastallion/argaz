@@ -25,3 +25,11 @@ def test_local_tier2_launcher_is_valid_bash_and_has_no_machine_path():
     assert '"$root/argazui:/opt/argaz/argazui:ro"' in text
     assert '"$root/argazui/run:/opt/argaz/argazui/run"' in text
     assert "GZ_PARTITION" in text
+
+
+def test_tier2_image_installs_the_browser_required_by_its_e2e_tests():
+    """A Tier 2 image must not turn every browser test into setup errors."""
+    root = Path(__file__).resolve().parents[1]
+    dockerfile = (root / "docker" / "Dockerfile.tier2").read_text(
+        encoding="utf-8")
+    assert "python3 -m playwright install --with-deps chromium" in dockerfile
