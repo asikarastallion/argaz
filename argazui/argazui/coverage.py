@@ -359,14 +359,13 @@ def render(document: dict) -> str:
     add("# Coverage")
     add("")
     add("<!-- GENERATED FILE — DO NOT EDIT BY HAND.")
-    add(f"     Generated:  {document['generated_utc']}")
     add(f"     Source:     {', '.join(document['roots'])}")
     add("     Regenerate: python3 -m argazui coverage --runs runs "
         "--out docs/coverage.md")
     add("     Any edit here is overwritten by the next CI run. -->")
     add("")
     add(f"Computed from **{document['runs_read']}** recorded run(s) and the "
-        f"procedure files in this checkout, at **{document['generated_utc']}**.")
+        "procedure files in this checkout.")
     add("")
     add("**This is not a test count.** A test count goes up when somebody adds "
         "a test and never goes down when somebody adds an aircraft, a "

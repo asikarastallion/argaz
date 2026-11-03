@@ -101,6 +101,7 @@ jobs:
             -v "$PWD/CHANGELOG.md:/opt/argaz/CHANGELOG.md:ro" \
             -v "$PWD/TROUBLESHOOTING.md:/opt/argaz/TROUBLESHOOTING.md:ro" \
             -v "$PWD/argaz.toml:/opt/argaz/argaz.toml:ro" \
+            -v "$PWD/docker:/opt/argaz/docker:ro" \
             -w /opt/argaz --entrypoint python3 "$IMAGE" \
             -m pytest tests/ -m tier1 -q
           status=$?

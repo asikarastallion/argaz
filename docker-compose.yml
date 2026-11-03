@@ -23,3 +23,5 @@ services:
     working_dir: /opt/argaz
     entrypoint: ["python3", "-m", "pytest"]
     command: ["tests/", "-m", "tier1", "-q"]
+    volumes:
+      - ./docker:/opt/argaz/docker:ro

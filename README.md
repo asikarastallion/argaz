@@ -616,12 +616,11 @@ its parameter file and is really a tailsitter.
 
 ---
 
-## Docker: clean-environment validation
+## Containers: clean validation and local Tier 2
 
-The images exist to prove the project runs somewhere other than the machine it
-was written on, and to give CI something reproducible to pull. They are
-**validation environments, not a deployment target** — there is no orchestration,
-no persistence and no exposed service.
+The images prove the project runs somewhere other than the machine it was
+written on and give CI a reproducible environment. They also support a local,
+host-only Tier 2 service without installing ROS or Gazebo on the host.
 
 | Image | Contains | Deliberately omits |
 |---|---|---|
@@ -633,6 +632,43 @@ docker compose run --build --rm doctor-tier1   # prerequisite report, no Gazebo
 docker compose run --build --rm doctor-tier2   # full prerequisite report
 docker compose run --build --rm tier1          # the tier-1 suite in a clean container
 ```
+
+### Local Tier 2 service (Podman or Docker on Linux)
+
+Build the full image once, then start the checked-out source. The launcher
+binds only loopback-reachable host networking, keeps `runs/` on the host, and
+mounts source and documentation read-only; it contains no user or machine
+path.
+
+```bash
+podman build --format docker -f docker/Dockerfile.tier2 -t argazui:tier2 .
+./docker/run-tier2.sh
+```
+
+Open **http://127.0.0.1:8770**. Use `Ctrl+C` in that terminal to stop it. If a
+previous launcher container remains, stop it or explicitly replace it:
+
+```bash
+ARGAZ_REPLACE=1 ./docker/run-tier2.sh
+```
+
+`ARGAZ_CONTAINER_RUNTIME`, `ARGAZ_TIER2_IMAGE`, `ARGAZ_CONTAINER_NAME`,
+`ARGAZ_GZ_IP`, and `ARGAZ_GZ_PARTITION` override the corresponding defaults.
+`GZ_IP` and an isolated partition keep Gazebo Transport discovery reliable on
+rootless container networking.
+
+The model-image directory is intentionally ignored because the images are
+downloaded from upstream documentation. Fetch them once with an interpreter
+that has ArgazUI's dependencies, then rerun the launcher:
+
+```bash
+cd argazui
+python3 -m argazui.fetch_images
+```
+
+The container path is for full Gazebo models. `./argazui/start.sh doctor --tier
+tier1` checks a host SITL-only setup; `./argazui/start.sh` then starts it and
+reports missing Gazebo/ROS components rather than trying to install them.
 
 Both images install their Python dependencies into a virtual environment rather
 than the system interpreter, and pin ArduPilot to an exact commit so two builds

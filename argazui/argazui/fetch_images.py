@@ -151,7 +151,11 @@ def main(argv=None) -> int:
         else:
             print("      no image found "
                   "(see the module docstring for capturing one from the simulation)")
-            model.pop("image", None)
+            # The API independently checks whether this path is a real static
+            # file before exposing it to the UI.  Keep a declared path here:
+            # a transient upstream download failure must not rewrite a
+            # hand-maintained registry or make a later successful retry lose
+            # its intended destination.
 
     paths.MODELS_JSON.write_text(json.dumps(registry, indent=2, ensure_ascii=False) + "\n")
     have = sum(1 for m in registry["models"] if m.get("image"))

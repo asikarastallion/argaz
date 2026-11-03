@@ -11,6 +11,24 @@
   },
   "models": [
     {
+      "id": "sitl_plane",
+      "name": "SITL Plane (no Gazebo)",
+      "vehicle_class": "Plane",
+      "method": "sitl_only",
+      "env": "env.sh",
+      "vehicle": "ArduPlane",
+      "frame": "plane",
+      "world": null,
+      "param_file": null,
+      "extra_sitl_args": [],
+      "lua_scripts": [],
+      "has_ros2": false,
+      "ros2": null,
+      "source": "ArduPilot built-in SITL frame",
+      "classification_reason": "ArduPilot built-in Plane SITL physics; no Gazebo, ROS 2, or SITL_Models",
+      "needs_review": false
+    },
+    {
       "id": "iris",
       "name": "Iris Quadcopter (ROS2 + RViz)",
       "vehicle_class": "Copter",

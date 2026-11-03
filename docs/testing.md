@@ -29,6 +29,12 @@ python3 -m pytest tests/test_temporal_criteria.py -q    # no vehicle, millisecon
 Install the test dependencies with `pip install -r argazui/requirements-test.txt`,
 then `python3 -m playwright install chromium` for the e2e layer.
 
+For a full local Gazebo environment without installing ROS 2 or Gazebo on the
+host, build the Tier 2 image and use `./docker/run-tier2.sh`. It mounts the
+current checkout, so validate the exact branch under review; its separate
+`argazui/run/` mount is intentionally writable because SITL owns that working
+directory.
+
 ## Skips are not passes
 
 Missing binary, missing Gazebo, missing model: the test **skips**, with a
